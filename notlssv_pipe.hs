@@ -49,7 +49,7 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		lift nextUuid >>= \u -> yield $ SRStream [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		lift nextUuid >>= digestMd5 >>= \un -> lift . modify .
+		lift nextUuid >>= digestMd5 Nothing >>= \un -> lift . modify .
 			setReceiver $ Jid un "localhost" Nothing
 		makeP
 	(Just (SRStream _), _) -> do

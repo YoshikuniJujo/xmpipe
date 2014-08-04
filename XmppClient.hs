@@ -10,6 +10,7 @@ module XmppClient (
 	isCaps,
 	handleP,
 	convert,
+	external,
 	digestMd5,
 	SHandle(..),
 	input, output,
@@ -124,6 +125,15 @@ showBS = BSC.pack . (++ "\n") . show
 
 convert :: Monad m => (a -> b) -> Pipe a b m ()
 convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
+
+external :: Monad m => Pipe Common Common m ()
+external = do
+	yield $ SRAuth External
+	mr <- await
+	case mr of
+		Just SRChallengeNull -> do
+			yield SRResponseNull
+		_ -> error $ "external: bad " ++ show mr
 
 digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	BS.ByteString -> Pipe Common Common m ()

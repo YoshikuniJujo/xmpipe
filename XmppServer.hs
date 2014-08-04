@@ -121,14 +121,27 @@ convert :: Monad m => (a -> b) -> Pipe a b m ()
 convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
 digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
-	UUID -> Pipe Common Common m BS.ByteString
-digestMd5 u = do
-	yield $ SRFeatures [Mechanisms [DigestMd5]]
+	Maybe BS.ByteString -> UUID -> Pipe Common Common m BS.ByteString
+digestMd5 e u = do
+	yield $ SRFeatures
+		[Mechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
 --	Just (SRAuth DigestMd5) <- await
 	a <- await
-	case a of
-		Just (SRAuth DigestMd5) -> return ()
+	case (a, e) of
+		(Just (SRAuth DigestMd5), _) -> digestMd5Body u
+		(Just (SRAuth External), Just n) -> external n
 		_ -> error $ "BAD: " ++ show a
+
+external :: Monad m => BS.ByteString -> Pipe Common Common m BS.ByteString
+external e = do
+	yield SRChallengeNull
+	Just SRResponseNull <- await
+	yield SRSaslSuccess
+	return e
+
+digestMd5Body :: (MonadState m, StateType m ~ XmppState) =>
+	UUID -> Pipe Common Common m BS.ByteString
+digestMd5Body u = do
 	yield $ SRChallenge {
 		realm = "localhost",
 		nonce = toASCIIBytes u,

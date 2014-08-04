@@ -21,6 +21,9 @@ import "crypto-random" Crypto.Random
 
 import XmppServer
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
+
 data SHandle s h = SHandle h
 
 instance HandleLike h => HandleLike (SHandle s h) where
@@ -53,30 +56,32 @@ main = do
 			liftIO . hlPut h $ xmlString proceed
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
-					[(k, c)] Nothing
---					[(k, c)] (Just ca)
-				getNames p >>= liftIO . print
-				(`evalStateT` initXmppState uuids) .
-					xmpp $ SHandle p
+					[(k, c)] (Just ca)
+				uns <- getNames p
+				let e = case uns of
+					[n] -> Just . BSC.pack $ takeWhile (/= '@') n
+					_ -> Nothing
+				(`evalStateT` initXmppState uuids) $
+					xmpp (SHandle p) e
 
 xmpp :: (MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-		HandleLike h) => h -> HandleMonad h ()
-xmpp h = do
-	voidM . runPipe $ input h =$= makeP =$= output h
+		HandleLike h) => h -> Maybe BS.ByteString -> HandleMonad h ()
+xmpp h e = do
+	voidM . runPipe $ input h =$= makeP e =$= output h
 	hlPut h $ xmlString [XmlEnd (("stream", Nothing), "stream")]
 	hlClose h
 
 makeP :: (MonadState m, StateType m ~ XmppState) =>
-	Pipe Common Common m ()
-makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
+	Maybe BS.ByteString -> Pipe Common Common m ()
+makeP e = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (SRStream _), Nothing) -> do
 		yield SRXmlDecl
 		lift nextUuid >>= \u -> yield $ SRStream [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		lift nextUuid >>= digestMd5 Nothing >>= \un -> lift . modify .
+		lift nextUuid >>= digestMd5 e >>= \un -> lift . modify .
 			setReceiver $ Jid un "localhost" Nothing
-		makeP
+		makeP e
 	(Just (SRStream _), _) -> do
 		yield SRXmlDecl
 		lift nextUuid >>= \u -> yield $ SRStream [
@@ -84,23 +89,23 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
 		yield $ SRFeatures
 			[Rosterver Optional, Bind Required, Session Optional]
-		makeP
+		makeP e
 	(Just (SRIq Set i Nothing Nothing
 		(IqBind (Just Required) (Resource n))), _) -> do
 		lift $ modify (setResource n)
 		Just j <- lift $ gets receiver
 		yield . SRIq Result i Nothing Nothing
 			. IqBind Nothing $ BJid j
-		makeP
+		makeP e
 	(Just (SRIq Set i Nothing Nothing IqSession), mrcv) ->
-		yield (SRIq Result i Nothing mrcv IqSessionNull) >> makeP
+		yield (SRIq Result i Nothing mrcv IqSessionNull) >> makeP e
 	(Just (SRIq Get i Nothing Nothing (IqRoster Nothing)), mrcv) -> do
 		yield . SRIq Result i Nothing mrcv
 			. IqRoster . Just $ Roster (Just "1") []
-		makeP
+		makeP e
 	(Just (SRPresence _ _), Just rcv) ->
 		yield (SRMessage Chat "hoge" (Just sender) rcv .
-			MBody $ MessageBody "Hi, TLS!") >> makeP
+			MBody $ MessageBody "Hi, TLS!") >> makeP e
 	_ -> return ()
 
 voidM :: Monad m => m a -> m ()

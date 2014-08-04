@@ -43,6 +43,7 @@ data Common
 	| SRStream [(Tag, BS.ByteString)]
 	| SRFeatures [Feature]
 	| SRAuth Mechanism
+	| SRChallengeNull
 	| SRChallenge {
 		realm :: BS.ByteString,
 		nonce :: BS.ByteString,
@@ -66,7 +67,7 @@ data Tag
 	deriving (Eq, Show)
 
 data Mechanism
-	= ScramSha1 | DigestMd5 | Plain | MechanismRaw BS.ByteString
+	= ScramSha1 | DigestMd5 | Plain | External | MechanismRaw BS.ByteString
 	deriving (Eq, Show)
 
 data Requirement = Optional | Required | NoRequirement [XmlNode]
@@ -328,6 +329,8 @@ toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
 toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
 	_ [] [XmlCharData "PLAIN"]) = Plain
 toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
+	_ [] [XmlCharData "EXTERNAL"]) = External
+toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
 	_ [] [XmlCharData n]) = MechanismRaw n
 
 toTag :: QName -> Tag
@@ -442,12 +445,14 @@ toMechanism' :: BS.ByteString -> Mechanism
 toMechanism' "SCRAM-SHA1" = ScramSha1
 toMechanism' "DIGEST-MD5" = DigestMd5
 toMechanism' "PLAIN" = Plain
+toMechanism' "EXTERNAL" = External
 toMechanism' m = MechanismRaw m
 
 fromMechanism :: Mechanism -> BS.ByteString
 fromMechanism ScramSha1 = "SCRAM-SHA1"
 fromMechanism DigestMd5 = "DIGEST-MD5"
 fromMechanism Plain = "PLAIN"
+fromMechanism External = "EXTERNAL"
 fromMechanism (MechanismRaw m) = m
 
 mechanismToXmlNode :: Mechanism -> XmlNode
@@ -462,6 +467,8 @@ showResponse (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
 	| [(Mechanism, m)] <- map (first toTag) as = SRAuth $ toMechanism' m
+showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
+	_ [] []) = SRChallengeNull
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
 	_ [] [XmlCharData c]) = let
 		Right d = B64.decode c
@@ -552,6 +559,11 @@ toXml (SRAuth ScramSha1) = XmlNode (nullQ "auth")
 toXml (SRAuth DigestMd5) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[((("", Nothing), "mechanism"), "DIGEST-MD5")] []
+toXml (SRAuth External) = XmlNode (nullQ "auth")
+	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
+	[((("", Nothing), "mechanism"), "EXTERNAL")] []
+toXml SRChallengeNull = XmlNode (nullQ "challenge")
+	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 toXml c@SRChallenge{} = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $ fromChallenge
 		(realm c) (nonce c) (qop c) (charset c) (algorithm c)
