@@ -33,6 +33,7 @@ instance HandleLike h => HandleLike (SHandle s h) where
 
 main :: IO ()
 main = do
+	ca <- readCertificateStore ["cacert.sample_pem"]
 	k <- readKey "localhost.sample_key"
 	c <- readCertificateChain ["localhost.sample_crt"]
 	soc <- listenOn $ PortNumber 5222
@@ -53,6 +54,8 @@ main = do
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing
+--					[(k, c)] (Just ca)
+				getNames p >>= liftIO . print
 				(`evalStateT` initXmppState uuids) .
 					xmpp $ SHandle p
 

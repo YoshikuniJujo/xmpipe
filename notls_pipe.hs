@@ -38,8 +38,12 @@ process = await >>= \mr -> case mr of
 	Just SRSaslSuccess -> mapM_ yield [SRXmlDecl, begin] >> process
 	Just (SRFeatures fs) -> do
 		trace "HERE" (return ())
-		let Just Caps { cnode = n, cver = v } = find isCaps fs
+		{-
+		let Caps { cnode = n, cver = v } = case find isCaps fs of
+			Just c -> c
+			_ -> error $ "hoge: " ++ show fs
 		trace (show $ (n, v)) (return ())
+		-}
 		mapM_ yield binds
 --		yield $ getCaps "prof_caps_4492" Nothing v n
 		process

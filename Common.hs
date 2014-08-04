@@ -34,6 +34,10 @@ import qualified Caps as CAPS
 import Digest
 import Papillon
 
+fromJust' :: String -> Maybe a -> a
+fromJust' _ (Just x) = x
+fromJust' em _ = error em
+
 data Common
 	= SRXmlDecl
 	| SRStream [(Tag, BS.ByteString)]
@@ -295,8 +299,8 @@ toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanisms")
 	_ [] ns) = Mechanisms $ map toMechanism ns
 toFeature (XmlNode ((_, Just "http://jabber.org/protocol/caps"), "c") _ as []) =
 	let h = map (first toCapsTag) as in Caps {
-		chash = fromJust $ lookup CTHash h,
-		cnode = fromJust $ lookup CTNode h,
+		chash = fromJust' "1" $ lookup CTHash h,
+		cnode = fromJust' "2" $ lookup CTNode h,
 		cver = (\(Right r) -> r) . B64.decode . fromJust $ lookup CTVer h }
 toFeature (XmlNode ((_, Just "urn:xmpp:features:rosterver"), "ver") _ [] r) =
 	Rosterver $ toRequirement r
@@ -414,7 +418,7 @@ fromChallenge r u q c a = (: []) . XmlCharData . B64.encode $ BS.concat [
 	"realm=", BSC.pack $ show r, ",",
 	"nonce=", BSC.pack $ show u, ",",
 	"qop=", BSC.pack $ show q, ",",
-	"charset=", c, "algorithm=", a ] -- md5-sess" ]
+	"charset=", c, ",", "algorithm=", a ] -- md5-sess" ]
 
 fromFeature :: Feature -> XmlNode
 fromFeature (Mechanisms ms) = XmlNode (nullQ "mechanisms")
@@ -464,12 +468,13 @@ showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge"
 		Just a = parseAtts d in
 		case a of
 			[("rspauth", ra)] -> SRChallengeRspauth ra
+--			_ -> error $ "hoge: " ++ show a
 			_ -> SRChallenge {
-				realm = fromJust $ lookup "realm" a,
-				nonce = fromJust $ lookup "nonce" a,
-				qop = fromJust $ lookup "qop" a,
-				charset = fromJust $ lookup "charset" a,
-				algorithm = fromJust $ lookup "algorithm" a }
+				realm = fromJust' "3" $ lookup "realm" a,
+				nonce = fromJust' "4" $ lookup "nonce" a,
+				qop = fromJust' "5" $ lookup "qop" a,
+				charset = fromJust' "6" $ lookup "charset" a,
+				algorithm = fromJust' "7" $ lookup "algorithm" a }
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 	_ [] [XmlCharData cd]) = let
 		Just a = parseAtts . (\(Right s) -> s) $ B64.decode cd

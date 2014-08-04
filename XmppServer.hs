@@ -124,7 +124,11 @@ digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
 	UUID -> Pipe Common Common m BS.ByteString
 digestMd5 u = do
 	yield $ SRFeatures [Mechanisms [DigestMd5]]
-	Just (SRAuth DigestMd5) <- await
+--	Just (SRAuth DigestMd5) <- await
+	a <- await
+	case a of
+		Just (SRAuth DigestMd5) -> return ()
+		_ -> error $ "BAD: " ++ show a
 	yield $ SRChallenge {
 		realm = "localhost",
 		nonce = toASCIIBytes u,

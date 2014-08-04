@@ -30,9 +30,12 @@ main = do
 		=$= (xmlBegin >>= xmlNodeUntil isProceed)
 		=$= awaitAll
 	ca <- readCertificateStore ["cacert.sample_pem"]
+	k <- readKey "xmpp_client.sample_key"
+	c <- readCertificateChain ["xmpp_client.sample_cert"]
 	g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 	(`run` g) $ do
-		p <- open' h "localhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"] [] ca
+		p <- open' h "localhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+			[(k, c)] ca
 		xmpp (SHandle p) `evalStateT` ("" :: BS.ByteString)
 
 pipe :: Monad m => Pipe a a m ()
@@ -58,6 +61,8 @@ proc = yield SRXmlDecl
 process :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
+	Just (SRFeatures [Mechanisms ms])
+		| DigestMd5 `elem` ms -> digestMd5 sender >> process
 	Just (SRFeatures [_, Mechanisms ms])
 		| DigestMd5 `elem` ms -> digestMd5 sender >> process
 	Just (SRFeatures [Mechanisms ms, _])
