@@ -16,8 +16,18 @@ import qualified Data.ByteString.Char8 as BSC
 import XmppClient
 import Caps (profanityCaps)
 
+host :: String
+host = case BSC.unpack $ jidToHost sender of
+	"otherhost" -> "localhost"
+	h -> h
+
+port :: PortID
+port = PortNumber $ case jidToHost sender of
+	"otherhost" -> 55222
+	_ -> 5222
+
 main :: IO ()
-main = connectTo "localhost" (PortNumber 5222) >>= \h ->
+main = connectTo host port >>= \h ->
 	xmpp (SHandle h) `evalStateT` ("" :: BS.ByteString)
 
 xmpp :: (HandleLike h, MonadState (HandleMonad h),
@@ -29,6 +39,9 @@ proc :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 proc = yield SRXmlDecl
 	>> yield (SRStream [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
+
+jidToHost :: Jid -> BS.ByteString
+jidToHost (Jid _ d _) = d
 
 process :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()

@@ -20,9 +20,19 @@ import qualified Data.ByteString.Char8 as BSC
 import XmppClient
 import Caps (profanityCaps)
 
+host :: String
+host = case BSC.unpack $ jidToHost sender of
+	"otherhost" -> "localhost"
+	h -> h
+
+port :: PortID
+port = PortNumber $ case jidToHost sender of
+	"otherhost" -> 55222
+	_ -> 5222
+
 main :: IO ()
 main = do
-	h <- connectTo "localhost" (PortNumber 5222)
+	h <- connectTo host port
 	void . runPipe $ (yield begin >> yield startTls) =$= output h
 	void . runPipe $ handleP h
 		=$= xmlEvent
@@ -57,6 +67,9 @@ proc :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 proc = yield SRXmlDecl
 	>> yield (SRStream [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
+
+jidToHost :: Jid -> BS.ByteString
+jidToHost (Jid _ d _) = d
 
 jidToUser :: Jid -> BS.ByteString
 jidToUser (Jid u _ _) = u

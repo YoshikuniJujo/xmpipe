@@ -2,6 +2,7 @@
 	PackageImports #-}
 
 import Data.UUID
+import System.Environment
 import System.Random
 
 import Control.Applicative
@@ -36,7 +37,8 @@ main = do
 	ca <- readCertificateStore ["cacert.sample_pem"]
 	k <- readKey "localhost.sample_key"
 	c <- readCertificateChain ["localhost.sample_crt"]
-	soc <- listenOn $ PortNumber 5222
+	pn : _ <- getArgs
+	soc <- listenOn . PortNumber . fromIntegral $ (read :: String -> Int) pn
 	g0 <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 	forever $ do
 		(h, _, _) <- accept soc

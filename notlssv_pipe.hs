@@ -2,6 +2,7 @@
 	PackageImports #-}
 
 import Data.UUID
+import System.Environment
 import System.Random
 
 import Control.Applicative
@@ -27,7 +28,8 @@ instance HandleLike h => HandleLike (SHandle s h) where
 
 main :: IO ()
 main = do
-	socket <- listenOn $ PortNumber 5222
+	pn : _ <- getArgs
+	socket <- listenOn . PortNumber . fromIntegral $ (read :: String -> Int) pn
 	forever $ do
 		(h, _, _) <- accept socket
 		uuids <- randoms <$> getStdGen
