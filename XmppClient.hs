@@ -2,6 +2,7 @@
 	PackageImports, FlexibleContexts #-}
 
 module XmppClient (
+	toJid,
 	MBody(..),
 	capsToCaps,
 --	fromJid,

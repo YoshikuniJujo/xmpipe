@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module Common (
+	toJid,
 	toXml,
 	showResponse,
 	Common(..), Tag(..), Mechanism(..),

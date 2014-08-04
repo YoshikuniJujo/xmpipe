@@ -34,7 +34,10 @@ process :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
 	Just (SRFeatures [Mechanisms ms])
-		| DigestMd5 `elem` ms -> digestMd5 sender >> process
+		| DigestMd5 `elem` ms -> do
+			let Jid u _ _ = sender
+			digestMd5 u
+			process
 	Just SRSaslSuccess -> mapM_ yield [SRXmlDecl, begin] >> process
 	Just (SRFeatures fs) -> do
 		trace "HERE" (return ())
@@ -49,10 +52,11 @@ process = await >>= \mr -> case mr of
 		process
 	Just (SRPresence _ (C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)])) -> do
 		yield (getCaps "prof_caps_2"
-			(Just . Jid sender  "localhost" $ Just "profanity") v n)
+			(Just sender) v n)
 		process
-	Just (SRIq Get i (Just f) (Just to) (IqDiscoInfoNode [(DTNode, n)]))
-		| to == Jid sender "localhost" (Just "profanity") -> do
+	Just (SRIq Get i (Just f) (Just (Jid u d _))
+		(IqDiscoInfoNode [(DTNode, n)]))
+		| (u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
 			yield . SRMessage Chat "prof_3" Nothing recipient .
 				MBody $ MessageBody message
@@ -80,8 +84,8 @@ resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Common
 resultCaps i t n =
 	SRIq Result i Nothing (Just t) (IqCapsQuery2 profanityCaps n)
 
-sender, message :: BS.ByteString
-recipient :: Jid
+message :: BS.ByteString
+sender, recipient :: Jid
 (sender, recipient, message) = unsafePerformIO $ do
 	[s, r, m] <- getArgs
-	return (BSC.pack s, Jid (BSC.pack r) "localhost" Nothing, BSC.pack m)
+	return (toJid $ BSC.pack s, toJid $ BSC.pack r, BSC.pack m)

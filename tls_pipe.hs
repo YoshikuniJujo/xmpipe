@@ -58,21 +58,25 @@ proc = yield SRXmlDecl
 	>> yield (SRStream [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
 
+jidToUser :: Jid -> BS.ByteString
+jidToUser (Jid u _ _) = u
+
 process :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
 	Just (SRFeatures [Mechanisms ms])
-		| DigestMd5 `elem` ms -> digestMd5 sender >> process
+		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
 	Just (SRFeatures [_, Mechanisms ms])
-		| DigestMd5 `elem` ms -> digestMd5 sender >> process
+		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
 	Just (SRFeatures [Mechanisms ms, _])
-		| DigestMd5 `elem` ms -> digestMd5 sender >> process
+		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
 	Just SRSaslSuccess -> mapM_ yield [SRXmlDecl, begin] >> process
 	Just (SRFeatures fs) -> mapM_ yield binds >> process
 	Just (SRPresence _ (C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)]))
 		-> yield (getCaps v n) >> process
-	Just (SRIq Get i (Just f) (Just to) (IqDiscoInfoNode [(DTNode, n)]))
-		| to == Jid sender "localhost" (Just "profanity") -> do
+	Just (SRIq Get i (Just f) (Just (Jid u d _))
+		(IqDiscoInfoNode [(DTNode, n)]))
+		| (u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
 			yield . SRMessage Chat "prof_3" Nothing recipient .
 				MBody $ MessageBody message
@@ -92,19 +96,17 @@ binds = [SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
 		capsToCaps profanityCaps "http://www.profanity.im" ]
 
 getCaps :: BS.ByteString -> BS.ByteString -> Common
-getCaps v n = SRIq Get "prof_caps_2" Nothing
-	(Just . Jid sender "localhost" $ Just "profanity") $
-	IqCapsQuery v n
+getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) $ IqCapsQuery v n
 
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Common
 resultCaps i t n =
 	SRIq Result i Nothing (Just t) (IqCapsQuery2 profanityCaps n)
 
-sender, message :: BS.ByteString
-recipient :: Jid
+message :: BS.ByteString
+sender, recipient :: Jid
 (sender, recipient, message) = unsafePerformIO $ do
 	[s, r, m] <- getArgs
-	return (BSC.pack s, Jid (BSC.pack r) "localhost" Nothing, BSC.pack m)
+	return (toJid $ BSC.pack s, toJid $ BSC.pack r, BSC.pack m)
 
 isProceed :: XmlNode -> Bool
 isProceed (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed") _ [] [])
