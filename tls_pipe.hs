@@ -39,9 +39,9 @@ main = do
 		=$= convert fromJust
 		=$= (xmlBegin >>= xmlNodeUntil isProceed)
 		=$= awaitAll
-	ca <- readCertificateStore ["cacert.sample_pem"]
-	k <- readKey "xmpp_client.sample_key"
-	c <- readCertificateChain ["xmpp_client.sample_cert"]
+	ca <- readCertificateStore ["certs/cacert.sample_pem"]
+	k <- readKey "certs/xmpp_client.sample_key"
+	c <- readCertificateChain ["certs/xmpp_client.sample_cert"]
 	g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 	(`run` g) $ do
 		p <- open' h "localhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]

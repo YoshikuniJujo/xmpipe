@@ -34,9 +34,9 @@ instance HandleLike h => HandleLike (SHandle s h) where
 
 main :: IO ()
 main = do
-	ca <- readCertificateStore ["cacert.sample_pem"]
-	k <- readKey "localhost.sample_key"
-	c <- readCertificateChain ["localhost.sample_crt"]
+	ca <- readCertificateStore ["certs/cacert.sample_pem"]
+	k <- readKey "certs/localhost.sample_key"
+	c <- readCertificateChain ["certs/localhost.sample_crt"]
 	pn : _ <- getArgs
 	soc <- listenOn . PortNumber . fromIntegral $ (read :: String -> Int) pn
 	g0 <- cprgCreate <$> createEntropyPool :: IO SystemRNG
