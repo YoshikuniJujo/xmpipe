@@ -2,6 +2,8 @@
 	PackageImports, FlexibleContexts #-}
 
 module XmppClient (
+	fromCaps,
+	toCaps,
 	XmlNode(..),
 	nullQ,
 	toJid,

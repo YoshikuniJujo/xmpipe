@@ -66,9 +66,11 @@ process = await >>= \mr -> case mr of
 		mapM_ yield binds
 --		yield $ getCaps "prof_caps_4492" Nothing v n
 		process
-	Just (SRPresence _ (C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)])) -> do
-		yield (getCaps "prof_caps_2"
-			(Just sender) v n)
+	Just (SRPresence _ ns) -> do
+		case toCaps ns of
+			C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
+				yield (getCaps "prof_caps_2" (Just sender) v n)
+			_ -> return ()
 		process
 	Just (SRIq Get i (Just f) (Just (Jid u d _))
 		(IqDiscoInfoNode [(DTNode, n)]))
@@ -108,7 +110,7 @@ binds = [SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
 		Resource "profanity",
 	SRIq Set "_xmpp_session1" Nothing Nothing IqSession,
 	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing,
-	SRPresence [(Id, "prof_presence_1")] $
+	SRPresence [(Id, "prof_presence_1")] . fromCaps $
 		capsToCaps profanityCaps "http://www.profanity.im" ]
 
 getCaps :: BS.ByteString -> Maybe Jid -> BS.ByteString -> BS.ByteString ->

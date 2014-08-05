@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module Common (
+	fromCaps,
+	toCaps,
 	toJid,
 	toXml,
 	showResponse,
@@ -56,7 +58,7 @@ data Common
 	| SRResponseNull
 	| SRSaslSuccess
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
-	| SRPresence [(Tag, BS.ByteString)] Caps
+	| SRPresence [(Tag, BS.ByteString)] [XmlNode] -- Caps
 	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| SREnd
 	| SRRaw XmlNode
@@ -514,7 +516,7 @@ showResponse (XmlNode ((_, Just "jabber:client"), "iq") _ as ns) =
 	fr = toJid <$> lookup From ts
 	to = toJid <$> lookup To ts
 showResponse (XmlNode ((_, Just "jabber:client"), "presence") _ as ns) =
-	SRPresence (map (first toTag) as) $ toCaps ns
+	SRPresence (map (first toTag) as) ns
 
 showResponse (XmlNode ((_, Just "jabber:client"), "message") _ as [b, d, xd])
 	| XmlNode ((_, Just "jabber:client"), "body") _ [] _ <- b,
@@ -586,7 +588,7 @@ toXml (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 		(nullQ "to" ,) . fromJid <$> to ])
 	(fromQuery q)
 toXml (SRPresence ts c) =
-	XmlNode (nullQ "presence") [] (map (first fromTag) ts) (fromCaps c)
+	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
 
 toXml (SRMessage tp i fr to (MBody (MessageBody m))) =
 	XmlNode (nullQ "message") []
