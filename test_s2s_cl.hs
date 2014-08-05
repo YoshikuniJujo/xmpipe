@@ -17,7 +17,7 @@ main = do
 	h <- connectTo "localhost" $ PortNumber 55269
 	hlPutStrLn h $ xmlString begin
 	hGetLine h >>= putStrLn
-	hlPutStrLn h $ xmlString starttls
+	hlPut h $ xmlString starttls
 	hGetLine h >>= putStrLn
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/localhost.sample_key"

@@ -12,6 +12,9 @@ import Network.PeyoTLS.ReadFile
 import Text.XML.Pipe
 import "crypto-random" Crypto.Random
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
+
 import XmppServer
 
 main :: IO ()
@@ -24,16 +27,19 @@ main = do
 	forever $ do
 		(h, _, _) <- accept soc
 		void . forkIO . (`evalStateT` g0) $ do
-			liftIO $ hGetLine h >>= putStrLn
+			liftIO $ hGetTag h >>= BSC.hPutStrLn stdout
+			liftIO $ hGetTag h >>= BSC.hPutStrLn stdout
 			liftIO . hlPutStrLn h . xmlString $ begin ++ tlsFeatures
-			liftIO $ hGetLine h >>= putStrLn
+			liftIO $ hGetTag h >>= BSC.hPutStrLn stdout
+			liftIO $ hGetTag h >>= BSC.hPutStrLn stdout
 			liftIO . hlPutStrLn h $ xmlString proceed
 			g <- StateT $ return . cprgFork
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] (Just ca)
 				getNames p >>= liftIO . print
-				hlGetLine p >>= liftIO . print
+				hGetTag p >>= liftIO . BSC.hPutStrLn stdout
+				hGetTag p >>= liftIO . BSC.hPutStrLn stdout
 				hlPutStrLn p . xmlString $ begin ++ externalFeatures
 				hlGetLine p >>= liftIO . print
 				hlPutStrLn p $ xmlString success
@@ -44,6 +50,13 @@ main = do
 					[XmlEnd (("stream", Nothing), "stream")]
 				hlGetLine p >>= liftIO . print
 				hlClose p
+
+hGetTag :: HandleLike h => h -> HandleMonad h BS.ByteString
+hGetTag h = do
+	c <- hlGet h 1
+	if (c == ">")
+		then return ">"
+		else (c `BS.append`) `liftM` hGetTag h
 
 begin :: [XmlNode]
 begin = [
