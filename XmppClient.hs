@@ -9,6 +9,7 @@ module XmppClient (
 	toJid,
 	MBody(..),
 	capsToXmlCaps,
+	capsToQuery,
 --	fromJid,
 --	toJid,
 	Common(..),

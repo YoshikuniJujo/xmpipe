@@ -114,8 +114,8 @@ getCaps :: BS.ByteString -> BS.ByteString -> Common
 getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) $ IqCapsQuery v n
 
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Common
-resultCaps i t n =
-	SRIq Result i Nothing (Just t) (IqCapsQuery2 profanityCaps n)
+resultCaps i t n = SRIq Result
+	i Nothing (Just t) (IqCapsQuery2 [capsToQuery profanityCaps n])
 
 message :: BS.ByteString
 sender, recipient :: Jid

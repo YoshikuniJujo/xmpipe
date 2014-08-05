@@ -20,6 +20,7 @@ module Common (
 	CAPS.CapsTag(..), CAPS.XmlCaps(..),
 	nullQ,
 	CAPS.capsToXmlCaps,
+	CAPS.capsToQuery,
 --	isCaps,
 	isFeatureRaw,
 	) where
@@ -111,7 +112,7 @@ data Query
 	| QueryRaw [XmlNode]
 
 	| IqCapsQuery BS.ByteString BS.ByteString
-	| IqCapsQuery2 CAPS.Caps BS.ByteString
+	| IqCapsQuery2 [XmlNode]
 	| IqDiscoInfo
 	| IqDiscoInfoNode [(DiscoTag, BS.ByteString)]
 	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] [Identity] [InfoFeature]
@@ -371,7 +372,7 @@ fromQuery (IqBind r b) = maybe id ((:) . fromRequirement) r $ fromBind b
 fromQuery IqSession = [session]
 fromQuery (IqRoster Nothing) = [roster]
 fromQuery (IqCapsQuery v n) = [capsQuery v n]
-fromQuery (IqCapsQuery2 c n) = [CAPS.capsToQuery c n]
+fromQuery (IqCapsQuery2 ns) = ns
 fromQuery IqSessionNull = []
 fromQuery (QueryRaw ns) = ns
 
