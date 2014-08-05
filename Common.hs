@@ -39,6 +39,7 @@ fromJust' em _ = error em
 data Common
 	= SRXmlDecl
 	| SRStream [(Tag, BS.ByteString)]
+	| SRStreamSv [(Tag, BS.ByteString)]
 	| SRFeatures [Feature]
 	| SRAuth Mechanism
 	| SRChallengeNull
@@ -531,6 +532,10 @@ toXml :: Common -> XmlNode
 toXml (SRXmlDecl) = XmlDecl (1, 0)
 toXml (SRStream as) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:client"),
+		("stream", "http://etherx.jabber.org/streams") ]
+	(map (first fromTag) as)
+toXml (SRStreamSv as) = XmlStart (("stream", Nothing), "stream")
+	[	("", "jabber:server"),
 		("stream", "http://etherx.jabber.org/streams") ]
 	(map (first fromTag) as)
 toXml (SRFeatures fs) = XmlNode
