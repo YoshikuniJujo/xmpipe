@@ -2,6 +2,7 @@
 
 import Debug.Trace
 
+import Control.Applicative
 import "monads-tf" Control.Monad.State
 import Data.Maybe
 import Data.List
@@ -57,6 +58,8 @@ process = await >>= \mr -> case mr of
 	Just SRSaslSuccess -> mapM_ yield [SRXmlDecl, begin] >> process
 	Just (SRFeatures fs) -> do
 		trace "HERE" (return ())
+		let c = toCaps . (\(FeatureRaw n) -> [n]) <$> find isFeatureRaw fs
+		trace ("HERE: " ++ show c ++ "\n") (return ())
 		{-
 		let Caps { cnode = n, cver = v } = case find isCaps fs of
 			Just c -> c

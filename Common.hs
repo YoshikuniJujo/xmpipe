@@ -20,7 +20,8 @@ module Common (
 	CapsTag(..), Caps(..),
 	nullQ,
 	capsToCaps,
-	isCaps,
+--	isCaps,
+	isFeatureRaw,
 	) where
 
 import Control.Applicative
@@ -58,7 +59,7 @@ data Common
 	| SRResponseNull
 	| SRSaslSuccess
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
-	| SRPresence [(Tag, BS.ByteString)] [XmlNode] -- Caps
+	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
 	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| SREnd
 	| SRRaw XmlNode
@@ -78,15 +79,21 @@ data Requirement = Optional | Required | NoRequirement [XmlNode]
 
 data Feature
 	= Mechanisms [Mechanism]
+	{-
 	| Caps {
 		chash :: BS.ByteString,
 		cver :: BS.ByteString,
 		cnode :: BS.ByteString }
+		-}
 	| Rosterver Requirement
 	| Bind Requirement
 	| Session Requirement
 	| FeatureRaw XmlNode
 	deriving Show
+
+isFeatureRaw :: Feature -> Bool
+isFeatureRaw (FeatureRaw _) = True
+isFeatureRaw _ = False
 
 data Bind
 	= Resource BS.ByteString
@@ -298,18 +305,22 @@ toMessageType "normal" = Normal
 toMessageType "chat" = Chat
 toMessageType _ = error "toMessageType: bad"
 
+{-
 isCaps :: Feature -> Bool
 isCaps Caps{} = True
 isCaps _ = False
+-}
 
 toFeature :: XmlNode -> Feature
 toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanisms")
 	_ [] ns) = Mechanisms $ map toMechanism ns
+	{-
 toFeature (XmlNode ((_, Just "http://jabber.org/protocol/caps"), "c") _ as []) =
 	let h = map (first toCapsTag) as in Caps {
 		chash = fromJust' "1" $ lookup CTHash h,
 		cnode = fromJust' "2" $ lookup CTNode h,
 		cver = (\(Right r) -> r) . B64.decode . fromJust $ lookup CTVer h }
+		-}
 toFeature (XmlNode ((_, Just "urn:xmpp:features:rosterver"), "ver") _ [] r) =
 	Rosterver $ toRequirement r
 toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ [] r) =
@@ -434,12 +445,14 @@ fromFeature :: Feature -> XmlNode
 fromFeature (Mechanisms ms) = XmlNode (nullQ "mechanisms")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $
 	map mechanismToXmlNode ms
+	{-
 fromFeature c@Caps{} = XmlNode (nullQ "c")
 	[("", "http://jabber.org/protocol/caps")]
 	[	(nullQ "hash", chash c),
 		(nullQ "ver", cver c),
 		(nullQ "node", cnode c) ]
 	[]
+	-}
 fromFeature (Rosterver r) = XmlNode (nullQ "ver")
 	[("", "urn:xmpp:features:rosterver")] [] [fromRequirement r]
 fromFeature (Bind r) = XmlNode (nullQ "bind")
