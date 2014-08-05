@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module Common (
-	CAPS.fromCaps,
-	CAPS.toCaps,
 	toJid,
 	toXml,
 	showResponse,
@@ -17,11 +15,7 @@ module Common (
 	MessageXDelay(..), XDelayTag(..), toXDelay,
 	MBody(..),
 	MessageType(..),
-	CAPS.CapsTag(..), CAPS.XmlCaps(..),
 	nullQ,
-	CAPS.capsToXmlCaps,
-	CAPS.capsToQuery,
---	isCaps,
 	isFeatureRaw,
 	) where
 
@@ -35,7 +29,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64 as B64
 
-import qualified Caps as CAPS
 import Digest
 import Papillon
 
