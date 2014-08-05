@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module Caps (
-	Caps(..), Identity(..), mkHash, capsToXml, capsToQuery, profanityCaps) where
+	Caps(..), Identity(..), mkHash, capsToXml, capsToQuery, profanityCaps,
+	toCaps, capsToXmlCaps, fromCaps, CapsTag(..), XmlCaps(..)) where
 
 import Control.Applicative
+import Control.Arrow
 import Data.Maybe
 import Data.List
 import Text.XML.Pipe
@@ -81,3 +83,35 @@ profanityCaps = Caps
 		"http://jabber.org/protocol/muc",
 		"jabber:iq:version",
 		"urn:xmpp:ping" ]
+
+data XmlCaps
+	= C [(CapsTag, BS.ByteString)]
+	| CapsRaw [XmlNode]
+	deriving Show
+
+toCaps :: [XmlNode] -> XmlCaps
+toCaps [XmlNode ((_, Just "http://jabber.org/protocol/caps"), "c") _ as []] =
+	C $ map (first toCapsTag) as
+toCaps ns = CapsRaw ns
+
+capsToXmlCaps :: Caps -> BS.ByteString -> XmlCaps
+capsToXmlCaps c n = C [(CTHash, "sha-1"), (CTNode, n), (CTVer, mkHash c)]
+
+fromCaps :: XmlCaps -> [XmlNode]
+fromCaps (C ts) = (: []) $ XmlNode (nullQ "c")
+	[("", "http://jabber.org/protocol/caps")] (map (first fromCapsTag) ts) []
+fromCaps (CapsRaw ns) = ns
+
+data CapsTag = CTHash | CTNode | CTVer | CTRaw QName deriving (Eq, Show)
+
+toCapsTag :: QName -> CapsTag
+toCapsTag ((_, Just "http://jabber.org/protocol/caps"), "hash") = CTHash
+toCapsTag ((_, Just "http://jabber.org/protocol/caps"), "ver") = CTVer
+toCapsTag ((_, Just "http://jabber.org/protocol/caps"), "node") = CTNode
+toCapsTag n = CTRaw n
+
+fromCapsTag :: CapsTag -> QName
+fromCapsTag CTHash = (nullQ "hash")
+fromCapsTag CTVer = (nullQ "ver")
+fromCapsTag CTNode = (nullQ "node")
+fromCapsTag (CTRaw n) = n
