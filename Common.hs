@@ -105,7 +105,8 @@ data Query
 	| IqCapsQuery2 CAPS.Caps BS.ByteString
 	| IqDiscoInfo
 	| IqDiscoInfoNode [(DiscoTag, BS.ByteString)]
-	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] Identity [InfoFeature]
+	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] [Identity] [InfoFeature]
+		[XmlNode]
 	deriving Show
 
 data DiscoTag = DTNode | DTRaw QName deriving (Eq, Show)
@@ -124,12 +125,12 @@ data InfoFeature
 	| InfoFeatureRaw XmlNode
 	deriving Show
 
-toInfoFeature :: XmlNode -> InfoFeature
+toInfoFeature :: XmlNode -> Maybe InfoFeature
 toInfoFeature (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"),
-	"feature") _ as []) = case map (first toInfoFeatureTag) as of
+	"feature") _ as []) = Just $ case map (first toInfoFeatureTag) as of
 		[(IFTVar, v)] -> InfoFeature v
 		atts -> InfoFeatureSemiRaw atts
-toInfoFeature n = InfoFeatureRaw n
+toInfoFeature n = Nothing -- InfoFeatureRaw n
 
 data InfoFeatureTag
 	= IFTVar
@@ -146,7 +147,7 @@ data Identity
 	deriving Show
 
 data IdentityTag
-	= IDTType | IDTName | IDTCategory | IDTRaw QName deriving (Eq, Show)
+	= IDTType | IDTName | IDTCategory | IDTLang | IDTRaw QName deriving (Eq, Show)
 
 toIdentityTag :: QName -> IdentityTag
 toIdentityTag ((_, Just "http://jabber.org/protocol/disco#info"), "type") = IDTType
@@ -155,10 +156,10 @@ toIdentityTag ((_, Just "http://jabber.org/protocol/disco#info"), "category") =
 	IDTCategory
 toIdentityTag n = IDTRaw n
 
-toIdentity :: XmlNode -> Identity
+toIdentity :: XmlNode -> Maybe Identity
 toIdentity (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "identity")
-	_ as []) = Identity $ map (first toIdentityTag) as
-toIdentity n = IdentityRaw n
+	_ as []) = Just . Identity $ map (first toIdentityTag) as
+toIdentity n = Nothing -- IdentityRaw n
 
 data IqType = Get | Set | Result | ITError deriving (Eq, Show)
 
@@ -265,10 +266,11 @@ toIqBody [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
 toIqBody [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
 	_ as []] = IqDiscoInfoNode $ map (first toDiscoTag) as
 toIqBody [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
-	_ as (i : ns)] = IqDiscoInfoFull
+	_ as ns] = IqDiscoInfoFull
 	(map (first toDiscoTag) as)
-	(toIdentity i)
-	(map toInfoFeature ns)
+	(catMaybes $ map toIdentity ns)
+	(catMaybes $ map toInfoFeature ns)
+	(filter (\n -> isNothing (toIdentity n) && isNothing (toInfoFeature n)) ns)
 toIqBody [] = IqSessionNull
 toIqBody ns = QueryRaw ns
 
@@ -282,7 +284,9 @@ fromJid (Jid a d r) = a `BS.append` "@" `BS.append` d `BS.append`
 	maybe "" ("/" `BS.append`) r
 
 toJid :: BS.ByteString -> Jid
-toJid j = Jid a d (if BS.null r then Nothing else Just $ BS.tail r)
+toJid j = case rst of
+	"" -> Jid "" a Nothing
+	_ -> Jid a d (if BS.null r then Nothing else Just $ BS.tail r)
 	where
 	(a, rst) = BSC.span (/= '@') j
 	(d, r) = BSC.span (/= '/') $ BS.tail rst

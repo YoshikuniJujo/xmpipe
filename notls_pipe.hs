@@ -3,6 +3,7 @@
 import Debug.Trace
 
 import "monads-tf" Control.Monad.State
+import Data.Maybe
 import Data.List
 import Data.Pipe
 import Data.HandleLike
@@ -12,9 +13,11 @@ import Network
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import qualified Data.ByteString.Base64 as B64
 
 import XmppClient
 import Caps (profanityCaps)
+import qualified Caps as CAPS
 
 host :: String
 host = case BSC.unpack $ jidToHost sender of
@@ -71,11 +74,31 @@ process = await >>= \mr -> case mr of
 		(IqDiscoInfoNode [(DTNode, n)]))
 		| (u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
+			yield discoIq
 			yield . SRMessage Chat "prof_3" Nothing recipient .
 				MBody $ MessageBody message
-			yield SREnd
+--			yield SREnd
+			process
+	Just (SRIq Result "info1" _ _ (IqDiscoInfoFull _ ids fs _)) -> do
+		yield . SRMessage Chat "debug_1" Nothing recipient
+			. MBody . MessageBody . BSC.pack . show
+			. B64.decode . CAPS.mkHash
+			. CAPS.Caps (map idToId ids) $ map fromInfoFeature fs
+		yield SREnd
 	Just _ -> process
 	_ -> return ()
+
+idToId :: Identity -> CAPS.Identity
+idToId (Identity is) = CAPS.Identity {
+	CAPS.idCategory = fromJust $ lookup IDTCategory is,
+	CAPS.idType = lookup IDTType is,
+	CAPS.idLang = lookup IDTLang is,
+	CAPS.idName = lookup IDTName is
+	}
+
+fromInfoFeature :: InfoFeature -> BS.ByteString
+fromInfoFeature (InfoFeature f) = f
+fromInfoFeature _ = error "bad"
 
 begin :: Common
 begin = SRStream [(To, "localhost"), (Version, "1.0"), (Lang, "en")]
@@ -102,3 +125,14 @@ sender, recipient :: Jid
 (sender, recipient, message) = unsafePerformIO $ do
 	[s, r, m] <- getArgs
 	return (toJid $ BSC.pack s, toJid $ BSC.pack r, BSC.pack m)
+
+discoIq :: Common
+discoIq = SRRaw $ XmlNode (nullQ "iq") [] [
+	(nullQ "type", "get"),
+	(nullQ "from", "yoshikuni@localhost"),
+	(nullQ "to", "localhost"),
+	(nullQ "id", "info1") ] [discoQuery]
+
+discoQuery :: XmlNode
+discoQuery = XmlNode (nullQ "query")
+	[("", "http://jabber.org/protocol/disco#info")] [] []
