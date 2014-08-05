@@ -1,0 +1,60 @@
+PKCS #10 Certificate Request Information:
+	Version: 1
+	Subject: CN=otherhost,OU=yoshio,O=yoshio company,L=Takasaki,ST=Gunma,C=JA
+	Subject Public Key Algorithm: RSA
+	Algorithm Security Level: Medium (2048 bits)
+		Modulus (bits 2048):
+			00:9d:8c:01:4d:1d:a2:de:50:b2:40:d9:8f:3e:08:9a
+			7e:f5:be:94:1a:ce:c1:28:d0:40:c0:92:cf:48:83:38
+			dc:5a:35:b0:11:7e:0e:e8:e7:4e:5c:06:ce:1e:1b:19
+			38:2f:3b:c1:29:58:17:07:01:85:93:a0:ca:1d:a8:27
+			6f:33:9e:c7:0c:ee:7f:2b:e4:ab:40:df:87:8e:82:77
+			65:2b:60:8b:67:07:bd:b6:ae:5e:ed:52:0a:82:cb:ab
+			54:f2:0e:0a:d1:ea:c9:b2:22:ae:01:58:82:fd:90:30
+			84:8a:86:36:bb:52:e8:b2:a5:de:71:89:b2:36:7e:92
+			cb:ba:a5:78:38:66:94:9e:5a:af:51:91:67:a7:95:9f
+			58:0d:84:5a:5d:01:76:b6:44:57:e6:aa:fe:8a:44:64
+			7a:c4:02:d1:da:71:09:cd:b3:b3:c3:d8:43:55:93:d0
+			51:77:42:26:9a:90:d5:1f:88:b2:9d:1a:d1:dc:c5:3a
+			d0:30:0a:b8:5d:d5:c7:c4:de:cb:49:af:30:98:13:96
+			78:d8:67:02:0a:e7:81:3e:86:aa:f0:da:d8:92:cf:87
+			3b:db:13:e1:47:65:a2:7f:97:25:82:a1:a0:80:27:8c
+			79:cb:a0:fb:2f:95:84:ec:be:c2:b8:67:6f:f7:4d:c3
+			0b
+		Exponent (bits 24):
+			01:00:01
+	Attributes:
+		Extensions:
+			Basic Constraints (critical):
+				Certificate Authority (CA): FALSE
+			Key Usage (critical):
+				Digital signature.
+				Key encipherment.
+			Key Purpose (critical):
+				TLS WWW Client.
+				TLS WWW Server.
+Other Information:
+	Public Key ID:
+		3ecff9813461f299a200052f50db4e2e2cefe171
+
+Self signature: verified
+
+-----BEGIN NEW CERTIFICATE REQUEST-----
+MIIDBTCCAe0CAQAwbjESMBAGA1UEAxMJb3RoZXJob3N0MQ8wDQYDVQQLEwZ5b3No
+aW8xFzAVBgNVBAoTDnlvc2hpbyBjb21wYW55MREwDwYDVQQHEwhUYWthc2FraTEO
+MAwGA1UECBMFR3VubWExCzAJBgNVBAYTAkpBMIIBIjANBgkqhkiG9w0BAQEFAAOC
+AQ8AMIIBCgKCAQEAnYwBTR2i3lCyQNmPPgiafvW+lBrOwSjQQMCSz0iDONxaNbAR
+fg7o505cBs4eGxk4LzvBKVgXBwGFk6DKHagnbzOexwzufyvkq0Dfh46Cd2UrYItn
+B722rl7tUgqCy6tU8g4K0erJsiKuAViC/ZAwhIqGNrtS6LKl3nGJsjZ+ksu6pXg4
+ZpSeWq9RkWenlZ9YDYRaXQF2tkRX5qr+ikRkesQC0dpxCc2zs8PYQ1WT0FF3Qiaa
+kNUfiLKdGtHcxTrQMAq4XdXHxN7LSa8wmBOWeNhnAgrngT6GqvDa2JLPhzvbE+FH
+ZaJ/lyWCoaCAJ4x5y6D7L5WE7L7CuGdv903DCwIDAQABoFIwUAYJKoZIhvcNAQkO
+MUMwQTAMBgNVHRMBAf8EAjAAMA8GA1UdDwEB/wQFAwMHoAAwIAYDVR0lAQH/BBYw
+FAYIKwYBBQUHAwIGCCsGAQUFBwMBMA0GCSqGSIb3DQEBCwUAA4IBAQCRG0WTAGt6
+wSWX1R3JqOpvEFrG4uUuo8ar+b5lqspEtVgg/fkLFLfo74rs12Z3Je+RrYb5WJuw
+vxKyfF+YZG9t9ATBEoZPfwG46OQlfMCFRhfHksmU6WPejQWeVqN8U4XLulA99yWP
+V2xvFqNyepsBf8BRfCUp7ovk358fo4ORiy2/qQkiPi6ey8xzm2EhMHbzTpaF6PzG
+xmuwxwsWVcgBivAdQKAKfMUMMYhGggmZT0RviSQ738qU8SnTSOU9nKTWOPcPL11C
+Fe1qM0AQ9DfllqUlwziGMRppdckgDhu5oOoDdcZPIoNVm76MxpuQ9tVQ4gQvlN1O
+VFyhNPAeBmvV
+-----END NEW CERTIFICATE REQUEST-----
