@@ -11,6 +11,11 @@ IM & Presence
 
 * [RFC 6121](http://tools.ietf.org/html/rfc6121)
 
+Address Format
+--------------
+
+* [RFC 6122](http://tools.ietf.org/html/rfc6122)
+
 SASL
 ----
 
