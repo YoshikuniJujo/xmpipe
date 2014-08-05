@@ -4,25 +4,25 @@ Specifications
 Core
 ----
 
-* RFC 6120
+* [RFC 6120](http://tools.ietf.org/html/rfc6120)
 
 IM & Presence
 -------------
 
-* RFC 6121
+* [RFC 6121](http://tools.ietf.org/html/rfc6121)
 
 SASL
 ----
 
-* RFC 4422
+* [RFC 4422](http://tools.ietf.org/html/rfc4422)
 
 Service Discovery
 -----------------
 
-* XEP-0030
-* XEP-0115
+* [XEP-0030](http://www.xmpp.org/extensions/xep-0030.html)
+* [XEP-0115](http://www.xmpp.org/extensions/xep-0115.html)
 
 Multi-User Chat
 ---------------
 
-* XEP-0045
+* [XEP-0045](http://www.xmpp.org/extensions/xep-0045.html)
