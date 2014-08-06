@@ -134,7 +134,7 @@ toInfoFeature (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"),
 	"feature") _ as []) = Just $ case map (first toInfoFeatureTag) as of
 		[(IFTVar, v)] -> InfoFeature v
 		atts -> InfoFeatureSemiRaw atts
-toInfoFeature n = Nothing -- InfoFeatureRaw n
+toInfoFeature _n = Nothing -- InfoFeatureRaw n
 
 data InfoFeatureTag
 	= IFTVar
@@ -163,7 +163,7 @@ toIdentityTag n = IDTRaw n
 toIdentity :: XmlNode -> Maybe Identity
 toIdentity (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "identity")
 	_ as []) = Just . Identity $ map (first toIdentityTag) as
-toIdentity n = Nothing -- IdentityRaw n
+toIdentity _n = Nothing -- IdentityRaw n
 
 data IqType = Get | Set | Result | ITError deriving (Eq, Show)
 
@@ -313,6 +313,7 @@ toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
 	_ [] [XmlCharData "EXTERNAL"]) = External
 toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
 	_ [] [XmlCharData n]) = MechanismRaw n
+toMechanism _ = error "toMechanism: bad"
 
 toTag :: QName -> Tag
 toTag ((_, Just "jabber:client"), "type") = Type
@@ -369,6 +370,7 @@ fromQuery (IqCapsQuery v n) = [capsQuery v n]
 fromQuery (IqCapsQuery2 ns) = ns
 fromQuery IqSessionNull = []
 fromQuery (QueryRaw ns) = ns
+fromQuery _ = error "fromQuery: not implemented yet"
 
 fromMessageType :: MessageType -> BS.ByteString
 fromMessageType Normal = "normal"
