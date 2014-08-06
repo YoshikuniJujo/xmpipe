@@ -2,9 +2,7 @@
 
 module TestFederation (
 	input, output, nullQ,
-	Xmpp(..), toXmpp, fromXmpp,
-	Feature(..), toFeature, fromFeature,
-	Mechanism(..), toMechanism, fromMechanism,
+	Xmpp(..), toXmpp, fromXmpp, Feature(..), Mechanism(..),
 	) where
 
 import Control.Monad
@@ -70,7 +68,7 @@ fromXmpp (XBegin as) = XmlStart (("stream", Nothing), "stream")
 		("stream", "http://etherx.jabber.org/streams") ] as
 fromXmpp XEnd = XmlEnd (("stream", Nothing), "stream")
 fromXmpp (XFeatures ns) =
-	XmlNode (("stream", Nothing), "stream") [] [] $ map fromFeature ns
+	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature ns
 fromXmpp XStarttls = XmlNode (nullQ "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 fromXmpp XProceed = XmlNode (nullQ "proceed")

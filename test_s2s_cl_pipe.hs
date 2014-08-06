@@ -4,7 +4,8 @@ import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.Trans
 import Data.Pipe
-import System.IO
+import Data.HandleLike
+-- import System.IO
 import Network
 import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
@@ -21,13 +22,13 @@ main = do
 	k <- readKey "certs/localhost.sample_key"
 	c <- readCertificateChain ["certs/localhost.sample_crt"]
 	g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
-	hGetChar h >>= print
+--	hGetChar h >>= print
 	(`run` g) $ do
 		p <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 			[(k, c)] ca
 		getNames p >>= liftIO . print
 		void . runPipe $ input p =$= process =$= output p
---		hlClose p
+		hlClose p
 
 process :: Monad m => Pipe Xmpp Xmpp m ()
 process = do
@@ -55,8 +56,9 @@ proc = await >>= \mx -> case mx of
 				]
 			[XmlNode (nullQ "body") [] [] [XmlCharData
 				"Art thou not Romeo, and a Montague?"]]
-		yield XEnd
-	Just XEnd -> proc
+--		yield XEnd
+		proc
+	Just XEnd -> yield XEnd
 	_ -> return ()
 
 processTls :: Monad m => Pipe Xmpp Xmpp m ()
