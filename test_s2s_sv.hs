@@ -41,15 +41,20 @@ main = do
 				hGetTag p >>= liftIO . BSC.hPutStrLn stdout
 				hGetTag p >>= liftIO . BSC.hPutStrLn stdout
 				hlPutStrLn p . xmlString $ begin ++ externalFeatures
-				hlGetLine p >>= liftIO . print
+				hGetTag p >>= liftIO . print
+				hGetTag p >>= liftIO . print
 				hlPutStrLn p $ xmlString success
-				hlGetLine p >>= liftIO . print
+				hGetTag p >>= liftIO . print
+				hGetTag p >>= liftIO . print
 				hlPutStrLn p . xmlString $ begin ++ nullFeatures
-				hlGetLine p >>= liftIO . print
+				hGetTag p >>= liftIO . print
+				hGetTag p >>= liftIO . print
+				hGetTag p >>= liftIO . print
+				hGetTag p >>= liftIO . print
 				hlPutStrLn p $ xmlString
 					[XmlEnd (("stream", Nothing), "stream")]
-				hlGetLine p >>= liftIO . print
-				hlClose p
+				hGetTag p >>= liftIO . print
+--				hlClose p
 
 hGetTag :: HandleLike h => h -> HandleMonad h BS.ByteString
 hGetTag h = do
