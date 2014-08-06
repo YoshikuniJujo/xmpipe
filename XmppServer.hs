@@ -27,6 +27,9 @@ module XmppServer (
 	output,
 	) where
 
+import Control.Concurrent.STM
+import TestFederationCl
+
 import Data.UUID
 
 import Control.Monad
@@ -77,9 +80,36 @@ nextUuid = do
 	put xs { uuidList = us }
 	return u
 
-output :: (MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
+output :: (MonadIO (HandleMonad h),
+	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 	HandleLike h) => h -> Pipe Common () (HandleMonad h) ()
-output h = convert toXml =$= outputXml h
+output h = do -- convert toXml =$= outputXml h
+	mx <- await
+	case mx of
+	{-
+		Just (SRMessage Chat  i fr to bd) -> do
+			lift $ hlDebug h "critical" "HERE: "
+			lift . hlDebug h "critical" . BSC.pack . (++ "\n") $ show to
+			output h
+			-}
+		Just m@(SRMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _)
+			-> do	lift (hlDebug h "critical" "HERE")
+				liftIO $ do
+					(ca, k, c) <- readFiles
+					(i, e) <- connect ca k c
+					atomically . writeTChan i $ convertMessage m
+					atomically $ readTChan e
+				output h
+		Just x -> lift (hlPut h $ xmlString [toXml x]) >> output h
+		_ -> return ()
+
+outputXml :: (MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
+		HandleLike h) => h -> Pipe XmlNode () (HandleMonad h) ()
+outputXml h = do
+	mx <- await
+	case mx of
+		Just x -> lift (hlPut h $ xmlString [x]) >> outputXml h
+		_ -> return ()
 
 input :: HandleLike h => h -> Pipe () Common (HandleMonad h) ()
 input h = handleP h
@@ -92,14 +122,6 @@ input h = handleP h
 
 xmlPipe :: Monad m => Pipe XmlEvent XmlNode m ()
 xmlPipe = xmlBegin >>= xmlNode >>= flip when xmlPipe
-
-outputXml :: (MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-		HandleLike h) => h -> Pipe XmlNode () (HandleMonad h) ()
-outputXml h = do
-	mx <- await
-	case mx of
-		Just x -> lift (hlPut h $ xmlString [x]) >> outputXml h
-		_ -> return ()
 
 handleP :: HandleLike h => h -> Pipe () BS.ByteString (HandleMonad h) ()
 handleP h = do

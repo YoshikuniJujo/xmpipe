@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, TupleSections, FlexibleContexts,
 	PackageImports #-}
 
+import Control.Concurrent.STM
+import TestFederationCl
+
 import Data.UUID
 import System.Environment
 import System.Random
@@ -61,7 +64,8 @@ main = do
 				(`evalStateT` initXmppState uuids) .
 					xmpp $ SHandle p
 
-xmpp :: (MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
+xmpp :: (MonadIO (HandleMonad h),
+	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 		HandleLike h) => h -> HandleMonad h ()
 xmpp h = do
 	voidM . runPipe $ input h =$= makeP =$= output h
@@ -103,6 +107,15 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (SRPresence _ _), Just rcv) ->
 		yield (SRMessage Chat "hoge" (Just sender) rcv .
 			MBody $ MessageBody "Hi, TLS!") >> makeP
+	(Just (SRMessage Chat i fr to bd), Just rcv) -> do
+		yield (SRMessage Chat "hoge" (Just sender) rcv .
+			MBody $ MessageBody "Hi, TLS!")
+		yield $ SRMessage Chat i
+			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
+		yield $ SRMessage Chat i
+			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
+			to bd
+		makeP
 	_ -> return ()
 
 voidM :: Monad m => m a -> m ()

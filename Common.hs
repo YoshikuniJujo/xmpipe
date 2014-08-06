@@ -2,6 +2,7 @@
 
 module Common (
 	toJid,
+	fromJid,
 	toXml,
 	showResponse,
 	Common(..), Tag(..), Mechanism(..),
@@ -571,7 +572,6 @@ toXml (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(fromQuery q)
 toXml (SRPresence ts c) =
 	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
-
 toXml (SRMessage tp i fr to (MBody (MessageBody m))) =
 	XmlNode (nullQ "message") []
 		(catMaybes [
@@ -580,6 +580,13 @@ toXml (SRMessage tp i fr to (MBody (MessageBody m))) =
 			(nullQ "from" ,) . fromJid <$> fr,
 			Just (nullQ "to", fromJid to) ])
 		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
+toXml (SRMessage Chat i fr to (MBodyRaw ns)) =
+	XmlNode (nullQ "message") []
+		(catMaybes [
+			Just (nullQ "type", "chat"),
+			Just (nullQ "id", i),
+			(nullQ "from" ,) . fromJid <$> fr,
+			Just (nullQ "to", fromJid to) ]) ns
 toXml SREnd = XmlEnd (("stream", Nothing), "stream")
 toXml (SRRaw n) = n
-toXml _ = error "toXml: not implemented yet"
+toXml c = error $ "toXml: not implemented yet: " ++ show c
