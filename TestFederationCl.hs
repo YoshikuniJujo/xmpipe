@@ -96,7 +96,7 @@ proc i e = await >>= \mx -> case mx of
 		yield m
 		liftIO . atomically $ writeTChan e ()
 		proc i e
-	Just XEnd -> yield XEnd
+	Just (XCommon XCEnd) -> yield $ XCommon XCEnd
 	_ -> return ()
 
 processTls :: Monad m => Pipe Xmpp Xmpp m ()

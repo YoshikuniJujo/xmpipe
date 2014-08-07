@@ -96,7 +96,7 @@ process = await >>= \mr -> case mr of
 			yield $ resultCaps i f n
 			yield . SRMessage Chat "prof_3" Nothing recipient .
 				MBody $ MessageBody message
-			yield SREnd
+			yield $ CCommon XCEnd
 	Just _ -> process
 	_ -> return ()
 

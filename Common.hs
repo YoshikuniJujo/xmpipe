@@ -42,7 +42,6 @@ fromJust' em _ = error em
 
 data Common
 	= CCommon XmppCommon
-	| SRStreamSv [(Tag, BS.ByteString)]
 	| SRFeatures [Feature]
 	| SRAuth Mechanism
 	| SRChallengeNull
@@ -59,7 +58,6 @@ data Common
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
 	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
-	| SREnd
 	| SRRaw XmlNode
 	deriving Show
 
@@ -505,10 +503,12 @@ toXml (CCommon (XCBegin as)) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:client"),
 		("stream", "http://etherx.jabber.org/streams") ]
 	(map (first fromTag) as)
+	{-
 toXml (SRStreamSv as) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:server"),
 		("stream", "http://etherx.jabber.org/streams") ]
 	(map (first fromTag) as)
+	-}
 toXml (SRFeatures fs) = XmlNode
 	(("stream", Nothing), "features") [] [] $ map fromFeature fs
 toXml (SRAuth ScramSha1) = XmlNode (nullQ "auth")
@@ -555,6 +555,6 @@ toXml (SRMessage Chat i fr to (MBodyRaw ns)) =
 			Just (nullQ "id", i),
 			(nullQ "from" ,) . fromJid <$> fr,
 			Just (nullQ "to", fromJid to) ]) ns
-toXml SREnd = XmlEnd (("stream", Nothing), "stream")
+toXml (CCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
 toXml (SRRaw n) = n
 toXml c = error $ "toXml: not implemented yet: " ++ show c

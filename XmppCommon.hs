@@ -13,6 +13,7 @@ import qualified Data.ByteString as BS
 data XmppCommon
 	= XCDecl
 	| XCBegin [(Tag, BS.ByteString)]
+	| XCEnd
 	deriving Show
 
 data Tag

@@ -42,7 +42,7 @@ output h = do
 		Just n -> do
 			lift . hlPut h $ xmlString [fromXmpp n]
 			case n of
-				XEnd -> lift $ hlClose h
+				XCommon XCEnd -> lift $ hlClose h
 				_ -> return ()
 			output h
 		_ -> return ()
@@ -51,7 +51,8 @@ toXmpp :: XmlNode -> Xmpp
 toXmpp (XmlDecl (1, 0)) = XCommon XCDecl
 toXmpp (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
 	XCommon . XCBegin $ map (first toTag) as
-toXmpp (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) = XEnd
+toXmpp (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) =
+	XCommon XCEnd
 toXmpp (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
 	_ [] ns) = XFeatures $ map toFeature ns
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls") _ [] []) =
@@ -71,7 +72,7 @@ fromXmpp (XCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:server"),
 		("stream", "http://etherx.jabber.org/streams") ] $
 	map (first fromTag) ts
-fromXmpp XEnd = XmlEnd (("stream", Nothing), "stream")
+fromXmpp (XCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
 fromXmpp (XFeatures ns) =
 	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature ns
 fromXmpp XStarttls = XmlNode (nullQ "starttls")
@@ -88,7 +89,6 @@ fromXmpp (XRaw n) = n
 
 data Xmpp
 	= XCommon XmppCommon
-	| XEnd
 	| XFeatures [Feature]
 	| XStarttls
 	| XProceed

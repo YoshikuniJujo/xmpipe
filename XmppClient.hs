@@ -115,7 +115,7 @@ output h = do
 		Just n -> do
 			lift (hlPut h $ xmlString [toXml n])
 			case n of
-				SREnd -> lift $ hlClose h
+				CCommon XCEnd -> lift $ hlClose h
 				_ -> return ()
 			output h
 		_ -> return ()
