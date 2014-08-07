@@ -11,4 +11,5 @@ main = do
 		(h, _, _) <- accept soc
 		(>> return ()) . forkIO $ do
 			hGetLine h >>= putStrLn
+			hGetLine h >>= putStrLn
 			hClose h
