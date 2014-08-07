@@ -15,10 +15,7 @@ main = run Nothing
 run :: Maybe String -> IO ()
 run ms = do
 	h <- connectTo "localhost" $ PortNumber 54492
-	ret <- fromJust <$> runPipe (fromStdin =$= mkData ms =$= output h)
-	case ret of
-		Just rest -> run $ Just rest
-		_ -> return ()
+	fromJust <$> runPipe (fromStdin =$= mkData =$= output h)
 
 fromStdin :: Pipe () String IO ()
 fromStdin = do
@@ -26,23 +23,27 @@ fromStdin = do
 	yield l
 	fromStdin
 
-mkData :: Monad m => Maybe String -> Pipe String String m ()
-mkData mr = do
-	maybe (return ()) yield mr
-	await >>= \mx -> case mx of
-		Just x -> yield x >> mkData Nothing
-		_ -> return ()
+mkData :: Monad m => Pipe String String m ()
+mkData = await >>= \mx -> case mx of
+	Just x -> yield x >> mkData
+	_ -> return ()
 
-output :: Handle -> Pipe String () IO (Maybe String)
+output :: Handle -> Pipe String () IO ()
 output h = await >>= \mx -> case mx of
 	Just x -> do
 		mr <- liftIO . (`catch` conHandle x) $ do
 			hPutStrLn h x
 			return Nothing
 		case mr of
-			Just _ -> return mr
+			Just r -> do
+				h' <- liftIO $ do
+					hh <- connectTo "localhost" $
+						PortNumber 54492
+					hPutStrLn hh r
+					return hh
+				output h'
 			_ -> output h
-	_ -> return Nothing
+	_ -> return ()
 
 conHandle :: String -> IOException -> IO (Maybe String)
 conHandle x e = do
