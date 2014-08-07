@@ -64,7 +64,7 @@ xmpp h = voidM . runPipe $ input h =$= proc =$= output h
 
 proc :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()
-proc = yield SRXmlDecl
+proc = yield (CCommon XCDecl)
 	>> yield (SRStream [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
 
@@ -83,7 +83,7 @@ process = await >>= \mr -> case mr of
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
 	Just (SRFeatures [Mechanisms ms, _])
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
-	Just SRSaslSuccess -> mapM_ yield [SRXmlDecl, begin] >> process
+	Just SRSaslSuccess -> mapM_ yield [CCommon XCDecl, begin] >> process
 	Just (SRFeatures fs) -> mapM_ yield binds >> process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->

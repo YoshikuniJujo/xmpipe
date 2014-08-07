@@ -5,6 +5,7 @@ module XmppServer (
 	MBody(..),
 	MessageBody(..),
 	Common(..),
+	XmppCommon(..),
 	convert,
 	nullQ,
 	handleP,

@@ -70,7 +70,7 @@ process = await >>= \mx -> case mx of
 	Just (XBegin _as) -> do
 --		trace "HERE" $ return ()
 		a <- lift $ gets xsAuthed
-		yield XDecl
+		yield $ XCommon XCDecl
 		nextUuid >>= yield . begin
 		yield $ if a
 			then XFeatures []
@@ -95,7 +95,7 @@ process = await >>= \mx -> case mx of
 processTls :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
 processTls = await >>= \mx -> case mx of
 	Just (XBegin _as) -> do
-		yield XDecl
+		yield $ XCommon XCDecl
 		nextUuid >>= yield . begin
 		yield $ XFeatures [FtStarttls]
 		processTls

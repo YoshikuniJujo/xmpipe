@@ -72,7 +72,7 @@ connect ca k c = do
 
 process :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 process i e = do
-	yield XDecl
+	yield $ XCommon XCDecl
 	yield begin
 	proc i e
 
@@ -83,7 +83,7 @@ proc i e = await >>= \mx -> case mx of
 		yield XAuthExternal
 		proc i e
 	Just XSuccess -> do
-		yield XDecl
+		yield $ XCommon XCDecl
 		yield begin
 		proc i e
 	Just (XFeatures []) -> do
@@ -101,7 +101,7 @@ proc i e = await >>= \mx -> case mx of
 
 processTls :: Monad m => Pipe Xmpp Xmpp m ()
 processTls = do
-	yield XDecl
+	yield $ XCommon XCDecl
 	yield begin
 	procTls
 

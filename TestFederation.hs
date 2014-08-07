@@ -3,6 +3,7 @@
 module TestFederation (
 	input, output, nullQ,
 	Xmpp(..), toXmpp, fromXmpp, Feature(..), Mechanism(..),
+	XmppCommon(..),
 	) where
 
 import Control.Monad
@@ -14,6 +15,8 @@ import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+
+import XmppCommon
 
 input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
 input h = handleP h
@@ -44,7 +47,7 @@ output h = do
 		_ -> return ()
 
 toXmpp :: XmlNode -> Xmpp
-toXmpp (XmlDecl (1, 0)) = XDecl
+toXmpp (XmlDecl (1, 0)) = XCommon XCDecl
 toXmpp (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
 	XBegin as
 toXmpp (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) = XEnd
@@ -62,7 +65,7 @@ toXmpp (XmlNode ((_, Just "jabber:server"), "message") [] as ns) = XMessage as n
 toXmpp n = XRaw n
 
 fromXmpp :: Xmpp -> XmlNode
-fromXmpp XDecl = XmlDecl (1, 0)
+fromXmpp (XCommon XCDecl) = XmlDecl (1, 0)
 fromXmpp (XBegin as) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:server"),
 		("stream", "http://etherx.jabber.org/streams") ] as
@@ -82,7 +85,7 @@ fromXmpp (XMessage as ns) = XmlNode (nullQ "message") [] as ns
 fromXmpp (XRaw n) = n
 
 data Xmpp
-	= XDecl
+	= XCommon XmppCommon
 	| XBegin [(QName, BS.ByteString)]
 	| XEnd
 	| XFeatures [Feature]

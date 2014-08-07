@@ -78,7 +78,7 @@ makeP :: (MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (SRStream _), Nothing) -> do
-		yield SRXmlDecl
+		yield $ CCommon XCDecl
 		lift nextUuid >>= \u -> yield $ SRStream [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
@@ -86,7 +86,7 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			setReceiver $ Jid un "localhost" Nothing
 		makeP
 	(Just (SRStream _), _) -> do
-		yield SRXmlDecl
+		yield $ CCommon XCDecl
 		lift nextUuid >>= \u -> yield $ SRStream [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
@@ -124,7 +124,7 @@ voidM :: Monad m => m a -> m ()
 voidM = (>> return ())
 
 sender :: Jid
-sender = Jid "yoshio" "localhost" (Just "profanity")
+sender = Jid "yoshio" "otherhost" (Just "profanity")
 
 isStarttls :: XmlNode -> Bool
 isStarttls (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")

@@ -6,6 +6,7 @@ module Common (
 	toXml,
 	showResponse,
 	Common(..), Tag(..), Mechanism(..),
+	XmppCommon(..),
 	Requirement(..),
 	Feature(..), Bind(..), Jid(..), Query(..),
 	Roster(..), Identity(..), IdentityTag(..),
@@ -33,12 +34,14 @@ import qualified Data.ByteString.Base64 as B64
 import Digest
 import Papillon
 
+import XmppCommon
+
 fromJust' :: String -> Maybe a -> a
 fromJust' _ (Just x) = x
 fromJust' em _ = error em
 
 data Common
-	= SRXmlDecl
+	= CCommon XmppCommon
 	| SRStream [(Tag, BS.ByteString)]
 	| SRStreamSv [(Tag, BS.ByteString)]
 	| SRFeatures [Feature]
@@ -532,7 +535,7 @@ session = XmlNode (nullQ "session")
 	[("", "urn:ietf:params:xml:ns:xmpp-session")] [] []
 
 toXml :: Common -> XmlNode
-toXml (SRXmlDecl) = XmlDecl (1, 0)
+toXml (CCommon XCDecl) = XmlDecl (1, 0)
 toXml (SRStream as) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:client"),
 		("stream", "http://etherx.jabber.org/streams") ]

@@ -11,6 +11,7 @@ module XmppClient (
 	capsToXmlCaps,
 	capsToQuery,
 	Common(..),
+	XmppCommon(..),
 	isFeatureRaw,
 	handleP,
 	convert,
