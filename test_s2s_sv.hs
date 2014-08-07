@@ -10,6 +10,7 @@ import Data.Pipe
 import Data.HandleLike
 import Data.UUID
 import System.Random
+import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Server
 import Network.PeyoTLS.ReadFile
@@ -81,7 +82,13 @@ process = await >>= \mx -> case mx of
 		yield XSuccess
 		process
 	Just (XMessage _ _) -> do
-		yield XEnd
+		yield $ XMessage [
+			(nullQ "type", "chat"), 
+			(nullQ "from", "yoshio@otherhost"),
+			(nullQ "to", "yoshikuni@localhost"),
+			(nullQ "id", "hoge") ] [XmlCharData "HOGETA"]
+		process
+--		yield XEnd
 --		process
 	_ -> return ()
 

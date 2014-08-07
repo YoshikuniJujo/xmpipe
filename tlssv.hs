@@ -37,6 +37,7 @@ instance HandleLike h => HandleLike (SHandle s h) where
 
 main :: IO ()
 main = do
+	sl <- atomically $ newTVar []
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/localhost.sample_key"
 	c <- readCertificateChain ["certs/localhost.sample_crt"]
@@ -62,13 +63,14 @@ main = do
 --					[(k, c)] (Just ca)
 				getNames p >>= liftIO . print
 				(`evalStateT` initXmppState uuids) .
-					xmpp $ SHandle p
+					xmpp sl $ SHandle p
 
 xmpp :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-		HandleLike h) => h -> HandleMonad h ()
-xmpp h = do
-	voidM . runPipe $ input h =$= makeP =$= output h
+		HandleLike h) =>
+	TVar [(String, TChan Xmpp)] -> h -> HandleMonad h ()
+xmpp sl h = do
+	voidM . runPipe $ input h =$= makeP =$= output sl h
 	hlPut h $ xmlString [XmlEnd (("stream", Nothing), "stream")]
 	hlClose h
 

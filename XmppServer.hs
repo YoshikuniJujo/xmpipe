@@ -47,6 +47,8 @@ import DigestSv
 
 import Common
 
+import Control.Concurrent.STM
+
 data SHandle s h = SHandle h
 
 instance HandleLike h => HandleLike (SHandle s h) where
@@ -82,26 +84,30 @@ nextUuid = do
 
 output :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-	HandleLike h) => h -> Pipe Common () (HandleMonad h) ()
-output h = do -- convert toXml =$= outputXml h
+	HandleLike h) =>
+	TVar [(String, TChan Xmpp)] -> h -> Pipe Common () (HandleMonad h) ()
+output sl h = do
 	mx <- await
 	case mx of
-	{-
-		Just (SRMessage Chat  i fr to bd) -> do
-			lift $ hlDebug h "critical" "HERE: "
-			lift . hlDebug h "critical" . BSC.pack . (++ "\n") $ show to
-			output h
-			-}
 		Just m@(SRMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _)
 			-> do	lift (hlDebug h "critical" "HERE")
-				liftIO $ do
-					(ca, k, c) <- readFiles
-					(i, e) <- connect ca k c
-					atomically . writeTChan i $ convertMessage m
-					atomically $ readTChan e
-				output h
-		Just x -> lift (hlPut h $ xmlString [toXml x]) >> output h
+				l <- liftIO . atomically $ readTVar sl
+				case lookup "otherhost" l of
+					Just i -> liftIO . atomically . writeTChan i $
+						convertMessage m
+					_ -> otherhost sl m
+				output sl h
+		Just x -> lift (hlPut h $ xmlString [toXml x]) >> output sl h
 		_ -> return ()
+
+otherhost :: MonadIO m =>
+	TVar [(String, TChan Xmpp)] -> Common -> Pipe Common () m ()
+otherhost sl m = liftIO $ do
+	(ca, k, c) <- readFiles
+	(i, e) <- connect ca k c
+	atomically . writeTChan i $ convertMessage m
+	atomically $ readTChan e
+	atomically $ modifyTVar sl (("otherhost", i) :)
 
 outputXml :: (MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 		HandleLike h) => h -> Pipe XmlNode () (HandleMonad h) ()

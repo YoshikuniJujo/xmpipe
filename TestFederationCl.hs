@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, PackageImports #-}
 
-module TestFederationCl (readFiles, convertMessage, connect) where
+module TestFederationCl (Xmpp, readFiles, convertMessage, connect) where
 
 import Control.Applicative
 import Control.Monad
@@ -66,31 +66,36 @@ connect ca k c = do
 			p <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 				[(k, c)] ca
 			getNames p >>= liftIO . print
-			void . runPipe $ input p =$= process i =$= output p
+			void . runPipe $ input p =$= process i e =$= output p
 			hlClose p
-			liftIO $ atomically $ writeTChan e ()
 	return (i, e)
 
-process :: MonadIO m => TChan Xmpp -> Pipe Xmpp Xmpp m ()
-process i = do
+process :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
+process i e = do
 	yield XDecl
 	yield begin
-	proc i
+	proc i e
 
-proc :: MonadIO m => TChan Xmpp -> Pipe Xmpp Xmpp m ()
-proc i = await >>= \mx -> case mx of
-	Just (XBegin _as) -> proc i
+proc :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
+proc i e = await >>= \mx -> case mx of
+	Just (XBegin _as) -> proc i e
 	Just (XFeatures [FtMechanisms [External]]) -> do
 		yield XAuthExternal
-		proc i
+		proc i e
 	Just XSuccess -> do
 		yield XDecl
 		yield begin
-		proc i
+		proc i e
 	Just (XFeatures []) -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
-		proc i
+		liftIO . atomically $ writeTChan e ()
+		proc i e
+	Just (XMessage _ _) -> do
+		m <- liftIO . atomically $ readTChan i
+		yield m
+		liftIO . atomically $ writeTChan e ()
+		proc i e
 	Just XEnd -> yield XEnd
 	_ -> return ()
 
