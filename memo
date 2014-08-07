@@ -1,0 +1,5 @@
+input :: MonadIO m => TVar Handle -> Pipe () Xmpp m ()
+
+output :: MonadIO m => TVar Handle -> Pipe Xmpp () m ()
+
+connect :: IO (TChan Xmpp, TChan Xmpp, TChan Result)
