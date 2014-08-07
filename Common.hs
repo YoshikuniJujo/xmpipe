@@ -42,7 +42,6 @@ fromJust' em _ = error em
 
 data Common
 	= CCommon XmppCommon
-	| SRStream [(Tag, BS.ByteString)]
 	| SRStreamSv [(Tag, BS.ByteString)]
 	| SRFeatures [Feature]
 	| SRAuth Mechanism
@@ -64,11 +63,6 @@ data Common
 	| SRRaw XmlNode
 	deriving Show
 
-data Tag
-	= Id | From | To | Version | Lang | Mechanism | Type
-	| TagRaw QName
-	deriving (Eq, Show)
-
 data Mechanism
 	= ScramSha1 | DigestMd5 | Plain | External | MechanismRaw BS.ByteString
 	deriving (Eq, Show)
@@ -78,12 +72,6 @@ data Requirement = Optional | Required | NoRequirement [XmlNode]
 
 data Feature
 	= Mechanisms [Mechanism]
-	{-
-	| Caps {
-		chash :: BS.ByteString,
-		cver :: BS.ByteString,
-		cnode :: BS.ByteString }
-		-}
 	| Rosterver Requirement
 	| Bind Requirement
 	| Session Requirement
@@ -170,9 +158,6 @@ toIdentity (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "identit
 toIdentity _n = Nothing -- IdentityRaw n
 
 data IqType = Get | Set | Result | ITError deriving (Eq, Show)
-
-nullQ :: BS.ByteString -> QName
-nullQ = (("", Nothing) ,)
 
 data MessageBody
 	= MessageBody BS.ByteString
@@ -319,26 +304,6 @@ toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
 	_ [] [XmlCharData n]) = MechanismRaw n
 toMechanism _ = error "toMechanism: bad"
 
-toTag :: QName -> Tag
-toTag ((_, Just "jabber:client"), "type") = Type
-toTag ((_, Just "jabber:client"), "id") = Id
-toTag ((_, Just "jabber:client"), "from") = From
-toTag ((_, Just "jabber:client"), "to") = To
-toTag ((_, Just "jabber:client"), "version") = Version
-toTag ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism") = Mechanism
-toTag (("xml", Nothing), "lang") = Lang
-toTag n = TagRaw n
-
-fromTag :: Tag -> QName
-fromTag Type = nullQ "type"
-fromTag Id = nullQ "id"
-fromTag From = nullQ "from"
-fromTag To = nullQ "to"
-fromTag Version = nullQ "version"
-fromTag Lang = (("xml", Nothing), "lang")
-fromTag Mechanism = nullQ "mechanism"
-fromTag (TagRaw n) = n
-
 fromBind :: Bind -> [XmlNode]
 fromBind (BJid _) = error "fromBind: not implemented"
 fromBind (Resource r) = [
@@ -450,7 +415,7 @@ mechanismToXmlNode m =
 
 showResponse :: XmlNode -> Common
 showResponse (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _
-	as) = SRStream $ map (first toTag) as
+	as) = CCommon . XCBegin $ map (first toTag) as
 showResponse (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
 	_ [] nds) = SRFeatures $ map toFeature nds
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
@@ -536,7 +501,7 @@ session = XmlNode (nullQ "session")
 
 toXml :: Common -> XmlNode
 toXml (CCommon XCDecl) = XmlDecl (1, 0)
-toXml (SRStream as) = XmlStart (("stream", Nothing), "stream")
+toXml (CCommon (XCBegin as)) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:client"),
 		("stream", "http://etherx.jabber.org/streams") ]
 	(map (first fromTag) as)

@@ -67,7 +67,7 @@ dropUuid xs = xs { xsUuid = tail $ xsUuid xs }
 
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
 process = await >>= \mx -> case mx of
-	Just (XBegin _as) -> do
+	Just (XCommon (XCBegin _as)) -> do
 --		trace "HERE" $ return ()
 		a <- lift $ gets xsAuthed
 		yield $ XCommon XCDecl
@@ -94,7 +94,7 @@ process = await >>= \mx -> case mx of
 
 processTls :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
 processTls = await >>= \mx -> case mx of
-	Just (XBegin _as) -> do
+	Just (XCommon (XCBegin _as)) -> do
 		yield $ XCommon XCDecl
 		nextUuid >>= yield . begin
 		yield $ XFeatures [FtStarttls]
@@ -104,11 +104,11 @@ processTls = await >>= \mx -> case mx of
 	_ -> return ()
 
 begin :: UUID -> Xmpp
-begin u = XBegin [
-	(nullQ "from", "otherhost"),
-	(nullQ "to", "localhost"),
-	(nullQ "version", "1.0"),
-	(nullQ "id", toASCIIBytes u)
+begin u = XCommon $ XCBegin [
+	(From, "otherhost"),
+	(To, "localhost"),
+	(Version, "1.0"),
+	(Id, toASCIIBytes u)
 	]
 
 nextUuid :: (MonadState m, StateType m ~ XmppState) => Pipe a b m UUID

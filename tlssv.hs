@@ -77,17 +77,17 @@ xmpp sl h = do
 makeP :: (MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
-	(Just (SRStream _), Nothing) -> do
+	(Just (CCommon (XCBegin _)), Nothing) -> do
 		yield $ CCommon XCDecl
-		lift nextUuid >>= \u -> yield $ SRStream [
+		lift nextUuid >>= \u -> yield . CCommon $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
 		lift nextUuid >>= digestMd5 Nothing >>= \un -> lift . modify .
 			setReceiver $ Jid un "localhost" Nothing
 		makeP
-	(Just (SRStream _), _) -> do
+	(Just (CCommon (XCBegin _)), _) -> do
 		yield $ CCommon XCDecl
-		lift nextUuid >>= \u -> yield $ SRStream [
+		lift nextUuid >>= \u -> yield . CCommon $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
 		yield $ SRFeatures

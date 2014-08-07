@@ -78,7 +78,7 @@ process i e = do
 
 proc :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 proc i e = await >>= \mx -> case mx of
-	Just (XBegin _as) -> proc i e
+	Just (XCommon (XCBegin _as)) -> proc i e
 	Just (XFeatures [FtMechanisms [External]]) -> do
 		yield XAuthExternal
 		proc i e
@@ -107,7 +107,7 @@ processTls = do
 
 procTls :: Monad m => Pipe Xmpp Xmpp m ()
 procTls = await >>= \mx -> case mx of
-	Just (XBegin _as) -> procTls
+	Just (XCommon (XCBegin _as)) -> procTls
 	Just (XFeatures [FtStarttls]) -> do
 		yield XStarttls
 		procTls
@@ -116,7 +116,7 @@ procTls = await >>= \mx -> case mx of
 	_ -> return ()
 
 begin :: Xmpp
-begin = XBegin [
-	(nullQ "from", "localhost"),
-	(nullQ "to", "otherhost"),
-	(nullQ "version", "1.0") ]
+begin = XCommon $ XCBegin [
+	(From, "localhost"),
+	(To, "otherhost"),
+	(Version, "1.0") ]

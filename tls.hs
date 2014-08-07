@@ -65,7 +65,8 @@ xmpp h = voidM . runPipe $ input h =$= proc =$= output h
 proc :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()
 proc = yield (CCommon XCDecl)
-	>> yield (SRStream [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
+	>> yield (CCommon $ XCBegin
+		[(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
 
 jidToHost :: Jid -> BS.ByteString
@@ -100,7 +101,7 @@ process = await >>= \mr -> case mr of
 	_ -> return ()
 
 begin :: Common
-begin = SRStream [(To, "localhost"), (Version, "1.0"), (Lang, "en")]
+begin = CCommon $ XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")]
 
 binds :: [Common]
 binds = [SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $

@@ -3,9 +3,10 @@
 module TestFederation (
 	input, output, nullQ,
 	Xmpp(..), toXmpp, fromXmpp, Feature(..), Mechanism(..),
-	XmppCommon(..),
+	XmppCommon(..), Tag(..),
 	) where
 
+import Control.Arrow
 import Control.Monad
 import "monads-tf" Control.Monad.Trans
 import Data.Maybe
@@ -49,7 +50,7 @@ output h = do
 toXmpp :: XmlNode -> Xmpp
 toXmpp (XmlDecl (1, 0)) = XCommon XCDecl
 toXmpp (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
-	XBegin as
+	XCommon . XCBegin $ map (first toTag) as
 toXmpp (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) = XEnd
 toXmpp (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
 	_ [] ns) = XFeatures $ map toFeature ns
@@ -66,9 +67,10 @@ toXmpp n = XRaw n
 
 fromXmpp :: Xmpp -> XmlNode
 fromXmpp (XCommon XCDecl) = XmlDecl (1, 0)
-fromXmpp (XBegin as) = XmlStart (("stream", Nothing), "stream")
+fromXmpp (XCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:server"),
-		("stream", "http://etherx.jabber.org/streams") ] as
+		("stream", "http://etherx.jabber.org/streams") ] $
+	map (first fromTag) ts
 fromXmpp XEnd = XmlEnd (("stream", Nothing), "stream")
 fromXmpp (XFeatures ns) =
 	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature ns
@@ -86,7 +88,6 @@ fromXmpp (XRaw n) = n
 
 data Xmpp
 	= XCommon XmppCommon
-	| XBegin [(QName, BS.ByteString)]
 	| XEnd
 	| XFeatures [Feature]
 	| XStarttls
@@ -145,6 +146,3 @@ xmlPipe :: Monad m => Pipe XmlEvent XmlNode m ()
 xmlPipe = do
 	c <- xmlBegin >>= xmlNode
 	when c xmlPipe
-
-nullQ :: BS.ByteString -> QName
-nullQ = (("", Nothing) ,)
