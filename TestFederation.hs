@@ -2,7 +2,7 @@
 
 module TestFederation (
 	input, output, nullQ,
-	Common(..), toXmpp, fromXmpp, Feature(..), Mechanism(..),
+	Common(..), toCommon, fromXmpp, Feature(..), Mechanism(..),
 	XmppCommon(..), Tag(..),
 	Requirement(..),
 	MessageType(..),
@@ -29,7 +29,7 @@ input h = handleP h
 	=$= xmlEvent
 	=$= convert fromJust
 	=$= xmlPipe
-	=$= convert toXmpp
+	=$= convert toCommon
 	=$= debugP h
 
 debugP :: (HandleLike h, Show a) => h -> Pipe a a (HandleMonad h) ()
@@ -51,36 +51,6 @@ output h = do
 				_ -> return ()
 			output h
 		_ -> return ()
-
-toXmpp :: XmlNode -> Common
-toXmpp (XmlDecl (1, 0)) = CCommon XCDecl
-toXmpp (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
-	CCommon . XCBegin $ map (first toTag) as
-toXmpp (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) =
-	CCommon XCEnd
-toXmpp (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
-	_ [] ns) = CCommon . XCFeatures $ map toFeature ns
-toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
-	_ [] []) = CCommon XCStarttls
-toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed")
-	_ [] []) = CCommon XCProceed
-
-toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
-	_ [((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) =
-	CCommon $ XCAuth External
-
-toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success") _
-	[] []) = CCommon XCSaslSuccess
-toXmpp (XmlNode ((_, Just "jabber:server"), "message") [] as ns) =
-	CCommon . XCMessage tp i fr to $ MBodyRaw ns
-	where
-	ts = map (first toTag) as
-	tp = toMessageType . fromJust $ lookup Type ts
-	i = fromJust $ lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid . fromJust $ lookup To ts
-	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
-toXmpp n = CCommon $ XCRaw n
 
 fromXmpp :: Common -> XmlNode
 fromXmpp (CCommon XCDecl) = XmlDecl (1, 0)
