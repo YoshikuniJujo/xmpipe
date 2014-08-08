@@ -2,6 +2,7 @@
 
 import Control.Applicative
 import "monads-tf" Control.Monad.State
+import Data.Pipe
 
 import qualified Data.ByteString as BS
 import qualified Crypto.Hash.MD5 as MD5
@@ -12,8 +13,14 @@ data Sasl s
 	| Success (Maybe BS.ByteString)
 	| Failure (Maybe BS.ByteString)
 
-type MakeResponse a s = a -> [State s BS.ByteString]
-type MakeChallenge a s = a -> [State s BS.ByteString]
+type Send a s = a -> [State s BS.ByteString]
+type Recieve a s = [a -> State s ()]
+
+{-
+pipe :: Monad m => Sasl s -> Send a s -> Recieve a s -> s ->
+	Pipe BS.ByteString BS.ByteString m ()
+pipe sasl snd rcv st =
+-}
 
 data ExampleState = ExampleState {
 	password :: BS.ByteString,
@@ -33,11 +40,11 @@ exampleSasl ps = S2C $ \getCh -> C2S $ \getRs -> let
 		then Success Nothing
 		else Failure Nothing
 
-exampleMkRsp :: MakeResponse BS.ByteString ExampleState
+exampleMkRsp :: Send BS.ByteString ExampleState
 exampleMkRsp ps = [getResponse ps]
 
-exampleMkCh :: MakeChallenge BS.ByteString ExampleState
-exampleMkCh ch = [setChallenge ch]
+exampleMkCh :: Recieve BS.ByteString ExampleState
+exampleMkCh = [setChallenge]
 
 client2server :: Sasl s -> (State s BS.ByteString) -> Sasl s
 client2server (C2S f) bs = f bs
@@ -58,11 +65,10 @@ main_ = do
 		Success _ -> putStrLn "succeed"
 		Failure _ -> putStrLn "failure"
 
-setChallenge :: BS.ByteString -> State ExampleState BS.ByteString
+setChallenge :: BS.ByteString -> State ExampleState ()
 setChallenge ch = do
 	st <- get
 	put $ st { challenge = Just ch }
-	return ch
 
 getResponse :: BS.ByteString -> State ExampleState BS.ByteString
 getResponse ps = do
@@ -73,7 +79,7 @@ main :: IO ()
 main = do
 	let s0 = exampleSasl "password"
 	ch <- BS.getLine
-	let	s1 = server2client s0 $ setChallenge ch
+	let	s1 = server2client s0 $ setChallenge ch >> return ch
 		s2 = client2server s1 $ getResponse "password"
 	case s2 of
 		Success _ -> putStrLn "succeed"
