@@ -38,7 +38,7 @@ instance HandleLike h => HandleLike (SHandle s h) where
 main :: IO ()
 main = do
 	sl <- atomically $ newTVar []
-	ca <- readCertificateStore ["certs/cacert.sample_pem"]
+--	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/localhost.sample_key"
 	c <- readCertificateChain ["certs/localhost.sample_crt"]
 	pn : _ <- getArgs
@@ -109,7 +109,7 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (SRPresence _ _), Just rcv) ->
 		yield (XCMessage Chat "hoge" (Just sender) rcv .
 			MBody $ MessageBody "Hi, TLS!") >> makeP
-	(Just (XCMessage Chat i fr to bd), Just rcv) -> do
+	(Just (XCMessage Chat i _fr to bd), Just rcv) -> do
 		yield $ (XCMessage Chat "hoge" (Just sender) rcv .
 			MBody $ MessageBody "Hi, TLS!")
 		yield $ XCMessage Chat i

@@ -45,9 +45,18 @@ import Digest
 import Papillon
 
 data Common
---	= CCommon XmppCommon
+	= XCDecl
+	| XCBegin [(Tag, BS.ByteString)]
+	| XCEnd
+	| XCFeatures [Feature]
+	| XCStarttls
+	| XCProceed
+	| XCAuth Mechanism
+	| XCSaslSuccess
+	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
+	| XCRaw XmlNode
 
-	= SRChallengeNull
+	| SRChallengeNull
 	| SRChallenge {
 		realm :: BS.ByteString,
 		nonce :: BS.ByteString,
@@ -59,19 +68,6 @@ data Common
 	| SRResponseNull
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
---	deriving Show
-
--- data XmppCommon
-	| XCDecl
-	| XCBegin [(Tag, BS.ByteString)]
-	| XCEnd
-	| XCFeatures [Feature]
-	| XCStarttls
-	| XCProceed
-	| XCAuth Mechanism
-	| XCSaslSuccess
-	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
-	| XCRaw XmlNode
 	deriving Show
 
 data Query

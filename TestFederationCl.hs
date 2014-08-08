@@ -11,17 +11,14 @@ import Data.Pipe
 import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
-import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
 import TestFederation
-import XmppCommon hiding (nullQ, External)
 
 convertMessage :: Common -> Common
-convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb
 convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb
 convertMessage c = error $ "NOT IMPLEMENTED: " ++ show c
 

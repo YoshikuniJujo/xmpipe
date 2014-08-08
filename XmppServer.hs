@@ -47,8 +47,6 @@ import DigestSv
 
 import XmppCommon
 
-import Control.Concurrent.STM
-
 data SHandle s h = SHandle h
 
 instance HandleLike h => HandleLike (SHandle s h) where
@@ -108,14 +106,6 @@ otherhost sl m = liftIO $ do
 	atomically . writeTChan i $ convertMessage m
 	atomically $ readTChan e
 	atomically $ modifyTVar sl (("otherhost", i) :)
-
-outputXml :: (MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-		HandleLike h) => h -> Pipe XmlNode () (HandleMonad h) ()
-outputXml h = do
-	mx <- await
-	case mx of
-		Just x -> lift (hlPut h $ xmlString [x]) >> outputXml h
-		_ -> return ()
 
 input :: HandleLike h => h -> Pipe () Common (HandleMonad h) ()
 input h = handleP h
