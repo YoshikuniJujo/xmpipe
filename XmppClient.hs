@@ -74,7 +74,7 @@ input h = handleP h
 	=$= convert fromJust
 	=$= xmlPipe
 	=$= checkP h
-	=$= convert showResponse
+	=$= convert toCommon
 	=$= checkSR h
 
 checkP :: HandleLike h => h -> Pipe XmlNode XmlNode (HandleMonad h) ()
@@ -112,7 +112,7 @@ output h = do
 	mn <- await
 	case mn of
 		Just n -> do
-			lift (hlPut h $ xmlString [toXml n])
+			lift (hlPut h $ xmlString [fromCommon n])
 			case n of
 				CCommon XCEnd -> lift $ hlClose h
 				_ -> return ()

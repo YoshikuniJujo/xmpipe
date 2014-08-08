@@ -11,7 +11,7 @@ module XmppServer (
 	handleP,
 	checkP,
 	digestMd5,
-	showResponse, toXml,
+	toCommon, fromCommon,
 	Jid(..),
 	MessageType(..),
 	IqType(..),
@@ -98,7 +98,7 @@ output sl h = do
 						convertMessage m
 					_ -> otherhost sl m
 				output sl h
-		Just x -> lift (hlPut h $ xmlString [toXml x]) >> output sl h
+		Just x -> lift (hlPut h $ xmlString [fromCommon x]) >> output sl h
 		_ -> return ()
 
 otherhost :: MonadIO m =>
@@ -124,7 +124,7 @@ input h = handleP h
 --	=$= checkP h
 	=$= convert fromJust
 	=$= xmlPipe
-	=$= convert showResponse
+	=$= convert toCommon
 	=$= checkP h
 
 xmlPipe :: Monad m => Pipe XmlEvent XmlNode m ()
