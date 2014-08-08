@@ -18,6 +18,7 @@ module Common (
 	MBody(..),
 	MessageType(..),
 	nullQ,
+	Side(..),
 	) where
 
 import Control.Applicative
@@ -81,38 +82,59 @@ session :: XmlNode
 session = XmlNode (nullQ "session")
 	[("", "urn:ietf:params:xml:ns:xmpp-session")] [] []
 
-fromCommon :: Common -> XmlNode
-fromCommon (CCommon XCDecl) = XmlDecl (1, 0)
-fromCommon (CCommon (XCBegin as)) = XmlStart (("stream", Nothing), "stream")
-	[	("", "jabber:client"),
+data Side = Client | Server deriving Show
+
+jabberQ :: Side -> BS.ByteString
+jabberQ Client = "jabber:client"
+jabberQ Server = "jabber:server"
+
+fromCommon :: Side -> Common -> XmlNode
+fromCommon _ (CCommon XCDecl) = XmlDecl (1, 0)
+fromCommon s (CCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
+	[	("", jabberQ s),
 		("stream", "http://etherx.jabber.org/streams") ]
-	(map (first fromTag) as)
-fromCommon (CCommon (XCFeatures fs)) = XmlNode
-	(("stream", Nothing), "features") [] [] $ map fromFeature fs
-fromCommon (CCommon (XCAuth m)) = XmlNode (nullQ "auth")
+	(map (first fromTag) ts)
+fromCommon _ (CCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
+fromCommon _ (CCommon (XCFeatures fs)) =
+	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature fs
+fromCommon _ (CCommon XCStarttls) = XmlNode (nullQ "starttls")
+	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
+fromCommon _ (CCommon XCProceed) = XmlNode (nullQ "proceed")
+	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
+fromCommon _ (CCommon (XCAuth External)) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[((("", Nothing), "mechanism"), fromMechanism' m)] []
-fromCommon SRChallengeNull = XmlNode (nullQ "challenge")
+	[(nullQ "mechanism", "EXTERNAL")] [XmlCharData "="]
+fromCommon _ (CCommon (XCAuth m)) = XmlNode (nullQ "auth")
+	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
+	[(nullQ "mechanism", fromMechanism' m)] []
+fromCommon _ (CCommon XCSaslSuccess) =
+	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
+fromCommon _ (CCommon (XCMessage Chat i fr to (MBodyRaw ns))) =
+	XmlNode (nullQ "message") [] (catMaybes [
+		Just (fromTag Type, "chat"),
+		Just (fromTag Id, i),
+		(fromTag From ,) . fromJid <$> fr,
+		Just (fromTag To, fromJid to) ]) ns
+
+fromCommon _ SRChallengeNull = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
-fromCommon c@SRChallenge{} = XmlNode (nullQ "challenge")
+fromCommon _ c@SRChallenge{} = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $ fromChallenge
 		(realm c) (nonce c) (qop c) (charset c) (algorithm c)
-fromCommon (SRResponse _ dr) = drToXmlNode dr
-fromCommon (SRChallengeRspauth sret) = XmlNode (nullQ "challenge")
+fromCommon _ (SRResponse _ dr) = drToXmlNode dr
+fromCommon _ (SRChallengeRspauth sret) = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] [XmlCharData sret]
-fromCommon SRResponseNull = drnToXmlNode
-fromCommon (CCommon XCSaslSuccess) =
-	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
-fromCommon (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
+fromCommon _ SRResponseNull = drnToXmlNode
+fromCommon _ (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(catMaybes [
 		Just $ iqTypeToAtt tp,
 		Just (nullQ "id", i),
 		(nullQ "from" ,) . fromJid <$> fr,
 		(nullQ "to" ,) . fromJid <$> to ])
 	(fromQuery q)
-fromCommon (SRPresence ts c) =
+fromCommon _ (SRPresence ts c) =
 	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
-fromCommon (CCommon (XCMessage tp i fr to (MBody (MessageBody m)))) =
+fromCommon _ (CCommon (XCMessage tp i fr to (MBody (MessageBody m)))) =
 	XmlNode (nullQ "message") []
 		(catMaybes [
 			Just $ messageTypeToAtt tp,
@@ -120,13 +142,6 @@ fromCommon (CCommon (XCMessage tp i fr to (MBody (MessageBody m)))) =
 			(nullQ "from" ,) . fromJid <$> fr,
 			Just (nullQ "to", fromJid to) ])
 		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
-fromCommon (CCommon (XCMessage Chat i fr to (MBodyRaw ns))) =
-	XmlNode (nullQ "message") []
-		(catMaybes [
-			Just (nullQ "type", "chat"),
-			Just (nullQ "id", i),
-			(nullQ "from" ,) . fromJid <$> fr,
-			Just (nullQ "to", fromJid to) ]) ns
-fromCommon (CCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
-fromCommon (CCommon (XCRaw n)) = n
-fromCommon c = error $ "fromCommon: not implemented yet: " ++ show c
+
+fromCommon _ (CCommon (XCRaw n)) = n
+fromCommon _ c = error $ "fromCommon: not implemented yet: " ++ show c

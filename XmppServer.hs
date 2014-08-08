@@ -98,7 +98,7 @@ output sl h = do
 						convertMessage m
 					_ -> otherhost sl m
 				output sl h
-		Just x -> lift (hlPut h $ xmlString [fromCommon x]) >> output sl h
+		Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> output sl h
 		_ -> return ()
 
 otherhost :: MonadIO m =>

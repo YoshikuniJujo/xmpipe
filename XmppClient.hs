@@ -112,7 +112,7 @@ output h = do
 	mn <- await
 	case mn of
 		Just n -> do
-			lift (hlPut h $ xmlString [fromCommon n])
+			lift (hlPut h $ xmlString [fromCommon Client n])
 			case n of
 				CCommon XCEnd -> lift $ hlClose h
 				_ -> return ()
