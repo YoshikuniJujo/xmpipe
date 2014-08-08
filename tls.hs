@@ -55,7 +55,7 @@ awaitAll :: Monad m => Pipe a () m ()
 awaitAll = await >>= maybe (return ()) (const awaitAll)
 
 startTls :: Common
-startTls = SRRaw $ XmlNode (("", Nothing), "starttls")
+startTls = CCommon . XCRaw $ XmlNode (("", Nothing), "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 
 xmpp :: (HandleLike h, MonadState (HandleMonad h),
@@ -94,7 +94,7 @@ process = await >>= \mr -> case mr of
 		(IqDiscoInfoNode [(DTNode, n)]))
 		| (u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
-			yield . SRMessage Chat "prof_3" Nothing recipient .
+			yield . CCommon . XCMessage Chat "prof_3" Nothing recipient .
 				MBody $ MessageBody message
 			yield $ CCommon XCEnd
 	Just _ -> process

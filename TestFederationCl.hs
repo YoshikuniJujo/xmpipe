@@ -21,10 +21,8 @@ import TestFederation
 import Common hiding (nullQ, External)
 
 convertMessage :: Common -> Xmpp
-convertMessage (SRMessage Chat i fr to (MBody (MessageBody bd))) =
-	XMessage Chat i fr to [XmlNode (nullQ "body") [] [] [XmlCharData bd]]
-convertMessage (SRMessage Chat i fr to (MBodyRaw ns)) =
-	XMessage Chat i fr to ns
+convertMessage (CCommon (XCMessage Chat i fr to mb)) = XCommon $ XCMessage Chat i fr to mb
+convertMessage (CCommon (XCMessage Chat i fr to mb)) = XCommon $ XCMessage Chat i fr to mb
 convertMessage c = error $ "NOT IMPLEMENTED: " ++ show c
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
@@ -70,7 +68,7 @@ proc i e = await >>= \mx -> case mx of
 		yield m
 		liftIO . atomically $ writeTChan e ()
 		proc i e
-	Just (XMessage _ _ _ _ _) -> do
+	Just (XCommon (XCMessage _ _ _ _ _)) -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
 		liftIO . atomically $ writeTChan e ()

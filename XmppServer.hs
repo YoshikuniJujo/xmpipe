@@ -90,7 +90,7 @@ output :: (MonadIO (HandleMonad h),
 output sl h = do
 	mx <- await
 	case mx of
-		Just m@(SRMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _)
+		Just m@(CCommon (XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _))
 			-> do	lift (hlDebug h "critical" "HERE")
 				l <- liftIO . atomically $ readTVar sl
 				case lookup "otherhost" l of

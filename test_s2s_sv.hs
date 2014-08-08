@@ -81,11 +81,11 @@ process = await >>= \mx -> case mx of
 		lift $ modify authed
 		yield $ XCommon XCSaslSuccess
 		process
-	Just (XMessage _ _ _ _ _) -> do
-		yield $ XMessage Chat "hoge"
+	Just (XCommon (XCMessage _ _ _ _ _)) -> do
+		yield . XCommon $ XCMessage Chat "hoge"
 			(Just $ Jid "yoshio" "otherhost" Nothing)
-			(Jid "yoshikuni" "localhost" Nothing)
-			[XmlCharData "HOGETA"]
+			(Jid "yoshikuni" "localhost" Nothing) $
+			MBodyRaw [XmlCharData "HOGETA"]
 		process
 --		yield XEnd
 --		process

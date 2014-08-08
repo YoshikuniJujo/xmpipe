@@ -41,8 +41,6 @@ fromJust' em _ = error em
 
 data Common
 	= CCommon XmppCommon
-	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
-	| SRRaw XmlNode
 
 	| SRChallengeNull
 	| SRChallenge {
@@ -58,12 +56,6 @@ data Common
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
 	deriving Show
 
-data Bind
-	= Resource BS.ByteString
-	| BJid Jid
-	| BindRaw XmlNode
-	deriving Show
-
 data Query
 	= IqBind (Maybe Requirement) Bind
 	| IqSession
@@ -77,6 +69,12 @@ data Query
 	| IqDiscoInfoNode [(DiscoTag, BS.ByteString)]
 	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] [Identity] [InfoFeature]
 		[XmlNode]
+	deriving Show
+
+data Bind
+	= Resource BS.ByteString
+	| BJid Jid
+	| BindRaw XmlNode
 	deriving Show
 
 data DiscoTag = DTNode | DTRaw QName deriving (Eq, Show)
@@ -132,55 +130,6 @@ toIdentity (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "identit
 toIdentity _n = Nothing -- IdentityRaw n
 
 data IqType = Get | Set | Result | ITError deriving (Eq, Show)
-
-data MessageBody
-	= MessageBody BS.ByteString
-	| MBRaw XmlNode
-	deriving Show
-data MessageDelay
-	= MessageDelay [(DelayTag, BS.ByteString)]
-	| MDRaw XmlNode
-	deriving Show
-
-data DelayTag = DTFrom | DTStamp | DlyTRaw QName deriving Show
-
-data MessageXDelay
-	= MessageXDelay [(XDelayTag, BS.ByteString)]
-	| MXDRaw XmlNode
-	deriving Show
-
-data XDelayTag = XDTFrom | XDTStamp | XDlyTRaw QName deriving Show
-
-toXDelay :: XmlNode -> MessageXDelay
-toXDelay (XmlNode ((_, Just "jabber:x:delay"), "x") _ as []) =
-	MessageXDelay $ map (first toXDelayTag) as
-toXDelay n = MXDRaw n
-
-toXDelayTag :: QName -> XDelayTag
-toXDelayTag ((_, Just "jabber:x:delay"), "from") = XDTFrom
-toXDelayTag ((_, Just "jabber:x:delay"), "stamp") = XDTStamp
-toXDelayTag n = XDlyTRaw n
-
-toDelayTag :: QName -> DelayTag
-toDelayTag ((_, Just "urn:xmpp:delay"), "from") = DTFrom
-toDelayTag ((_, Just "urn:xmpp:delay"), "stamp") = DTStamp
-toDelayTag n = DlyTRaw n
-
-toBody :: XmlNode -> MessageBody
-toBody (XmlNode ((_, Just "jabber:client"), "body") _ [] [XmlCharData b]) =
-	MessageBody b
-toBody n = MBRaw n
-
-toDelay :: XmlNode -> MessageDelay
-toDelay (XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ as []) = MessageDelay $
-	map (first toDelayTag) as
-toDelay n = MDRaw n
-
-data MBody
-	= MBody MessageBody
-	| MBodyDelay MessageBody MessageDelay MessageXDelay
-	| MBodyRaw [XmlNode]
-	deriving Show
 
 toIqBody :: [XmlNode] -> Query
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
@@ -329,7 +278,7 @@ showResponse (XmlNode ((_, Just "jabber:client"), "message") _ as [b, d, xd])
 	| XmlNode ((_, Just "jabber:client"), "body") _ [] _ <- b,
 		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
 		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd =
-		SRMessage tp i fr to $
+		CCommon . XCMessage tp i fr to $
 			MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
 	where
 	ts = map (first toTag) as
@@ -338,14 +287,14 @@ showResponse (XmlNode ((_, Just "jabber:client"), "message") _ as [b, d, xd])
 	fr = toJid <$> lookup From ts
 	to = toJid . fromJust $ lookup To ts
 showResponse (XmlNode ((_, Just "jabber:client"), "message") _ as ns) =
-	SRMessage tp i fr to $ MBodyRaw ns
+	CCommon . XCMessage tp i fr to $ MBodyRaw ns
 	where
 	ts = map (first toTag) as
 	tp = toMessageType . fromJust $ lookup Type ts
 	i = fromJust $ lookup Id ts
 	fr = toJid <$> lookup From ts
 	to = toJid . fromJust $ lookup To ts
-showResponse n = SRRaw n
+showResponse n = CCommon $ XCRaw n
 
 capsQuery :: BS.ByteString -> BS.ByteString -> XmlNode
 capsQuery v n = XmlNode (("", Nothing), "query")
@@ -390,7 +339,7 @@ toXml (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(fromQuery q)
 toXml (SRPresence ts c) =
 	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
-toXml (SRMessage tp i fr to (MBody (MessageBody m))) =
+toXml (CCommon (XCMessage tp i fr to (MBody (MessageBody m)))) =
 	XmlNode (nullQ "message") []
 		(catMaybes [
 			Just $ messageTypeToAtt tp,
@@ -398,7 +347,7 @@ toXml (SRMessage tp i fr to (MBody (MessageBody m))) =
 			(nullQ "from" ,) . fromJid <$> fr,
 			Just (nullQ "to", fromJid to) ])
 		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
-toXml (SRMessage Chat i fr to (MBodyRaw ns)) =
+toXml (CCommon (XCMessage Chat i fr to (MBodyRaw ns))) =
 	XmlNode (nullQ "message") []
 		(catMaybes [
 			Just (nullQ "type", "chat"),
@@ -406,5 +355,5 @@ toXml (SRMessage Chat i fr to (MBodyRaw ns)) =
 			(nullQ "from" ,) . fromJid <$> fr,
 			Just (nullQ "to", fromJid to) ]) ns
 toXml (CCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
-toXml (SRRaw n) = n
+toXml (CCommon (XCRaw n)) = n
 toXml c = error $ "toXml: not implemented yet: " ++ show c
