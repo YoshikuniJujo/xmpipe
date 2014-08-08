@@ -68,7 +68,7 @@ main = do
 xmpp :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 		HandleLike h) =>
-	TVar [(String, TChan Xmpp)] -> h -> HandleMonad h ()
+	TVar [(String, TChan Common)] -> h -> HandleMonad h ()
 xmpp sl h = do
 	voidM . runPipe $ input h =$= makeP =$= output sl h
 	hlPut h $ xmlString [XmlEnd (("stream", Nothing), "stream")]

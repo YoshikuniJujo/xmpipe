@@ -39,59 +39,9 @@ fromJust' :: String -> Maybe a -> a
 fromJust' _ (Just x) = x
 fromJust' em _ = error em
 
-data Common
-	= CCommon XmppCommon
-
-	| SRChallengeNull
-	| SRChallenge {
-		realm :: BS.ByteString,
-		nonce :: BS.ByteString,
-		qop :: BS.ByteString,
-		charset :: BS.ByteString,
-		algorithm :: BS.ByteString }
-	| SRResponse BS.ByteString DigestResponse
-	| SRChallengeRspauth BS.ByteString
-	| SRResponseNull
-	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
-	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
-	deriving Show
-
-data Query
-	= IqBind (Maybe Requirement) Bind
-	| IqSession
-	| IqSessionNull
-	| IqRoster (Maybe Roster)
-	| QueryRaw [XmlNode]
-
-	| IqCapsQuery BS.ByteString BS.ByteString
-	| IqCapsQuery2 [XmlNode]
-	| IqDiscoInfo
-	| IqDiscoInfoNode [(DiscoTag, BS.ByteString)]
-	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] [Identity] [InfoFeature]
-		[XmlNode]
-	deriving Show
-
-data Bind
-	= Resource BS.ByteString
-	| BJid Jid
-	| BindRaw XmlNode
-	deriving Show
-
-data DiscoTag = DTNode | DTRaw QName deriving (Eq, Show)
-
 toDiscoTag :: QName -> DiscoTag
 toDiscoTag ((_, Just "http://jabber.org/protocol/disco#info"), "node") = DTNode
 toDiscoTag n = DTRaw n
-
-data Roster
-	= Roster (Maybe BS.ByteString) [XmlNode]
-	deriving Show
-
-data InfoFeature
-	= InfoFeature BS.ByteString
-	| InfoFeatureSemiRaw [(InfoFeatureTag, BS.ByteString)]
-	| InfoFeatureRaw XmlNode
-	deriving Show
 
 toInfoFeature :: XmlNode -> Maybe InfoFeature
 toInfoFeature (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"),
@@ -100,22 +50,9 @@ toInfoFeature (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"),
 		atts -> InfoFeatureSemiRaw atts
 toInfoFeature _n = Nothing -- InfoFeatureRaw n
 
-data InfoFeatureTag
-	= IFTVar
-	| IFTVarRaw QName
-	deriving (Eq, Show)
-
 toInfoFeatureTag :: QName -> InfoFeatureTag
 toInfoFeatureTag ((_, Just "http://jabber.org/protocol/disco#info"), "var") = IFTVar
 toInfoFeatureTag n = IFTVarRaw n
-
-data Identity
-	= Identity [(IdentityTag, BS.ByteString)]
-	| IdentityRaw XmlNode
-	deriving Show
-
-data IdentityTag
-	= IDTType | IDTName | IDTCategory | IDTLang | IDTRaw QName deriving (Eq, Show)
 
 toIdentityTag :: QName -> IdentityTag
 toIdentityTag ((_, Just "http://jabber.org/protocol/disco#info"), "type") = IDTType
@@ -128,8 +65,6 @@ toIdentity :: XmlNode -> Maybe Identity
 toIdentity (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "identity")
 	_ as []) = Just . Identity $ map (first toIdentityTag) as
 toIdentity _n = Nothing -- IdentityRaw n
-
-data IqType = Get | Set | Result | ITError deriving (Eq, Show)
 
 toIqBody :: [XmlNode] -> Query
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []

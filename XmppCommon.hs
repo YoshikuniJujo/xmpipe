@@ -14,6 +14,18 @@ module XmppCommon (
 	MessageDelay(..), DelayTag(..), toDelay,
 	MessageXDelay(..), XDelayTag(..), toXDelay,
 	nullQ,
+
+	Common(..),
+
+	Query(..),
+	IqType(..),
+	Roster(..),
+	Bind(..),
+	Identity(..),
+	IdentityTag(..),
+	InfoFeature(..),
+	InfoFeatureTag(..),
+	DiscoTag(..),
 	) where
 
 import Control.Arrow
@@ -21,6 +33,25 @@ import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+
+import Digest
+
+data Common
+	= CCommon XmppCommon
+
+	| SRChallengeNull
+	| SRChallenge {
+		realm :: BS.ByteString,
+		nonce :: BS.ByteString,
+		qop :: BS.ByteString,
+		charset :: BS.ByteString,
+		algorithm :: BS.ByteString }
+	| SRResponse BS.ByteString DigestResponse
+	| SRChallengeRspauth BS.ByteString
+	| SRResponseNull
+	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
+	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
+	deriving Show
 
 data XmppCommon
 	= XCDecl
@@ -34,6 +65,49 @@ data XmppCommon
 	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| XCRaw XmlNode
 	deriving Show
+
+data Query
+	= IqBind (Maybe Requirement) Bind
+	| IqSession
+	| IqSessionNull
+	| IqRoster (Maybe Roster)
+	| QueryRaw [XmlNode]
+
+	| IqCapsQuery BS.ByteString BS.ByteString
+	| IqCapsQuery2 [XmlNode]
+	| IqDiscoInfo
+	| IqDiscoInfoNode [(DiscoTag, BS.ByteString)]
+	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] [Identity] [InfoFeature]
+		[XmlNode]
+	deriving Show
+
+data Bind
+	= Resource BS.ByteString
+	| BJid Jid
+	| BindRaw XmlNode
+	deriving Show
+
+data IqType = Get | Set | Result | ITError deriving (Eq, Show)
+
+data Roster = Roster (Maybe BS.ByteString) [XmlNode] deriving Show
+
+data DiscoTag = DTNode | DTRaw QName deriving (Eq, Show)
+
+data Identity
+	= Identity [(IdentityTag, BS.ByteString)]
+	| IdentityRaw XmlNode
+	deriving Show
+
+data IdentityTag
+	= IDTType | IDTName | IDTCategory | IDTLang | IDTRaw QName deriving (Eq, Show)
+
+data InfoFeature
+	= InfoFeature BS.ByteString
+	| InfoFeatureSemiRaw [(InfoFeatureTag, BS.ByteString)]
+	| InfoFeatureRaw XmlNode
+	deriving Show
+
+data InfoFeatureTag = IFTVar | IFTVarRaw QName deriving (Eq, Show)
 
 data Tag
 	= Id | From | To | Version | Lang | Mechanism | Type

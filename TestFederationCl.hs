@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, PackageImports #-}
 
-module TestFederationCl (Xmpp, readFiles, convertMessage, connect) where
+module TestFederationCl (Common, readFiles, convertMessage, connect) where
 
 import Control.Applicative
 import Control.Monad
@@ -20,9 +20,9 @@ import "crypto-random" Crypto.Random
 import TestFederation
 import Common hiding (nullQ, External)
 
-convertMessage :: Common -> Xmpp
-convertMessage (CCommon (XCMessage Chat i fr to mb)) = XCommon $ XCMessage Chat i fr to mb
-convertMessage (CCommon (XCMessage Chat i fr to mb)) = XCommon $ XCMessage Chat i fr to mb
+convertMessage :: Common -> Common
+convertMessage (CCommon (XCMessage Chat i fr to mb)) = CCommon $ XCMessage Chat i fr to mb
+convertMessage (CCommon (XCMessage Chat i fr to mb)) = CCommon $ XCMessage Chat i fr to mb
 convertMessage c = error $ "NOT IMPLEMENTED: " ++ show c
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
@@ -31,7 +31,7 @@ readFiles = (,,)
 	<*> readKey "certs/localhost.sample_key"
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
 
-connect :: CertificateStore -> CertSecretKey -> CertificateChain -> IO (TChan Xmpp, TChan ())
+connect :: CertificateStore -> CertSecretKey -> CertificateChain -> IO (TChan Common, TChan ())
 connect ca k c = do
 	i <- atomically newTChan
 	e <- atomically newTChan
@@ -47,53 +47,53 @@ connect ca k c = do
 			hlClose p
 	return (i, e)
 
-process :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
+process :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
 process i e = do
-	yield $ XCommon XCDecl
+	yield $ CCommon XCDecl
 	yield begin
 	proc i e
 
-proc :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
+proc :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
 proc i e = await >>= \mx -> case mx of
-	Just (XCommon (XCBegin _as)) -> proc i e
-	Just (XCommon (XCFeatures [FtMechanisms [External]])) -> do
-		yield . XCommon $ XCAuth External
+	Just (CCommon (XCBegin _as)) -> proc i e
+	Just (CCommon (XCFeatures [FtMechanisms [External]])) -> do
+		yield . CCommon $ XCAuth External
 		proc i e
-	Just (XCommon XCSaslSuccess) -> do
-		yield $ XCommon XCDecl
+	Just (CCommon XCSaslSuccess) -> do
+		yield $ CCommon XCDecl
 		yield begin
 		proc i e
-	Just (XCommon (XCFeatures [])) -> do
+	Just (CCommon (XCFeatures [])) -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
 		liftIO . atomically $ writeTChan e ()
 		proc i e
-	Just (XCommon (XCMessage _ _ _ _ _)) -> do
+	Just (CCommon (XCMessage _ _ _ _ _)) -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
 		liftIO . atomically $ writeTChan e ()
 		proc i e
-	Just (XCommon XCEnd) -> yield $ XCommon XCEnd
+	Just (CCommon XCEnd) -> yield $ CCommon XCEnd
 	_ -> return ()
 
-processTls :: Monad m => Pipe Xmpp Xmpp m ()
+processTls :: Monad m => Pipe Common Common m ()
 processTls = do
-	yield $ XCommon XCDecl
+	yield $ CCommon XCDecl
 	yield begin
 	procTls
 
-procTls :: Monad m => Pipe Xmpp Xmpp m ()
+procTls :: Monad m => Pipe Common Common m ()
 procTls = await >>= \mx -> case mx of
-	Just (XCommon (XCBegin _as)) -> procTls
-	Just (XCommon (XCFeatures [FtStarttls _])) -> do
-		yield $ XCommon XCStarttls
+	Just (CCommon (XCBegin _as)) -> procTls
+	Just (CCommon (XCFeatures [FtStarttls _])) -> do
+		yield $ CCommon XCStarttls
 		procTls
-	Just (XCommon XCProceed) -> return ()
+	Just (CCommon XCProceed) -> return ()
 	Just _ -> return ()
 	_ -> return ()
 
-begin :: Xmpp
-begin = XCommon $ XCBegin [
+begin :: Common
+begin = CCommon $ XCBegin [
 	(From, "localhost"),
 	(To, "otherhost"),
 	(Version, "1.0") ]

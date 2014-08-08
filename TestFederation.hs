@@ -2,7 +2,7 @@
 
 module TestFederation (
 	input, output, nullQ,
-	Xmpp(..), toXmpp, fromXmpp, Feature(..), Mechanism(..),
+	Common(..), toXmpp, fromXmpp, Feature(..), Mechanism(..),
 	XmppCommon(..), Tag(..),
 	Requirement(..),
 	MessageType(..),
@@ -24,7 +24,7 @@ import qualified Data.ByteString.Char8 as BSC
 
 import XmppCommon
 
-input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
+input :: HandleLike h => h -> Pipe () Common (HandleMonad h) ()
 input h = handleP h
 	=$= xmlEvent
 	=$= convert fromJust
@@ -40,37 +40,37 @@ debugP h = await >>= \mx -> case mx of
 		debugP h
 	_ -> return ()
 
-output :: HandleLike h => h -> Pipe Xmpp () (HandleMonad h) ()
+output :: HandleLike h => h -> Pipe Common () (HandleMonad h) ()
 output h = do
 	mn <- await
 	case mn of
 		Just n -> do
 			lift . hlPut h $ xmlString [fromXmpp n]
 			case n of
-				XCommon XCEnd -> lift $ hlClose h
+				CCommon XCEnd -> lift $ hlClose h
 				_ -> return ()
 			output h
 		_ -> return ()
 
-toXmpp :: XmlNode -> Xmpp
-toXmpp (XmlDecl (1, 0)) = XCommon XCDecl
+toXmpp :: XmlNode -> Common
+toXmpp (XmlDecl (1, 0)) = CCommon XCDecl
 toXmpp (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
-	XCommon . XCBegin $ map (first toTag) as
+	CCommon . XCBegin $ map (first toTag) as
 toXmpp (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) =
-	XCommon XCEnd
+	CCommon XCEnd
 toXmpp (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
-	_ [] ns) = XCommon . XCFeatures $ map toFeature ns
+	_ [] ns) = CCommon . XCFeatures $ map toFeature ns
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls") _ [] []) =
-	XCommon XCStarttls
+	CCommon XCStarttls
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed") _ [] []) =
-	XCommon XCProceed
+	CCommon XCProceed
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth") _
 	[((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) =
-	XCommon $ XCAuth External
+	CCommon $ XCAuth External
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success") _
-	[] []) = XCommon XCSaslSuccess
+	[] []) = CCommon XCSaslSuccess
 toXmpp (XmlNode ((_, Just "jabber:server"), "message") [] as ns) =
-	XCommon . XCMessage tp i fr to $ MBodyRaw ns
+	CCommon . XCMessage tp i fr to $ MBodyRaw ns
 	where
 	ts = map (first toTag) as
 	tp = toMessageType . fromJust $ lookup Type ts
@@ -78,35 +78,33 @@ toXmpp (XmlNode ((_, Just "jabber:server"), "message") [] as ns) =
 	fr = toJid <$> lookup From ts
 	to = toJid . fromJust $ lookup To ts
 	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
-toXmpp n = XCommon $ XCRaw n
+toXmpp n = CCommon $ XCRaw n
 
-fromXmpp :: Xmpp -> XmlNode
-fromXmpp (XCommon XCDecl) = XmlDecl (1, 0)
-fromXmpp (XCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
+fromXmpp :: Common -> XmlNode
+fromXmpp (CCommon XCDecl) = XmlDecl (1, 0)
+fromXmpp (CCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:server"),
 		("stream", "http://etherx.jabber.org/streams") ] $
 	map (first fromTag) ts
-fromXmpp (XCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
-fromXmpp (XCommon (XCFeatures ns)) =
+fromXmpp (CCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
+fromXmpp (CCommon (XCFeatures ns)) =
 	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature ns
-fromXmpp (XCommon XCStarttls) = XmlNode (nullQ "starttls")
+fromXmpp (CCommon XCStarttls) = XmlNode (nullQ "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromXmpp (XCommon XCProceed) = XmlNode (nullQ "proceed")
+fromXmpp (CCommon XCProceed) = XmlNode (nullQ "proceed")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromXmpp (XCommon (XCAuth External)) = XmlNode (nullQ "auth")
+fromXmpp (CCommon (XCAuth External)) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[((nullQ "mechanism"), "EXTERNAL")] [XmlCharData "="]
-fromXmpp (XCommon XCSaslSuccess) = XmlNode (nullQ "success")
+fromXmpp (CCommon XCSaslSuccess) = XmlNode (nullQ "success")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
-fromXmpp (XCommon (XCMessage tp i fr to (MBodyRaw ns))) =
+fromXmpp (CCommon (XCMessage tp i fr to (MBodyRaw ns))) =
 	XmlNode (nullQ "message") [] (catMaybes [
 		Just (fromTag Type, fromMessageType tp),
 		Just (fromTag Id, i),
 		(fromTag From ,) . fromJid <$> fr,
 		Just (fromTag To, fromJid to) ]) ns
-fromXmpp (XCommon (XCRaw n)) = n
-
-data Xmpp = XCommon XmppCommon deriving Show
+fromXmpp (CCommon (XCRaw n)) = n
 
 handleP :: HandleLike h => h -> Pipe () BS.ByteString (HandleMonad h) ()
 handleP h = do

@@ -86,7 +86,7 @@ nextUuid = do
 output :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 	HandleLike h) =>
-	TVar [(String, TChan Xmpp)] -> h -> Pipe Common () (HandleMonad h) ()
+	TVar [(String, TChan Common)] -> h -> Pipe Common () (HandleMonad h) ()
 output sl h = do
 	mx <- await
 	case mx of
@@ -102,7 +102,7 @@ output sl h = do
 		_ -> return ()
 
 otherhost :: MonadIO m =>
-	TVar [(String, TChan Xmpp)] -> Common -> Pipe Common () m ()
+	TVar [(String, TChan Common)] -> Common -> Pipe Common () m ()
 otherhost sl m = liftIO $ do
 	(ca, k, c) <- readFiles
 	(i, e) <- connect ca k c

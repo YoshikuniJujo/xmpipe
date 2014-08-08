@@ -65,24 +65,24 @@ authed xs = xs { xsAuthed = True }
 dropUuid :: XmppState -> XmppState
 dropUuid xs = xs { xsUuid = tail $ xsUuid xs }
 
-process :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
+process :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
 process = await >>= \mx -> case mx of
-	Just (XCommon (XCBegin _as)) -> do
+	Just (CCommon (XCBegin _as)) -> do
 --		trace "HERE" $ return ()
 		a <- lift $ gets xsAuthed
-		yield $ XCommon XCDecl
+		yield $ CCommon XCDecl
 		nextUuid >>= yield . begin
 		yield $ if a
-			then XCommon $ XCFeatures []
-			else XCommon $ XCFeatures [FtMechanisms [External]]
+			then CCommon $ XCFeatures []
+			else CCommon $ XCFeatures [FtMechanisms [External]]
 --		trace "THERE" $ return ()
 		process
-	Just (XCommon (XCAuth External)) -> do
+	Just (CCommon (XCAuth External)) -> do
 		lift $ modify authed
-		yield $ XCommon XCSaslSuccess
+		yield $ CCommon XCSaslSuccess
 		process
-	Just (XCommon (XCMessage _ _ _ _ _)) -> do
-		yield . XCommon $ XCMessage Chat "hoge"
+	Just (CCommon (XCMessage _ _ _ _ _)) -> do
+		yield . CCommon $ XCMessage Chat "hoge"
 			(Just $ Jid "yoshio" "otherhost" Nothing)
 			(Jid "yoshikuni" "localhost" Nothing) $
 			MBodyRaw [XmlCharData "HOGETA"]
@@ -91,19 +91,19 @@ process = await >>= \mx -> case mx of
 --		process
 	_ -> return ()
 
-processTls :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
+processTls :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
 processTls = await >>= \mx -> case mx of
-	Just (XCommon (XCBegin _as)) -> do
-		yield $ XCommon XCDecl
+	Just (CCommon (XCBegin _as)) -> do
+		yield $ CCommon XCDecl
 		nextUuid >>= yield . begin
-		yield . XCommon $ XCFeatures [FtStarttls Required]
+		yield . CCommon $ XCFeatures [FtStarttls Required]
 		processTls
-	Just (XCommon XCStarttls) -> do
-		yield $ XCommon XCProceed
+	Just (CCommon XCStarttls) -> do
+		yield $ CCommon XCProceed
 	_ -> return ()
 
-begin :: UUID -> Xmpp
-begin u = XCommon $ XCBegin [
+begin :: UUID -> Common
+begin u = CCommon $ XCBegin [
 	(From, "otherhost"),
 	(To, "localhost"),
 	(Version, "1.0"),
