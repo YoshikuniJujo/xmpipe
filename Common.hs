@@ -157,14 +157,23 @@ fromChallenge r u q c a = (: []) . XmlCharData . B64.encode $ BS.concat [
 	"charset=", c, ",", "algorithm=", a ] -- md5-sess" ]
 
 toCommon :: XmlNode -> Common
-toCommon (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _
-	as) = CCommon . XCBegin $ map (first toTag) as
+toCommon (XmlDecl (1, 0)) = CCommon XCDecl
+toCommon (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
+	CCommon . XCBegin $ map (first toTag) as
+toCommon (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) =
+	CCommon XCEnd
 toCommon (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
 	_ [] nds) = CCommon . XCFeatures $ map toFeature nds
+toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
+	_ [] []) = CCommon XCStarttls
+toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed")
+	_ [] []) = CCommon XCProceed
+
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
 	| [(Mechanism, m)] <- map (first toTag) as =
 		CCommon . XCAuth $ toMechanism' m
+
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
 	_ [] []) = SRChallengeNull
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
