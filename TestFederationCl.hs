@@ -45,10 +45,7 @@ connect ca k c = do
 	return (i, e)
 
 process :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
-process i e = do
-	yield XCDecl
-	yield begin
-	proc i e
+process i e = yield XCDecl >> yield begin >> proc i e
 
 proc :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
 proc i e = await >>= \mx -> case mx of
@@ -56,22 +53,17 @@ proc i e = await >>= \mx -> case mx of
 	Just (XCFeatures [FtMechanisms [External]]) -> do
 		yield $ XCAuth External
 		proc i e
-	Just XCSaslSuccess -> do
-		yield XCDecl
-		yield begin
-		proc i e
-	Just (XCFeatures []) -> do
-		m <- liftIO . atomically $ readTChan i
-		yield m
-		liftIO . atomically $ writeTChan e ()
-		proc i e
-	Just XCMessage{} -> do
-		m <- liftIO . atomically $ readTChan i
-		yield m
-		liftIO . atomically $ writeTChan e ()
-		proc i e
+	Just XCSaslSuccess -> yield XCDecl >> yield begin >> proc i e
+	Just (XCFeatures []) -> federation
+	Just XCMessage{} -> federation
 	Just XCEnd -> yield XCEnd
 	_ -> return ()
+	where
+	federation = do
+		m <- liftIO .atomically $ readTChan i
+		yield m
+		liftIO . atomically $ writeTChan e ()
+		proc i e
 
 processTls :: Monad m => Pipe Common Common m ()
 processTls = do

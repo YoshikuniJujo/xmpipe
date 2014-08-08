@@ -111,7 +111,7 @@ toCapsTag ((_, Just "http://jabber.org/protocol/caps"), "node") = CTNode
 toCapsTag n = CTRaw n
 
 fromCapsTag :: CapsTag -> QName
-fromCapsTag CTHash = (nullQ "hash")
-fromCapsTag CTVer = (nullQ "ver")
-fromCapsTag CTNode = (nullQ "node")
+fromCapsTag CTHash = nullQ "hash"
+fromCapsTag CTVer = nullQ "ver"
+fromCapsTag CTNode = nullQ "node"
 fromCapsTag (CTRaw n) = n
