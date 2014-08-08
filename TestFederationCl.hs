@@ -80,7 +80,7 @@ proc :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 proc i e = await >>= \mx -> case mx of
 	Just (XCommon (XCBegin _as)) -> proc i e
 	Just (XCommon (XCFeatures [FtMechanisms [External]])) -> do
-		yield XAuthExternal
+		yield . XCommon $ XCAuth External
 		proc i e
 	Just XSuccess -> do
 		yield $ XCommon XCDecl

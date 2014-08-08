@@ -77,7 +77,7 @@ process = await >>= \mx -> case mx of
 			else XCommon $ XCFeatures [FtMechanisms [External]]
 --		trace "THERE" $ return ()
 		process
-	Just XAuthExternal -> do
+	Just (XCommon (XCAuth External)) -> do
 		lift $ modify authed
 		yield XSuccess
 		process

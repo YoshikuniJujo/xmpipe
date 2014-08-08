@@ -41,7 +41,6 @@ fromJust' em _ = error em
 
 data Common
 	= CCommon XmppCommon
-	| SRAuth Mechanism
 	| SRChallengeNull
 	| SRChallenge {
 		realm :: BS.ByteString,
@@ -312,7 +311,8 @@ showResponse (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
 	_ [] nds) = CCommon . XCFeatures $ map toFeature nds
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
-	| [(Mechanism, m)] <- map (first toTag) as = SRAuth $ toMechanism' m
+	| [(Mechanism, m)] <- map (first toTag) as =
+		CCommon . XCAuth $ toMechanism' m
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
 	_ [] []) = SRChallengeNull
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
@@ -399,15 +399,9 @@ toXml (CCommon (XCBegin as)) = XmlStart (("stream", Nothing), "stream")
 	(map (first fromTag) as)
 toXml (CCommon (XCFeatures fs)) = XmlNode
 	(("stream", Nothing), "features") [] [] $ map fromFeature fs
-toXml (SRAuth ScramSha1) = XmlNode (nullQ "auth")
+toXml (CCommon (XCAuth m)) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[((("", Nothing), "mechanism"), "SCRAM-SHA1")] []
-toXml (SRAuth DigestMd5) = XmlNode (nullQ "auth")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[((("", Nothing), "mechanism"), "DIGEST-MD5")] []
-toXml (SRAuth External) = XmlNode (nullQ "auth")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[((("", Nothing), "mechanism"), "EXTERNAL")] []
+	[((("", Nothing), "mechanism"), fromMechanism' m)] []
 toXml SRChallengeNull = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 toXml c@SRChallenge{} = XmlNode (nullQ "challenge")

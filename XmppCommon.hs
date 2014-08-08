@@ -5,7 +5,8 @@ module XmppCommon (
 	Tag(..), toTag, fromTag,
 	Requirement(..), toRequirement, fromRequirement,
 	Feature(..), toFeature, fromFeature,
-	Mechanism(..), toMechanism, fromMechanism, toMechanism',
+	Mechanism(..), toMechanism, fromMechanism,
+		toMechanism', fromMechanism',
 	nullQ,
 	) where
 
@@ -20,6 +21,7 @@ data XmppCommon
 	| XCFeatures [Feature]
 	| XCStarttls
 	| XCProceed
+	| XCAuth Mechanism
 	deriving Show
 
 data Tag
