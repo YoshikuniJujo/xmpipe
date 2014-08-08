@@ -55,7 +55,7 @@ import qualified Data.ByteString.Base64 as B64
 
 import Digest
 
-import Common
+import XmppCommon
 import Caps hiding (Identity)
 
 data SHandle s h = SHandle h

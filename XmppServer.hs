@@ -46,7 +46,7 @@ import qualified Data.ByteString.Base64 as B64
 
 import DigestSv
 
-import Common
+import XmppCommon
 
 import Control.Concurrent.STM
 

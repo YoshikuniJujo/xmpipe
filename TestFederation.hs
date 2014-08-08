@@ -2,7 +2,7 @@
 
 module TestFederation (
 	input, output, nullQ,
-	Common(..), toCommon, fromXmpp, Feature(..), Mechanism(..),
+	Common(..), toCommon, Feature(..), Mechanism(..),
 	XmppCommon(..), Tag(..),
 	Requirement(..),
 	MessageType(..),
@@ -10,8 +10,6 @@ module TestFederation (
 	MBody(..),
 	) where
 
-import Control.Applicative
-import Control.Arrow
 import Control.Monad
 import "monads-tf" Control.Monad.Trans
 import Data.Maybe
@@ -45,48 +43,12 @@ output h = do
 	mn <- await
 	case mn of
 		Just n -> do
-			lift . hlPut h $ xmlString [fromXmpp Server n]
+			lift . hlPut h $ xmlString [fromCommon Server n]
 			case n of
 				CCommon XCEnd -> lift $ hlClose h
 				_ -> return ()
 			output h
 		_ -> return ()
-
-data Side = Client | Server deriving Show
-
-jabberQ :: Side -> BS.ByteString
-jabberQ Client = "jabber:client"
-jabberQ Server = "jabber:server"
-
-fromXmpp :: Side -> Common -> XmlNode
-fromXmpp _ (CCommon XCDecl) = XmlDecl (1, 0)
-fromXmpp s (CCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
-	[	("", jabberQ s),
-		("stream", "http://etherx.jabber.org/streams") ] $
-	map (first fromTag) ts
-fromXmpp _ (CCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
-fromXmpp _ (CCommon (XCFeatures fs)) =
-	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature fs
-fromXmpp _ (CCommon XCStarttls) = XmlNode (nullQ "starttls")
-	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromXmpp _ (CCommon XCProceed) = XmlNode (nullQ "proceed")
-	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromXmpp _ (CCommon (XCAuth External)) = XmlNode (nullQ "auth")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[(nullQ "mechanism", "EXTERNAL")] [XmlCharData "="]
-fromXmpp _ (CCommon (XCAuth m)) = XmlNode (nullQ "auth")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[(nullQ "mechanism", fromMechanism' m)] []
-fromXmpp _ (CCommon XCSaslSuccess) =
-	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
-fromXmpp _ (CCommon (XCMessage tp i fr to (MBodyRaw ns))) =
-	XmlNode (nullQ "message") [] (catMaybes [
-		Just (fromTag Type, fromMessageType tp),
-		Just (fromTag Id, i),
-		(fromTag From ,) . fromJid <$> fr,
-		Just (fromTag To, fromJid to) ]) ns
-
-fromXmpp _ (CCommon (XCRaw n)) = n
 
 handleP :: HandleLike h => h -> Pipe () BS.ByteString (HandleMonad h) ()
 handleP h = do
