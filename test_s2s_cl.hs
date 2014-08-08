@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TupleSections, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 import Control.Concurrent.STM
 import TestFederationCl

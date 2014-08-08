@@ -159,7 +159,7 @@ external e = do
 digestMd5Body :: (MonadState m, StateType m ~ XmppState) =>
 	UUID -> Pipe Common Common m BS.ByteString
 digestMd5Body u = do
-	yield $ SRChallenge {
+	yield SRChallenge {
 		realm = "localhost",
 		nonce = toASCIIBytes u,
 		qop = "auth",

@@ -336,55 +336,9 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 		XCAuth $ toMechanism' m
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
 	_ [] []) = XCSaslSuccess
-
-toCommon (XmlNode ((_, Just "jabber:client"), "message") _ as [b, d, xd])
-	| XmlNode ((_, Just "jabber:client"), "body") _ [] _ <- b,
-		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
-		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd =
-		XCMessage tp i fr to $
-			MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
-	where
-	ts = map (first toTag) as
-	tp = toMessageType . fromJust $ lookup Type ts
-	i = fromJust $ lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid . fromJust $ lookup To ts
-
-toCommon (XmlNode ((_, Just "jabber:server"), "message") _ as [b, d, xd])
-	| XmlNode ((_, Just "jabber:server"), "body") _ [] _ <- b,
-		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
-		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd =
-		XCMessage tp i fr to $
-			MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
-	where
-	ts = map (first toTag) as
-	tp = toMessageType . fromJust $ lookup Type ts
-	i = fromJust $ lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid . fromJust $ lookup To ts
-
-toCommon (XmlNode ((_, Just "jabber:server"), "message") _ as [b])
-	| XmlNode ((_, Just "jabber:server"), "body") _ [] _ <- b =
-		XCMessage tp i fr to $ MBody (toBody b)
-	where
-	ts = map (first toTag) as
-	tp = toMessageType . fromJust $ lookup Type ts
-	i = fromJust $ lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid . fromJust $ lookup To ts
-
-toCommon (XmlNode ((_, Just "jabber:client"), "message") _ as ns) =
-	XCMessage tp i fr to $ MBodyRaw ns
-	where
-	ts = map (first toTag) as
-	tp = toMessageType . fromJust $ lookup Type ts
-	i = fromJust $ lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid . fromJust $ lookup To ts
-	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
-
-toCommon (XmlNode ((_, Just "jabber:server"), "message") _ as ns) =
-	XCMessage tp i fr to $ MBodyRaw ns
+toCommon (XmlNode ((_, Just q), "message") _ as ns)
+	| q `elem` ["jabber:client", "jabber:server"] =
+		XCMessage tp i fr to $ xmlNodesToBody ns
 	where
 	ts = map (first toTag) as
 	tp = toMessageType . fromJust $ lookup Type ts
@@ -425,17 +379,9 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 	_ [] []) = SRResponseNull
 
-toCommon (XmlNode ((_, Just "jabber:client"), "iq") _ as ns) =
-	SRIq tp i fr to $ toIqBody ns
-	where
-	ts = map (first toTag) as
-	tp = toIqType . fromJust $ lookup Type ts
-	Just i = lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid <$> lookup To ts
-
-toCommon (XmlNode ((_, Just "jabber:server"), "iq") _ as ns) =
-	SRIq tp i fr to $ toIqBody ns
+toCommon (XmlNode ((_, Just q), "iq") _ as ns)
+	| q `elem` ["jabber:client", "jabber:server"] =
+		SRIq tp i fr to $ toIqBody ns
 	where
 	ts = map (first toTag) as
 	tp = toIqType . fromJust $ lookup Type ts
@@ -467,8 +413,8 @@ toIqBody [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
 toIqBody [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
 	_ as ns] = IqDiscoInfoFull
 	(map (first toDiscoTag) as)
-	(catMaybes $ map toIdentity ns)
-	(catMaybes $ map toInfoFeature ns)
+	(mapMaybe toIdentity ns)
+	(mapMaybe toInfoFeature ns)
 	(filter (\n -> isNothing (toIdentity n) && isNothing (toInfoFeature n)) ns)
 toIqBody [] = IqSessionNull
 toIqBody ns = QueryRaw ns
@@ -645,3 +591,15 @@ roster = XmlNode (nullQ "query") [("", "jabber:iq:roster")] [] []
 session :: XmlNode
 session = XmlNode (nullQ "session")
 	[("", "urn:ietf:params:xml:ns:xmpp-session")] [] []
+
+xmlNodesToBody :: [XmlNode] -> MBody
+xmlNodesToBody [b, d, xd]
+	| XmlNode ((_, Just q), "body") _ [] _ <- b,
+		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
+		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd,
+		q `elem` ["jabber:client", "jabber:server"] =
+		MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
+xmlNodesToBody [b]
+	| XmlNode ((_, Just q), "body") _ [] _ <- b,
+		q `elem` ["jabber:client", "jabber:server"] = MBody (toBody b)
+xmlNodesToBody ns = MBodyRaw ns

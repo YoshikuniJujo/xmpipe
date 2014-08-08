@@ -72,17 +72,15 @@ process = await >>= \mx -> case mx of
 		a <- lift $ gets xsAuthed
 		yield XCDecl
 		nextUuid >>= yield . begin
-		yield $ if a
-			then XCFeatures []
-			else XCFeatures [FtMechanisms [External]]
+		yield . XCFeatures $ if a then [] else [FtMechanisms [External]]
 --		trace "THERE" $ return ()
 		process
 	Just (XCAuth External) -> do
 		lift $ modify authed
 		yield XCSaslSuccess
 		process
-	Just (XCMessage _ _ _ _ _) -> do
-		yield $ XCMessage Chat "hoge"
+	Just XCMessage{} -> do
+		yield . XCMessage Chat "hoge"
 			(Just $ Jid "yoshio" "otherhost" Nothing)
 			(Jid "yoshikuni" "localhost" Nothing) $
 			MBodyRaw [XmlCharData "HOGETA"]
@@ -98,8 +96,7 @@ processTls = await >>= \mx -> case mx of
 		nextUuid >>= yield . begin
 		yield $ XCFeatures [FtStarttls Required]
 		processTls
-	Just XCStarttls -> do
-		yield XCProceed
+	Just XCStarttls -> yield XCProceed
 	_ -> return ()
 
 begin :: UUID -> Common

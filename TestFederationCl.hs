@@ -65,7 +65,7 @@ proc i e = await >>= \mx -> case mx of
 		yield m
 		liftIO . atomically $ writeTChan e ()
 		proc i e
-	Just (XCMessage _ _ _ _ _) -> do
+	Just XCMessage{} -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
 		liftIO . atomically $ writeTChan e ()

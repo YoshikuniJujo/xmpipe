@@ -8,8 +8,7 @@ import System.IO
 import Network
 
 main :: IO ()
-main = do
-	test `catch` ioHandle
+main = test `catch` ioHandle
 
 test :: IO ()
 test = do

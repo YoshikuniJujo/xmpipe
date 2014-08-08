@@ -59,9 +59,7 @@ main = do
 hGetTag :: HandleLike h => h -> HandleMonad h BS.ByteString
 hGetTag h = do
 	c <- hlGet h 1
-	if (c == ">")
-		then return ">"
-		else (c `BS.append`) `liftM` hGetTag h
+	if c == ">" then return ">" else (c `BS.append`) `liftM` hGetTag h
 
 begin :: [XmlNode]
 begin = [

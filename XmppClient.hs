@@ -135,8 +135,7 @@ external = do
 	yield $ XCAuth External
 	mr <- await
 	case mr of
-		Just SRChallengeNull -> do
-			yield SRResponseNull
+		Just SRChallengeNull -> yield SRResponseNull
 		_ -> error $ "external: bad " ++ show mr
 
 digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>

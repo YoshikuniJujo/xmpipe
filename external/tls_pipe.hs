@@ -80,7 +80,7 @@ process = await >>= \mr -> case mr of
 			yield . SRMessage Chat "prof_3" Nothing recipient .
 				MBody $ MessageBody message
 			yield SREnd
-	Just (SRMessage _ _ _ _ _) -> do
+	Just SRMessage{}  -> do
 		yield . SRMessage Chat "prof_3" Nothing recipient .
 			MBody $ MessageBody message
 		yield SREnd
