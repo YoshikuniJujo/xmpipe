@@ -11,7 +11,6 @@ module XmppClient (
 	capsToXmlCaps,
 	capsToQuery,
 	Common(..),
-	XmppCommon(..),
 	handleP,
 	convert,
 	external,
@@ -114,7 +113,7 @@ output h = do
 		Just n -> do
 			lift (hlPut h $ xmlString [fromCommon Client n])
 			case n of
-				CCommon XCEnd -> lift $ hlClose h
+				XCEnd -> lift $ hlClose h
 				_ -> return ()
 			output h
 		_ -> return ()
@@ -133,7 +132,7 @@ convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
 external :: Monad m => Pipe Common Common m ()
 external = do
-	yield . CCommon $ XCAuth External
+	yield $ XCAuth External
 	mr <- await
 	case mr of
 		Just SRChallengeNull -> do
@@ -143,7 +142,7 @@ external = do
 digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	BS.ByteString -> Pipe Common Common m ()
 digestMd5 sender = do
-	yield . CCommon $ XCAuth DigestMd5
+	yield $ XCAuth DigestMd5
 	mr <- await
 	case mr of
 		Just r -> do

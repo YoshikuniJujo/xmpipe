@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module XmppCommon (
-	XmppCommon(..), toCommon, fromCommon,
+	toCommon, fromCommon,
 	Side(..), jabberQ,
 	Tag(..), toTag, fromTag,
 	Requirement(..), toRequirement, fromRequirement,
@@ -45,9 +45,9 @@ import Digest
 import Papillon
 
 data Common
-	= CCommon XmppCommon
+--	= CCommon XmppCommon
 
-	| SRChallengeNull
+	= SRChallengeNull
 	| SRChallenge {
 		realm :: BS.ByteString,
 		nonce :: BS.ByteString,
@@ -59,10 +59,10 @@ data Common
 	| SRResponseNull
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
-	deriving Show
+--	deriving Show
 
-data XmppCommon
-	= XCDecl
+-- data XmppCommon
+	| XCDecl
 	| XCBegin [(Tag, BS.ByteString)]
 	| XCEnd
 	| XCFeatures [Feature]
@@ -322,32 +322,30 @@ toDelay (XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ as []) = MessageDelay $
 toDelay n = MDRaw n
 
 toCommon :: XmlNode -> Common
-toCommon (XmlDecl (1, 0)) = CCommon XCDecl
+toCommon (XmlDecl (1, 0)) = XCDecl
 toCommon (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
-	CCommon . XCBegin $ map (first toTag) as
-toCommon (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) =
-	CCommon XCEnd
+	XCBegin $ map (first toTag) as
+toCommon (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) = XCEnd
 toCommon (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
-	_ [] nds) = CCommon . XCFeatures $ map toFeature nds
+	_ [] nds) = XCFeatures $ map toFeature nds
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
-	_ [] []) = CCommon XCStarttls
+	_ [] []) = XCStarttls
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed")
-	_ [] []) = CCommon XCProceed
+	_ [] []) = XCProceed
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
-	_ [((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) =
-	CCommon $ XCAuth External
+	_ [((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) = XCAuth External
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
 	| [(Mechanism, m)] <- map (first toTag) as =
-		CCommon . XCAuth $ toMechanism' m
+		XCAuth $ toMechanism' m
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
-	_ [] []) = CCommon XCSaslSuccess
+	_ [] []) = XCSaslSuccess
 
 toCommon (XmlNode ((_, Just "jabber:client"), "message") _ as [b, d, xd])
 	| XmlNode ((_, Just "jabber:client"), "body") _ [] _ <- b,
 		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
 		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd =
-		CCommon . XCMessage tp i fr to $
+		XCMessage tp i fr to $
 			MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
 	where
 	ts = map (first toTag) as
@@ -360,7 +358,7 @@ toCommon (XmlNode ((_, Just "jabber:server"), "message") _ as [b, d, xd])
 	| XmlNode ((_, Just "jabber:server"), "body") _ [] _ <- b,
 		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
 		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd =
-		CCommon . XCMessage tp i fr to $
+		XCMessage tp i fr to $
 			MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
 	where
 	ts = map (first toTag) as
@@ -371,7 +369,7 @@ toCommon (XmlNode ((_, Just "jabber:server"), "message") _ as [b, d, xd])
 
 toCommon (XmlNode ((_, Just "jabber:server"), "message") _ as [b])
 	| XmlNode ((_, Just "jabber:server"), "body") _ [] _ <- b =
-		CCommon . XCMessage tp i fr to $ MBody (toBody b)
+		XCMessage tp i fr to $ MBody (toBody b)
 	where
 	ts = map (first toTag) as
 	tp = toMessageType . fromJust $ lookup Type ts
@@ -380,7 +378,7 @@ toCommon (XmlNode ((_, Just "jabber:server"), "message") _ as [b])
 	to = toJid . fromJust $ lookup To ts
 
 toCommon (XmlNode ((_, Just "jabber:client"), "message") _ as ns) =
-	CCommon . XCMessage tp i fr to $ MBodyRaw ns
+	XCMessage tp i fr to $ MBodyRaw ns
 	where
 	ts = map (first toTag) as
 	tp = toMessageType . fromJust $ lookup Type ts
@@ -390,7 +388,7 @@ toCommon (XmlNode ((_, Just "jabber:client"), "message") _ as ns) =
 	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
 
 toCommon (XmlNode ((_, Just "jabber:server"), "message") _ as ns) =
-	CCommon . XCMessage tp i fr to $ MBodyRaw ns
+	XCMessage tp i fr to $ MBodyRaw ns
 	where
 	ts = map (first toTag) as
 	tp = toMessageType . fromJust $ lookup Type ts
@@ -453,7 +451,7 @@ toCommon (XmlNode ((_, Just "jabber:client"), "presence") _ as ns) =
 toCommon (XmlNode ((_, Just "jabber:server"), "presence") _ as ns) =
 	SRPresence (map (first toTag) as) ns
 
-toCommon n = CCommon $ XCRaw n
+toCommon n = XCRaw n
 
 toIqBody :: [XmlNode] -> Query
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
@@ -549,27 +547,27 @@ jabberQ Client = "jabber:client"
 jabberQ Server = "jabber:server"
 
 fromCommon :: Side -> Common -> XmlNode
-fromCommon _ (CCommon XCDecl) = XmlDecl (1, 0)
-fromCommon s (CCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
+fromCommon _ (XCDecl) = XmlDecl (1, 0)
+fromCommon s (XCBegin ts) = XmlStart (("stream", Nothing), "stream")
 	[	("", jabberQ s),
 		("stream", "http://etherx.jabber.org/streams") ]
 	(map (first fromTag) ts)
-fromCommon _ (CCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
-fromCommon _ (CCommon (XCFeatures fs)) =
+fromCommon _ XCEnd = XmlEnd (("stream", Nothing), "stream")
+fromCommon _ (XCFeatures fs) =
 	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature fs
-fromCommon _ (CCommon XCStarttls) = XmlNode (nullQ "starttls")
+fromCommon _ XCStarttls = XmlNode (nullQ "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromCommon _ (CCommon XCProceed) = XmlNode (nullQ "proceed")
+fromCommon _ XCProceed = XmlNode (nullQ "proceed")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromCommon _ (CCommon (XCAuth External)) = XmlNode (nullQ "auth")
+fromCommon _ (XCAuth External) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[(nullQ "mechanism", "EXTERNAL")] [XmlCharData "="]
-fromCommon _ (CCommon (XCAuth m)) = XmlNode (nullQ "auth")
+fromCommon _ (XCAuth m) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[(nullQ "mechanism", fromMechanism' m)] []
-fromCommon _ (CCommon XCSaslSuccess) =
+fromCommon _ XCSaslSuccess =
 	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
-fromCommon _ (CCommon (XCMessage Chat i fr to (MBodyRaw ns))) =
+fromCommon _ (XCMessage Chat i fr to (MBodyRaw ns)) =
 	XmlNode (nullQ "message") [] (catMaybes [
 		Just (fromTag Type, "chat"),
 		Just (fromTag Id, i),
@@ -594,7 +592,7 @@ fromCommon _ (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(fromQuery q)
 fromCommon _ (SRPresence ts c) =
 	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
-fromCommon _ (CCommon (XCMessage tp i fr to (MBody (MessageBody m)))) =
+fromCommon _ (XCMessage tp i fr to (MBody (MessageBody m))) =
 	XmlNode (nullQ "message") []
 		(catMaybes [
 			Just $ messageTypeToAtt tp,
@@ -603,7 +601,7 @@ fromCommon _ (CCommon (XCMessage tp i fr to (MBody (MessageBody m)))) =
 			Just (nullQ "to", fromJid to) ])
 		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
 
-fromCommon _ (CCommon (XCRaw n)) = n
+fromCommon _ (XCRaw n) = n
 fromCommon _ c = error $ "fromCommon: not implemented yet: " ++ show c
 
 fromChallenge :: BS.ByteString -> BS.ByteString ->

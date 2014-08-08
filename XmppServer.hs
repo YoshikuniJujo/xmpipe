@@ -5,7 +5,6 @@ module XmppServer (
 	MBody(..),
 	MessageBody(..),
 	Common(..),
-	XmppCommon(..),
 	convert,
 	nullQ,
 	handleP,
@@ -90,7 +89,7 @@ output :: (MonadIO (HandleMonad h),
 output sl h = do
 	mx <- await
 	case mx of
-		Just m@(CCommon (XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _))
+		Just m@(XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _)
 			-> do	lift (hlDebug h "critical" "HERE")
 				l <- liftIO . atomically $ readTVar sl
 				case lookup "otherhost" l of
@@ -152,19 +151,19 @@ convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
 	Maybe BS.ByteString -> UUID -> Pipe Common Common m BS.ByteString
 digestMd5 e u = do
-	yield . CCommon $ XCFeatures
+	yield $ XCFeatures
 		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
 	a <- await
 	case (a, e) of
-		(Just (CCommon (XCAuth DigestMd5)), _) -> digestMd5Body u
-		(Just (CCommon (XCAuth External)), Just n) -> external n
+		(Just (XCAuth DigestMd5), _) -> digestMd5Body u
+		(Just (XCAuth External), Just n) -> external n
 		_ -> error $ "BAD: " ++ show a
 
 external :: Monad m => BS.ByteString -> Pipe Common Common m BS.ByteString
 external e = do
 	yield SRChallengeNull
 	Just SRResponseNull <- await
-	yield $ CCommon XCSaslSuccess
+	yield XCSaslSuccess
 	return e
 
 digestMd5Body :: (MonadState m, StateType m ~ XmppState) =>
@@ -183,5 +182,5 @@ digestMd5Body u = do
 		. lookup "response" $ responseToKvs False dr
 	yield $ SRChallengeRspauth sret
 	Just SRResponseNull <- await
-	yield $ CCommon XCSaslSuccess
+	yield XCSaslSuccess
 	return un

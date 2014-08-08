@@ -3,7 +3,7 @@
 module TestFederation (
 	input, output, nullQ,
 	Common(..), toCommon, Feature(..), Mechanism(..),
-	XmppCommon(..), Tag(..),
+	Tag(..),
 	Requirement(..),
 	MessageType(..),
 	Jid(..),
@@ -45,7 +45,7 @@ output h = do
 		Just n -> do
 			lift . hlPut h $ xmlString [fromCommon Server n]
 			case n of
-				CCommon XCEnd -> lift $ hlClose h
+				XCEnd -> lift $ hlClose h
 				_ -> return ()
 			output h
 		_ -> return ()

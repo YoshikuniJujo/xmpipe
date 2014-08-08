@@ -55,7 +55,7 @@ awaitAll :: Monad m => Pipe a () m ()
 awaitAll = await >>= maybe (return ()) (const awaitAll)
 
 startTls :: Common
-startTls = CCommon . XCRaw $ XmlNode (("", Nothing), "starttls")
+startTls = XCRaw $ XmlNode (("", Nothing), "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 
 xmpp :: (HandleLike h, MonadState (HandleMonad h),
@@ -64,8 +64,8 @@ xmpp h = voidM . runPipe $ input h =$= proc =$= output h
 
 proc :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()
-proc = yield (CCommon XCDecl)
-	>> yield (CCommon $ XCBegin
+proc = yield XCDecl
+	>> yield (XCBegin
 		[(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
 
@@ -78,14 +78,14 @@ jidToUser (Jid u _ _) = u
 process :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
-	Just (CCommon (XCFeatures [FtMechanisms ms]))
+	Just (XCFeatures [FtMechanisms ms])
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
-	Just (CCommon (XCFeatures [_, FtMechanisms ms]))
+	Just (XCFeatures [_, FtMechanisms ms])
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
-	Just (CCommon (XCFeatures [FtMechanisms ms, _]))
+	Just (XCFeatures [FtMechanisms ms, _])
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
-	Just (CCommon XCSaslSuccess) -> mapM_ yield [CCommon XCDecl, begin] >> process
-	Just (CCommon (XCFeatures fs)) -> mapM_ yield binds >> process
+	Just XCSaslSuccess -> mapM_ yield [XCDecl, begin] >> process
+	Just (XCFeatures fs) -> mapM_ yield binds >> process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process
@@ -94,14 +94,14 @@ process = await >>= \mr -> case mr of
 		(IqDiscoInfoNode [(DTNode, n)]))
 		| (u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
-			yield . CCommon . XCMessage Chat "prof_3" Nothing recipient .
+			yield . XCMessage Chat "prof_3" Nothing recipient .
 				MBody $ MessageBody message
-			yield $ CCommon XCEnd
+			yield XCEnd
 	Just _ -> process
 	_ -> return ()
 
 begin :: Common
-begin = CCommon $ XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")]
+begin = XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")]
 
 binds :: [Common]
 binds = [SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $

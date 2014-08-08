@@ -67,22 +67,22 @@ dropUuid xs = xs { xsUuid = tail $ xsUuid xs }
 
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
 process = await >>= \mx -> case mx of
-	Just (CCommon (XCBegin _as)) -> do
+	Just (XCBegin _as) -> do
 --		trace "HERE" $ return ()
 		a <- lift $ gets xsAuthed
-		yield $ CCommon XCDecl
+		yield XCDecl
 		nextUuid >>= yield . begin
 		yield $ if a
-			then CCommon $ XCFeatures []
-			else CCommon $ XCFeatures [FtMechanisms [External]]
+			then XCFeatures []
+			else XCFeatures [FtMechanisms [External]]
 --		trace "THERE" $ return ()
 		process
-	Just (CCommon (XCAuth External)) -> do
+	Just (XCAuth External) -> do
 		lift $ modify authed
-		yield $ CCommon XCSaslSuccess
+		yield XCSaslSuccess
 		process
-	Just (CCommon (XCMessage _ _ _ _ _)) -> do
-		yield . CCommon $ XCMessage Chat "hoge"
+	Just (XCMessage _ _ _ _ _) -> do
+		yield $ XCMessage Chat "hoge"
 			(Just $ Jid "yoshio" "otherhost" Nothing)
 			(Jid "yoshikuni" "localhost" Nothing) $
 			MBodyRaw [XmlCharData "HOGETA"]
@@ -93,17 +93,17 @@ process = await >>= \mx -> case mx of
 
 processTls :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
 processTls = await >>= \mx -> case mx of
-	Just (CCommon (XCBegin _as)) -> do
-		yield $ CCommon XCDecl
+	Just (XCBegin _as) -> do
+		yield XCDecl
 		nextUuid >>= yield . begin
-		yield . CCommon $ XCFeatures [FtStarttls Required]
+		yield $ XCFeatures [FtStarttls Required]
 		processTls
-	Just (CCommon XCStarttls) -> do
-		yield $ CCommon XCProceed
+	Just XCStarttls -> do
+		yield XCProceed
 	_ -> return ()
 
 begin :: UUID -> Common
-begin u = CCommon $ XCBegin [
+begin u = XCBegin [
 	(From, "otherhost"),
 	(To, "localhost"),
 	(Version, "1.0"),

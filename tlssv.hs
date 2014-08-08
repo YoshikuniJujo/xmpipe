@@ -77,20 +77,20 @@ xmpp sl h = do
 makeP :: (MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
-	(Just (CCommon (XCBegin _)), Nothing) -> do
-		yield $ CCommon XCDecl
-		lift nextUuid >>= \u -> yield . CCommon $ XCBegin [
+	(Just (XCBegin _), Nothing) -> do
+		yield XCDecl
+		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
 		lift nextUuid >>= digestMd5 Nothing >>= \un -> lift . modify .
 			setReceiver $ Jid un "localhost" Nothing
 		makeP
-	(Just (CCommon (XCBegin _)), _) -> do
-		yield $ CCommon XCDecl
-		lift nextUuid >>= \u -> yield . CCommon $ XCBegin [
+	(Just (XCBegin _), _) -> do
+		yield XCDecl
+		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		yield . CCommon $ XCFeatures
+		yield $ XCFeatures
 			[FtRosterver Optional, FtBind Required, FtSession Optional]
 		makeP
 	(Just (SRIq Set i Nothing Nothing
@@ -107,14 +107,14 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			. IqRoster . Just $ Roster (Just "1") []
 		makeP
 	(Just (SRPresence _ _), Just rcv) ->
-		yield (CCommon $ XCMessage Chat "hoge" (Just sender) rcv .
+		yield (XCMessage Chat "hoge" (Just sender) rcv .
 			MBody $ MessageBody "Hi, TLS!") >> makeP
-	(Just (CCommon (XCMessage Chat i fr to bd)), Just rcv) -> do
-		yield . CCommon $ (XCMessage Chat "hoge" (Just sender) rcv .
+	(Just (XCMessage Chat i fr to bd), Just rcv) -> do
+		yield $ (XCMessage Chat "hoge" (Just sender) rcv .
 			MBody $ MessageBody "Hi, TLS!")
-		yield . CCommon $ XCMessage Chat i
+		yield $ XCMessage Chat i
 			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
-		yield . CCommon $ XCMessage Chat i
+		yield $ XCMessage Chat i
 			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
 			to bd
 		makeP

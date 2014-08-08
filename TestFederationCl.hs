@@ -18,11 +18,11 @@ import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
 import TestFederation
-import Common hiding (nullQ, External)
+import XmppCommon hiding (nullQ, External)
 
 convertMessage :: Common -> Common
-convertMessage (CCommon (XCMessage Chat i fr to mb)) = CCommon $ XCMessage Chat i fr to mb
-convertMessage (CCommon (XCMessage Chat i fr to mb)) = CCommon $ XCMessage Chat i fr to mb
+convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb
+convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb
 convertMessage c = error $ "NOT IMPLEMENTED: " ++ show c
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
@@ -49,51 +49,51 @@ connect ca k c = do
 
 process :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
 process i e = do
-	yield $ CCommon XCDecl
+	yield XCDecl
 	yield begin
 	proc i e
 
 proc :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
 proc i e = await >>= \mx -> case mx of
-	Just (CCommon (XCBegin _as)) -> proc i e
-	Just (CCommon (XCFeatures [FtMechanisms [External]])) -> do
-		yield . CCommon $ XCAuth External
+	Just (XCBegin _as) -> proc i e
+	Just (XCFeatures [FtMechanisms [External]]) -> do
+		yield $ XCAuth External
 		proc i e
-	Just (CCommon XCSaslSuccess) -> do
-		yield $ CCommon XCDecl
+	Just XCSaslSuccess -> do
+		yield XCDecl
 		yield begin
 		proc i e
-	Just (CCommon (XCFeatures [])) -> do
+	Just (XCFeatures []) -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
 		liftIO . atomically $ writeTChan e ()
 		proc i e
-	Just (CCommon (XCMessage _ _ _ _ _)) -> do
+	Just (XCMessage _ _ _ _ _) -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
 		liftIO . atomically $ writeTChan e ()
 		proc i e
-	Just (CCommon XCEnd) -> yield $ CCommon XCEnd
+	Just XCEnd -> yield XCEnd
 	_ -> return ()
 
 processTls :: Monad m => Pipe Common Common m ()
 processTls = do
-	yield $ CCommon XCDecl
+	yield XCDecl
 	yield begin
 	procTls
 
 procTls :: Monad m => Pipe Common Common m ()
 procTls = await >>= \mx -> case mx of
-	Just (CCommon (XCBegin _as)) -> procTls
-	Just (CCommon (XCFeatures [FtStarttls _])) -> do
-		yield $ CCommon XCStarttls
+	Just (XCBegin _as) -> procTls
+	Just (XCFeatures [FtStarttls _]) -> do
+		yield XCStarttls
 		procTls
-	Just (CCommon XCProceed) -> return ()
+	Just XCProceed -> return ()
 	Just _ -> return ()
 	_ -> return ()
 
 begin :: Common
-begin = CCommon $ XCBegin [
+begin = XCBegin [
 	(From, "localhost"),
 	(To, "otherhost"),
 	(Version, "1.0") ]
