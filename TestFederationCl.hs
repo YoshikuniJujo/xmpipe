@@ -23,17 +23,17 @@ import Common hiding (nullQ, External)
 convertMessage :: Common -> Xmpp
 convertMessage (SRMessage Chat i (Just fr) to (MBody (MessageBody bd))) =
 	XMessage
-		[	(nullQ "type", "chat"),
-			(nullQ "id", i),
-			(nullQ "from", fromJid fr),
-			(nullQ "to", fromJid to) ]
+		[	(Type, "chat"),
+			(Id, i),
+			(From, fromJid fr),
+			(To, fromJid to) ]
 		[XmlNode (nullQ "body") [] [] [XmlCharData bd]]
 convertMessage (SRMessage Chat i (Just fr) to (MBodyRaw ns)) =
 	XMessage
-		[	(nullQ "type", "chat"),
-			(nullQ "id", i),
-			(nullQ "from", fromJid fr),
-			(nullQ "to", fromJid to) ] ns
+		[	(Type, "chat"),
+			(Id, i),
+			(From, fromJid fr),
+			(To, fromJid to) ] ns
 convertMessage c = error $ "NOT IMPLEMENTED: " ++ show c
 
 {-

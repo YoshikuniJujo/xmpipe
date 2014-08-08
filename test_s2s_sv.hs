@@ -83,10 +83,10 @@ process = await >>= \mx -> case mx of
 		process
 	Just (XMessage _ _) -> do
 		yield $ XMessage [
-			(nullQ "type", "chat"), 
-			(nullQ "from", "yoshio@otherhost"),
-			(nullQ "to", "yoshikuni@localhost"),
-			(nullQ "id", "hoge") ] [XmlCharData "HOGETA"]
+			(Type, "chat"), 
+			(From, "yoshio@otherhost"),
+			(To, "yoshikuni@localhost"),
+			(Id, "hoge") ] [XmlCharData "HOGETA"]
 		process
 --		yield XEnd
 --		process

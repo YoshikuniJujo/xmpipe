@@ -7,6 +7,7 @@ module XmppCommon (
 	Feature(..), toFeature, fromFeature,
 	Mechanism(..), toMechanism, fromMechanism,
 		toMechanism', fromMechanism',
+	MessageType(..), toMessageType, messageTypeToAtt,
 	nullQ,
 	) where
 
@@ -144,3 +145,21 @@ fromMechanism :: Mechanism -> XmlNode
 fromMechanism (McRaw n) = n
 fromMechanism m =
 	XmlNode (nullQ "mechanism") [] [] [XmlCharData $ fromMechanism' m]
+
+data MessageType = Normal | Chat | Groupchat | Headline | MTError
+	deriving (Eq, Show)
+
+toMessageType :: BS.ByteString -> MessageType
+toMessageType "normal" = Normal
+toMessageType "chat" = Chat
+toMessageType _ = error "toMessageType: bad"
+
+fromMessageType :: MessageType -> BS.ByteString
+fromMessageType Normal = "normal"
+fromMessageType Chat = "chat"
+fromMessageType Groupchat = "groupchat"
+fromMessageType Headline = "headline"
+fromMessageType MTError = "error"
+
+messageTypeToAtt :: MessageType -> (QName, BS.ByteString)
+messageTypeToAtt = (nullQ "type" ,) . fromMessageType

@@ -184,9 +184,6 @@ data MBody
 	| MBodyRaw [XmlNode]
 	deriving Show
 
-data MessageType = Normal | Chat | Groupchat | Headline | MTError
-	deriving (Eq, Show)
-
 toIqBody :: [XmlNode] -> Query
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
 	[n]] = IqBind Nothing $ toBind n
@@ -228,11 +225,6 @@ toJid j = case rst of
 	(a, rst) = BSC.span (/= '@') j
 	(d, r) = BSC.span (/= '/') $ BS.tail rst
 
-toMessageType :: BS.ByteString -> MessageType
-toMessageType "normal" = Normal
-toMessageType "chat" = Chat
-toMessageType _ = error "toMessageType: bad"
-
 fromBind :: Bind -> [XmlNode]
 fromBind (BJid _) = error "fromBind: not implemented"
 fromBind (Resource r) = [
@@ -269,16 +261,6 @@ fromQuery (IqCapsQuery2 ns) = ns
 fromQuery IqSessionNull = []
 fromQuery (QueryRaw ns) = ns
 fromQuery _ = error "fromQuery: not implemented yet"
-
-fromMessageType :: MessageType -> BS.ByteString
-fromMessageType Normal = "normal"
-fromMessageType Chat = "chat"
-fromMessageType Groupchat = "groupchat"
-fromMessageType Headline = "headline"
-fromMessageType MTError = "error"
-
-messageTypeToAtt :: MessageType -> (QName, BS.ByteString)
-messageTypeToAtt = (nullQ "type" ,) . fromMessageType
 
 fromIqType :: IqType -> BS.ByteString
 fromIqType Get = "get"

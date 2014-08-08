@@ -65,7 +65,8 @@ toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth") _
 	XCommon $ XCAuth External
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success") _
 	[] []) = XCommon XCSaslSuccess
-toXmpp (XmlNode ((_, Just "jabber:server"), "message") [] as ns) = XMessage as ns
+toXmpp (XmlNode ((_, Just "jabber:server"), "message") [] as ns) =
+	XMessage (map (first toTag) as) ns
 toXmpp n = XRaw n
 
 fromXmpp :: Xmpp -> XmlNode
@@ -86,12 +87,13 @@ fromXmpp (XCommon (XCAuth External)) = XmlNode (nullQ "auth")
 	[((nullQ "mechanism"), "EXTERNAL")] [XmlCharData "="]
 fromXmpp (XCommon XCSaslSuccess) = XmlNode (nullQ "success")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
-fromXmpp (XMessage as ns) = XmlNode (nullQ "message") [] as ns
+fromXmpp (XMessage as ns) =
+	XmlNode (nullQ "message") [] (map (first fromTag) as) ns
 fromXmpp (XRaw n) = n
 
 data Xmpp
 	= XCommon XmppCommon
-	| XMessage [(QName, BS.ByteString)] [XmlNode]
+	| XMessage [(Tag, BS.ByteString)] [XmlNode]
 	| XRaw XmlNode
 	deriving Show
 
