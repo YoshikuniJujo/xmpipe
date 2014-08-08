@@ -78,14 +78,14 @@ jidToUser (Jid u _ _) = u
 process :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
-	Just (SRFeatures [Mechanisms ms])
+	Just (CCommon (XCFeatures [FtMechanisms ms]))
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
-	Just (SRFeatures [_, Mechanisms ms])
+	Just (CCommon (XCFeatures [_, FtMechanisms ms]))
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
-	Just (SRFeatures [Mechanisms ms, _])
+	Just (CCommon (XCFeatures [FtMechanisms ms, _]))
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
 	Just SRSaslSuccess -> mapM_ yield [CCommon XCDecl, begin] >> process
-	Just (SRFeatures fs) -> mapM_ yield binds >> process
+	Just (CCommon (XCFeatures fs)) -> mapM_ yield binds >> process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process

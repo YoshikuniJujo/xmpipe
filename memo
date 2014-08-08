@@ -3,3 +3,11 @@ input :: MonadIO m => TVar Handle -> Pipe () Xmpp m ()
 output :: MonadIO m => TVar Handle -> Pipe Xmpp () m ()
 
 connect :: IO (TChan Xmpp, TChan Xmpp, TChan Result)
+
+---
+
+input :: HandleLike h =>
+	h -> Maybe (TChan (Maybe IOException)) -> Pipe () Xmpp m ()
+
+output :: HandleLike h =>
+	h -> Maybe (TChan (Maybe IOException)) -> Pipe Xmpp () m ()

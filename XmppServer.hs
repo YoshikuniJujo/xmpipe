@@ -152,8 +152,8 @@ convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
 	Maybe BS.ByteString -> UUID -> Pipe Common Common m BS.ByteString
 digestMd5 e u = do
-	yield $ SRFeatures
-		[Mechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
+	yield . CCommon $ XCFeatures
+		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
 --	Just (SRAuth DigestMd5) <- await
 	a <- await
 	case (a, e) of

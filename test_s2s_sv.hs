@@ -73,8 +73,8 @@ process = await >>= \mx -> case mx of
 		yield $ XCommon XCDecl
 		nextUuid >>= yield . begin
 		yield $ if a
-			then XFeatures []
-			else XFeatures [FtMechanisms [External]]
+			then XCommon $ XCFeatures []
+			else XCommon $ XCFeatures [FtMechanisms [External]]
 --		trace "THERE" $ return ()
 		process
 	Just XAuthExternal -> do
@@ -97,7 +97,7 @@ processTls = await >>= \mx -> case mx of
 	Just (XCommon (XCBegin _as)) -> do
 		yield $ XCommon XCDecl
 		nextUuid >>= yield . begin
-		yield $ XFeatures [FtStarttls]
+		yield . XCommon $ XCFeatures [FtStarttls Required]
 		processTls
 	Just XStarttls -> do
 		yield XProceed

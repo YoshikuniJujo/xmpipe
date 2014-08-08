@@ -4,6 +4,7 @@ module TestFederation (
 	input, output, nullQ,
 	Xmpp(..), toXmpp, fromXmpp, Feature(..), Mechanism(..),
 	XmppCommon(..), Tag(..),
+	Requirement(..),
 	) where
 
 import Control.Arrow
@@ -54,7 +55,7 @@ toXmpp (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) 
 toXmpp (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) =
 	XCommon XCEnd
 toXmpp (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
-	_ [] ns) = XFeatures $ map toFeature ns
+	_ [] ns) = XCommon . XCFeatures $ map toFeature ns
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls") _ [] []) =
 	XStarttls
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed") _ [] []) =
@@ -73,7 +74,7 @@ fromXmpp (XCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
 		("stream", "http://etherx.jabber.org/streams") ] $
 	map (first fromTag) ts
 fromXmpp (XCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
-fromXmpp (XFeatures ns) =
+fromXmpp (XCommon (XCFeatures ns)) =
 	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature ns
 fromXmpp XStarttls = XmlNode (nullQ "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
@@ -89,7 +90,7 @@ fromXmpp (XRaw n) = n
 
 data Xmpp
 	= XCommon XmppCommon
-	| XFeatures [Feature]
+--	| XFeatures [Feature]
 	| XStarttls
 	| XProceed
 	| XAuthExternal
@@ -97,41 +98,6 @@ data Xmpp
 	| XMessage [(QName, BS.ByteString)] [XmlNode]
 	| XRaw XmlNode
 	deriving Show
-
-data Feature
-	= FtStarttls
-	| FtMechanisms [Mechanism]
-	| FtRaw XmlNode
-	deriving Show
-
-toFeature :: XmlNode -> Feature
-toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
-	_ [] [XmlNode (_, "required") [] [] []]) = FtStarttls
-toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanisms")
-	_ [] ns) = FtMechanisms $ map toMechanism ns
-toFeature n = FtRaw n
-
-fromFeature :: Feature -> XmlNode
-fromFeature FtStarttls = XmlNode (nullQ "starttls")
-	[("", "urn:ietf:params:xml:ns:xmpp-tls")] []
-	[XmlNode (nullQ "required") [] [] []]
-fromFeature (FtMechanisms ms) = XmlNode (nullQ "mechanisms")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $ map fromMechanism ms
-fromFeature (FtRaw n) = n
-
-data Mechanism
-	= External
-	| McRaw XmlNode
-	deriving Show
-
-toMechanism :: XmlNode -> Mechanism
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "EXTERNAL"]) = External
-toMechanism n = McRaw n
-
-fromMechanism :: Mechanism -> XmlNode
-fromMechanism External = XmlNode (nullQ "mechanism") [] [] [XmlCharData "EXTERNAL"]
-fromMechanism (McRaw n) = n
 
 handleP :: HandleLike h => h -> Pipe () BS.ByteString (HandleMonad h) ()
 handleP h = do

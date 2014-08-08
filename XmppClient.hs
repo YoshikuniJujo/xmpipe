@@ -12,7 +12,6 @@ module XmppClient (
 	capsToQuery,
 	Common(..),
 	XmppCommon(..),
-	isFeatureRaw,
 	handleP,
 	convert,
 	external,

@@ -79,14 +79,14 @@ process i e = do
 proc :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 proc i e = await >>= \mx -> case mx of
 	Just (XCommon (XCBegin _as)) -> proc i e
-	Just (XFeatures [FtMechanisms [External]]) -> do
+	Just (XCommon (XCFeatures [FtMechanisms [External]])) -> do
 		yield XAuthExternal
 		proc i e
 	Just XSuccess -> do
 		yield $ XCommon XCDecl
 		yield begin
 		proc i e
-	Just (XFeatures []) -> do
+	Just (XCommon (XCFeatures [])) -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
 		liftIO . atomically $ writeTChan e ()
@@ -108,7 +108,7 @@ processTls = do
 procTls :: Monad m => Pipe Xmpp Xmpp m ()
 procTls = await >>= \mx -> case mx of
 	Just (XCommon (XCBegin _as)) -> procTls
-	Just (XFeatures [FtStarttls]) -> do
+	Just (XCommon (XCFeatures [FtStarttls _])) -> do
 		yield XStarttls
 		procTls
 	Just XProceed -> return ()

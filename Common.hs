@@ -18,7 +18,6 @@ module Common (
 	MBody(..),
 	MessageType(..),
 	nullQ,
-	isFeatureRaw,
 	) where
 
 import Control.Applicative
@@ -42,7 +41,7 @@ fromJust' em _ = error em
 
 data Common
 	= CCommon XmppCommon
-	| SRFeatures [Feature]
+--	| SRFeatures [Feature]
 	| SRAuth Mechanism
 	| SRChallengeNull
 	| SRChallenge {
@@ -60,25 +59,6 @@ data Common
 	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| SRRaw XmlNode
 	deriving Show
-
-data Mechanism
-	= ScramSha1 | DigestMd5 | Plain | External | MechanismRaw BS.ByteString
-	deriving (Eq, Show)
-
-data Requirement = Optional | Required | NoRequirement [XmlNode]
-	deriving (Eq, Show)
-
-data Feature
-	= Mechanisms [Mechanism]
-	| Rosterver Requirement
-	| Bind Requirement
-	| Session Requirement
-	| FeatureRaw XmlNode
-	deriving Show
-
-isFeatureRaw :: Feature -> Bool
-isFeatureRaw (FeatureRaw _) = True
-isFeatureRaw _ = False
 
 data Bind
 	= Resource BS.ByteString
@@ -255,53 +235,6 @@ toMessageType "normal" = Normal
 toMessageType "chat" = Chat
 toMessageType _ = error "toMessageType: bad"
 
-{-
-isCaps :: Feature -> Bool
-isCaps Caps{} = True
-isCaps _ = False
--}
-
-toFeature :: XmlNode -> Feature
-toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanisms")
-	_ [] ns) = Mechanisms $ map toMechanism ns
-	{-
-toFeature (XmlNode ((_, Just "http://jabber.org/protocol/caps"), "c") _ as []) =
-	let h = map (first toCapsTag) as in Caps {
-		chash = fromJust' "1" $ lookup CTHash h,
-		cnode = fromJust' "2" $ lookup CTNode h,
-		cver = (\(Right r) -> r) . B64.decode . fromJust $ lookup CTVer h }
-		-}
-toFeature (XmlNode ((_, Just "urn:xmpp:features:rosterver"), "ver") _ [] r) =
-	Rosterver $ toRequirement r
-toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ [] r) =
-	Bind $ toRequirement r
-toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-session"), "session")
-	_ [] r) = Session $ toRequirement r
-toFeature n = FeatureRaw n
-
-toRequirement :: [XmlNode] -> Requirement
-toRequirement [XmlNode (_, "optional") _ [] []] = Optional
-toRequirement [XmlNode (_, "required") _ [] []] = Required
-toRequirement n = NoRequirement n
-
-fromRequirement :: Requirement -> XmlNode
-fromRequirement Optional = XmlNode (nullQ "optional") [] [] []
-fromRequirement Required = XmlNode (nullQ "required") [] [] []
-fromRequirement (NoRequirement _) = undefined
-
-toMechanism :: XmlNode -> Mechanism
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "SCRAM-SHA-1"]) = ScramSha1
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "DIGEST-MD5"]) = DigestMd5
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "PLAIN"]) = Plain
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "EXTERNAL"]) = External
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData n]) = MechanismRaw n
-toMechanism _ = error "toMechanism: bad"
-
 fromBind :: Bind -> [XmlNode]
 fromBind (BJid _) = error "fromBind: not implemented"
 fromBind (Resource r) = [
@@ -373,49 +306,11 @@ fromChallenge r u q c a = (: []) . XmlCharData . B64.encode $ BS.concat [
 	"qop=", BSC.pack $ show q, ",",
 	"charset=", c, ",", "algorithm=", a ] -- md5-sess" ]
 
-fromFeature :: Feature -> XmlNode
-fromFeature (Mechanisms ms) = XmlNode (nullQ "mechanisms")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $
-	map mechanismToXmlNode ms
-	{-
-fromFeature c@Caps{} = XmlNode (nullQ "c")
-	[("", "http://jabber.org/protocol/caps")]
-	[	(nullQ "hash", chash c),
-		(nullQ "ver", cver c),
-		(nullQ "node", cnode c) ]
-	[]
-	-}
-fromFeature (Rosterver r) = XmlNode (nullQ "ver")
-	[("", "urn:xmpp:features:rosterver")] [] [fromRequirement r]
-fromFeature (Bind r) = XmlNode (nullQ "bind")
-	[("", "urn:ietf:params:xml:ns:xmpp-bind")] [] [fromRequirement r]
-fromFeature (Session r) = XmlNode (nullQ "session")
-	[("", "urn:ietf:params:xml:ns:xmpp-session")] [] [fromRequirement r]
-fromFeature (FeatureRaw n) = n
-
-toMechanism' :: BS.ByteString -> Mechanism
-toMechanism' "SCRAM-SHA1" = ScramSha1
-toMechanism' "DIGEST-MD5" = DigestMd5
-toMechanism' "PLAIN" = Plain
-toMechanism' "EXTERNAL" = External
-toMechanism' m = MechanismRaw m
-
-fromMechanism :: Mechanism -> BS.ByteString
-fromMechanism ScramSha1 = "SCRAM-SHA1"
-fromMechanism DigestMd5 = "DIGEST-MD5"
-fromMechanism Plain = "PLAIN"
-fromMechanism External = "EXTERNAL"
-fromMechanism (MechanismRaw m) = m
-
-mechanismToXmlNode :: Mechanism -> XmlNode
-mechanismToXmlNode m =
-	XmlNode (nullQ "mechanism") [] [] [XmlCharData $ fromMechanism m]
-
 showResponse :: XmlNode -> Common
 showResponse (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _
 	as) = CCommon . XCBegin $ map (first toTag) as
 showResponse (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
-	_ [] nds) = SRFeatures $ map toFeature nds
+	_ [] nds) = CCommon . XCFeatures $ map toFeature nds
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
 	| [(Mechanism, m)] <- map (first toTag) as = SRAuth $ toMechanism' m
@@ -509,7 +404,7 @@ toXml (SRStreamSv as) = XmlStart (("stream", Nothing), "stream")
 		("stream", "http://etherx.jabber.org/streams") ]
 	(map (first fromTag) as)
 	-}
-toXml (SRFeatures fs) = XmlNode
+toXml (CCommon (XCFeatures fs)) = XmlNode
 	(("stream", Nothing), "features") [] [] $ map fromFeature fs
 toXml (SRAuth ScramSha1) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
