@@ -84,7 +84,7 @@ process = await >>= \mr -> case mr of
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
 	Just (CCommon (XCFeatures [FtMechanisms ms, _]))
 		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
-	Just SRSaslSuccess -> mapM_ yield [CCommon XCDecl, begin] >> process
+	Just (CCommon XCSaslSuccess) -> mapM_ yield [CCommon XCDecl, begin] >> process
 	Just (CCommon (XCFeatures fs)) -> mapM_ yield binds >> process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->

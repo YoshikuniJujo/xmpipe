@@ -82,7 +82,7 @@ proc i e = await >>= \mx -> case mx of
 	Just (XCommon (XCFeatures [FtMechanisms [External]])) -> do
 		yield . XCommon $ XCAuth External
 		proc i e
-	Just XSuccess -> do
+	Just (XCommon XCSaslSuccess) -> do
 		yield $ XCommon XCDecl
 		yield begin
 		proc i e

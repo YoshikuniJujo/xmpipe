@@ -79,7 +79,7 @@ process = await >>= \mx -> case mx of
 		process
 	Just (XCommon (XCAuth External)) -> do
 		lift $ modify authed
-		yield XSuccess
+		yield $ XCommon XCSaslSuccess
 		process
 	Just (XMessage _ _) -> do
 		yield $ XMessage [

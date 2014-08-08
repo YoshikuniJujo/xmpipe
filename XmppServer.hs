@@ -164,7 +164,7 @@ external :: Monad m => BS.ByteString -> Pipe Common Common m BS.ByteString
 external e = do
 	yield SRChallengeNull
 	Just SRResponseNull <- await
-	yield SRSaslSuccess
+	yield $ CCommon XCSaslSuccess
 	return e
 
 digestMd5Body :: (MonadState m, StateType m ~ XmppState) =>
@@ -183,5 +183,5 @@ digestMd5Body u = do
 		. lookup "response" $ responseToKvs False dr
 	yield $ SRChallengeRspauth sret
 	Just SRResponseNull <- await
-	yield SRSaslSuccess
+	yield $ CCommon XCSaslSuccess
 	return un

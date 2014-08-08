@@ -41,6 +41,9 @@ fromJust' em _ = error em
 
 data Common
 	= CCommon XmppCommon
+	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
+	| SRRaw XmlNode
+
 	| SRChallengeNull
 	| SRChallenge {
 		realm :: BS.ByteString,
@@ -51,11 +54,8 @@ data Common
 	| SRResponse BS.ByteString DigestResponse
 	| SRChallengeRspauth BS.ByteString
 	| SRResponseNull
-	| SRSaslSuccess
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
-	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
-	| SRRaw XmlNode
 	deriving Show
 
 data Bind
@@ -345,7 +345,7 @@ showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 	_ [] []) = SRResponseNull
 showResponse (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
-	_ [] []) = SRSaslSuccess
+	_ [] []) = CCommon XCSaslSuccess
 showResponse (XmlNode ((_, Just "jabber:client"), "iq") _ as ns) =
 	SRIq tp i fr to $ toIqBody ns
 	where
@@ -411,7 +411,7 @@ toXml (SRResponse _ dr) = drToXmlNode dr
 toXml (SRChallengeRspauth sret) = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] [XmlCharData sret]
 toXml SRResponseNull = drnToXmlNode
-toXml SRSaslSuccess =
+toXml (CCommon XCSaslSuccess) =
 	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 toXml (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(catMaybes [

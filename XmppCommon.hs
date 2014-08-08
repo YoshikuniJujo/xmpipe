@@ -22,6 +22,7 @@ data XmppCommon
 	| XCStarttls
 	| XCProceed
 	| XCAuth Mechanism
+	| XCSaslSuccess
 	deriving Show
 
 data Tag
@@ -124,7 +125,7 @@ fromMechanism' DigestMd5 = "DIGEST-MD5"
 fromMechanism' Plain = "PLAIN"
 fromMechanism' External = "EXTERNAL"
 fromMechanism' (MechanismRaw m) = m
-fromMechanism' (McRaw n) = error "fromMechanism': bad"
+fromMechanism' (McRaw _) = error "fromMechanism': bad"
 
 toMechanism :: XmlNode -> Mechanism
 toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
