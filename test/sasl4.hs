@@ -33,7 +33,7 @@ pipeC sasl send rcv x0 = ppc sasl (send x0) rcv
 
 ppc :: Monad m => Sasl s m -> [StateT s m BS.ByteString] -> Recieve s m ->
 	Pipe BS.ByteString BS.ByteString (StateT s m) ()
-ppc (Result rslt) [] [] = do
+ppc (Result rslt) _ _ = do
 	r <- lift rslt
 	case r of
 		(True, _) -> yield "success"
@@ -52,7 +52,7 @@ ppc sasl sends rcvs = case sasl of
 		"rcvs is null? " ++ show (null rcvs)
 	_ -> error "sasl is not result"
 
-exampleSasl :: Monad m => BS.ByteString -> Sasl ExampleState m
+exampleSasl :: (Monad m, ExampleStatable s) => BS.ByteString -> Sasl s m
 exampleSasl ps = S2C $ \getCh -> C2S $ \getRs -> Result $ do
 	(ch, rs) <- (,) `liftM` getCh `ap` getRs
 	return $ if rs == MD5.hash (ch `BS.append` ps)
@@ -63,24 +63,33 @@ data ExampleState = ExampleState {
 	password :: BS.ByteString,
 	challenge :: Maybe BS.ByteString }
 
-exampleSend :: Monad m => Send BS.ByteString ExampleState m
+class ExampleStatable s where
+	getExampleState :: s -> ExampleState
+	putExampleState :: ExampleState -> s -> s
+
+instance ExampleStatable ExampleState where
+	getExampleState = id
+	putExampleState es _ = es
+
+exampleSend :: (Monad m, ExampleStatable s) => Send BS.ByteString s m
 exampleSend ps = [getResponse ps]
 
-getResponse :: Monad m => BS.ByteString -> StateT ExampleState m BS.ByteString
+getResponse :: (Monad m, ExampleStatable s) =>
+	BS.ByteString -> StateT s m BS.ByteString
 getResponse ps = do
-	Just ch <- gets challenge
+	Just ch <- gets $ challenge . getExampleState
 	return . MD5.hash $ ch `BS.append` ps
 
-exampleRecieve :: Monad m => Recieve ExampleState m
+exampleRecieve :: (Monad m, ExampleStatable s) => Recieve s m
 exampleRecieve = [setChallenge]
 
-setChallenge :: Monad m => BS.ByteString -> StateT ExampleState m ()
+setChallenge :: (Monad m, ExampleStatable s) => BS.ByteString -> StateT s m ()
 setChallenge ch = do
-	st <- get
-	put $ st { challenge = Just ch }
+	st <- gets getExampleState
+	modify $ putExampleState st { challenge = Just ch }
 
-examplePipe :: Monad m => BS.ByteString ->
-	Pipe BS.ByteString BS.ByteString (StateT ExampleState m) ()
+examplePipe :: (Monad m, ExampleStatable s) => BS.ByteString ->
+	Pipe BS.ByteString BS.ByteString (StateT s m) ()
 examplePipe = pipeC (exampleSasl "password") exampleSend exampleRecieve
 
 fromStdin :: MonadIO m => Pipe () BS.ByteString m ()
@@ -97,10 +106,25 @@ exampleInitState = ExampleState {
 	challenge = Nothing
 	}
 
+data TheState = TheState {
+	exampleState :: ExampleState,
+	number :: Int
+	}
+
+initTheState :: TheState
+initTheState = TheState {
+	exampleState = exampleInitState,
+	number = 999
+	}
+
+instance ExampleStatable TheState where
+	getExampleState = exampleState
+	putExampleState es ts = ts { exampleState = es }
+
 main :: IO ()
 main = do
 	ps <- BS.getLine
-	ret <- (`evalStateT` exampleInitState) . runPipe $
+	ret <- (`evalStateT` initTheState) . runPipe $
 		fromStdin =$= examplePipe ps =$= toStdout
 	case ret of
 		Just _ -> return ()
