@@ -18,6 +18,8 @@ data XmppCommon
 	| XCBegin [(Tag, BS.ByteString)]
 	| XCEnd
 	| XCFeatures [Feature]
+	| XCStarttls
+	| XCProceed
 	deriving Show
 
 data Tag

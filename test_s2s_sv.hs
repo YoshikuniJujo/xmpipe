@@ -99,8 +99,8 @@ processTls = await >>= \mx -> case mx of
 		nextUuid >>= yield . begin
 		yield . XCommon $ XCFeatures [FtStarttls Required]
 		processTls
-	Just XStarttls -> do
-		yield XProceed
+	Just (XCommon XCStarttls) -> do
+		yield $ XCommon XCProceed
 	_ -> return ()
 
 begin :: UUID -> Xmpp

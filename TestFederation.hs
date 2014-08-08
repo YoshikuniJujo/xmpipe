@@ -57,9 +57,9 @@ toXmpp (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) =
 toXmpp (XmlNode ((_, Just "http://etherx.jabber.org/streams"), "features")
 	_ [] ns) = XCommon . XCFeatures $ map toFeature ns
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls") _ [] []) =
-	XStarttls
+	XCommon XCStarttls
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed") _ [] []) =
-	XProceed
+	XCommon XCProceed
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth") _
 	[((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) = XAuthExternal
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success") _
@@ -76,9 +76,9 @@ fromXmpp (XCommon (XCBegin ts)) = XmlStart (("stream", Nothing), "stream")
 fromXmpp (XCommon XCEnd) = XmlEnd (("stream", Nothing), "stream")
 fromXmpp (XCommon (XCFeatures ns)) =
 	XmlNode (("stream", Nothing), "features") [] [] $ map fromFeature ns
-fromXmpp XStarttls = XmlNode (nullQ "starttls")
+fromXmpp (XCommon XCStarttls) = XmlNode (nullQ "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromXmpp XProceed = XmlNode (nullQ "proceed")
+fromXmpp (XCommon XCProceed) = XmlNode (nullQ "proceed")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 fromXmpp XAuthExternal = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
@@ -90,9 +90,6 @@ fromXmpp (XRaw n) = n
 
 data Xmpp
 	= XCommon XmppCommon
---	| XFeatures [Feature]
-	| XStarttls
-	| XProceed
 	| XAuthExternal
 	| XSuccess
 	| XMessage [(QName, BS.ByteString)] [XmlNode]

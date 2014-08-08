@@ -109,9 +109,9 @@ procTls :: Monad m => Pipe Xmpp Xmpp m ()
 procTls = await >>= \mx -> case mx of
 	Just (XCommon (XCBegin _as)) -> procTls
 	Just (XCommon (XCFeatures [FtStarttls _])) -> do
-		yield XStarttls
+		yield $ XCommon XCStarttls
 		procTls
-	Just XProceed -> return ()
+	Just (XCommon XCProceed) -> return ()
 	Just _ -> return ()
 	_ -> return ()
 

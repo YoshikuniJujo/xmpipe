@@ -41,7 +41,6 @@ fromJust' em _ = error em
 
 data Common
 	= CCommon XmppCommon
---	| SRFeatures [Feature]
 	| SRAuth Mechanism
 	| SRChallengeNull
 	| SRChallenge {
@@ -398,12 +397,6 @@ toXml (CCommon (XCBegin as)) = XmlStart (("stream", Nothing), "stream")
 	[	("", "jabber:client"),
 		("stream", "http://etherx.jabber.org/streams") ]
 	(map (first fromTag) as)
-	{-
-toXml (SRStreamSv as) = XmlStart (("stream", Nothing), "stream")
-	[	("", "jabber:server"),
-		("stream", "http://etherx.jabber.org/streams") ]
-	(map (first fromTag) as)
-	-}
 toXml (CCommon (XCFeatures fs)) = XmlNode
 	(("stream", Nothing), "features") [] [] $ map fromFeature fs
 toXml (SRAuth ScramSha1) = XmlNode (nullQ "auth")
