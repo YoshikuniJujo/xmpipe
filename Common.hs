@@ -64,8 +64,6 @@ data Bind
 	| BindRaw XmlNode
 	deriving Show
 
-data Jid = Jid BS.ByteString BS.ByteString (Maybe BS.ByteString) deriving (Eq, Show)
-
 data Query
 	= IqBind (Maybe Requirement) Bind
 	| IqSession
@@ -212,18 +210,6 @@ toBind :: XmlNode -> Bind
 toBind (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "resource") [] []
 	[XmlCharData cd]) = Resource cd
 toBind n = BindRaw n
-
-fromJid :: Jid -> BS.ByteString
-fromJid (Jid a d r) = a `BS.append` "@" `BS.append` d `BS.append`
-	maybe "" ("/" `BS.append`) r
-
-toJid :: BS.ByteString -> Jid
-toJid j = case rst of
-	"" -> Jid "" a Nothing
-	_ -> Jid a d (if BS.null r then Nothing else Just $ BS.tail r)
-	where
-	(a, rst) = BSC.span (/= '@') j
-	(d, r) = BSC.span (/= '/') $ BS.tail rst
 
 fromBind :: Bind -> [XmlNode]
 fromBind (BJid _) = error "fromBind: not implemented"

@@ -21,32 +21,11 @@ import TestFederation
 import Common hiding (nullQ, External)
 
 convertMessage :: Common -> Xmpp
-convertMessage (SRMessage Chat i (Just fr) to (MBody (MessageBody bd))) =
-	XMessage
-		[	(Type, "chat"),
-			(Id, i),
-			(From, fromJid fr),
-			(To, fromJid to) ]
-		[XmlNode (nullQ "body") [] [] [XmlCharData bd]]
-convertMessage (SRMessage Chat i (Just fr) to (MBodyRaw ns)) =
-	XMessage
-		[	(Type, "chat"),
-			(Id, i),
-			(From, fromJid fr),
-			(To, fromJid to) ] ns
+convertMessage (SRMessage Chat i fr to (MBody (MessageBody bd))) =
+	XMessage Chat i fr to [XmlNode (nullQ "body") [] [] [XmlCharData bd]]
+convertMessage (SRMessage Chat i fr to (MBodyRaw ns)) =
+	XMessage Chat i fr to ns
 convertMessage c = error $ "NOT IMPLEMENTED: " ++ show c
-
-{-
-sampleMessage :: Xmpp
-sampleMessage = XMessage
-	[	(nullQ "type", "chat"),
-		(nullQ "id", "some_id"),
-		(nullQ "from", "yoshikuni@localhost"),
-		(nullQ "to", "yoshio@otherhost"),
-		((("xml", Nothing), "lang"), "en") ]
-	[XmlNode (nullQ "body") [] [] [XmlCharData
-		"Art thou not Romeo, and a Montague or Hogeru?"]]
-		-}
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
 readFiles = (,,)
@@ -91,7 +70,7 @@ proc i e = await >>= \mx -> case mx of
 		yield m
 		liftIO . atomically $ writeTChan e ()
 		proc i e
-	Just (XMessage _ _) -> do
+	Just (XMessage _ _ _ _ _) -> do
 		m <- liftIO . atomically $ readTChan i
 		yield m
 		liftIO . atomically $ writeTChan e ()

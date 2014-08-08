@@ -5,8 +5,11 @@ module TestFederation (
 	Xmpp(..), toXmpp, fromXmpp, Feature(..), Mechanism(..),
 	XmppCommon(..), Tag(..),
 	Requirement(..),
+	MessageType(..),
+	Jid(..),
 	) where
 
+import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import "monads-tf" Control.Monad.Trans
@@ -66,7 +69,14 @@ toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth") _
 toXmpp (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success") _
 	[] []) = XCommon XCSaslSuccess
 toXmpp (XmlNode ((_, Just "jabber:server"), "message") [] as ns) =
-	XMessage (map (first toTag) as) ns
+	XMessage tp i fr to ns
+	where
+	ts = map (first toTag) as
+	tp = toMessageType . fromJust $ lookup Type ts
+	i = fromJust $ lookup Id ts
+	fr = toJid <$> lookup From ts
+	to = toJid . fromJust $ lookup To ts
+	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
 toXmpp n = XRaw n
 
 fromXmpp :: Xmpp -> XmlNode
@@ -87,13 +97,16 @@ fromXmpp (XCommon (XCAuth External)) = XmlNode (nullQ "auth")
 	[((nullQ "mechanism"), "EXTERNAL")] [XmlCharData "="]
 fromXmpp (XCommon XCSaslSuccess) = XmlNode (nullQ "success")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
-fromXmpp (XMessage as ns) =
-	XmlNode (nullQ "message") [] (map (first fromTag) as) ns
+fromXmpp (XMessage tp i fr to ns) = XmlNode (nullQ "message") [] (catMaybes [
+	Just (fromTag Type, fromMessageType tp),
+	Just (fromTag Id, i),
+	(fromTag From ,) . fromJid <$> fr,
+	Just (fromTag To, fromJid to) ]) ns
 fromXmpp (XRaw n) = n
 
 data Xmpp
 	= XCommon XmppCommon
-	| XMessage [(Tag, BS.ByteString)] [XmlNode]
+	| XMessage MessageType BS.ByteString (Maybe Jid) Jid [XmlNode]
 	| XRaw XmlNode
 	deriving Show
 

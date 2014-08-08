@@ -7,13 +7,15 @@ module XmppCommon (
 	Feature(..), toFeature, fromFeature,
 	Mechanism(..), toMechanism, fromMechanism,
 		toMechanism', fromMechanism',
-	MessageType(..), toMessageType, messageTypeToAtt,
+	MessageType(..), toMessageType, fromMessageType, messageTypeToAtt,
+	Jid(..), toJid, fromJid,
 	nullQ,
 	) where
 
 import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 
 data XmppCommon
 	= XCDecl
@@ -163,3 +165,17 @@ fromMessageType MTError = "error"
 
 messageTypeToAtt :: MessageType -> (QName, BS.ByteString)
 messageTypeToAtt = (nullQ "type" ,) . fromMessageType
+
+data Jid = Jid BS.ByteString BS.ByteString (Maybe BS.ByteString) deriving (Eq, Show)
+
+fromJid :: Jid -> BS.ByteString
+fromJid (Jid a d r) = a `BS.append` "@" `BS.append` d `BS.append`
+	maybe "" ("/" `BS.append`) r
+
+toJid :: BS.ByteString -> Jid
+toJid j = case rst of
+	"" -> Jid "" a Nothing
+	_ -> Jid a d (if BS.null r then Nothing else Just $ BS.tail r)
+	where
+	(a, rst) = BSC.span (/= '@') j
+	(d, r) = BSC.span (/= '/') $ BS.tail rst
