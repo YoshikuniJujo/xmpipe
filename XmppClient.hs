@@ -145,4 +145,4 @@ digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	BS.ByteString -> Pipe Common Common m ()
 digestMd5 s = do
 	yield $ XCAuth "DIGEST-MD5"
-	convert (\(SRChallenge c) -> c) =$= digestMd5_ s =$= convert SRResponse
+	convert (\(SRChallenge c) -> c) =$= digestMd5Cl s =$= convert SRResponse

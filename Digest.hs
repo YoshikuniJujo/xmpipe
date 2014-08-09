@@ -4,7 +4,7 @@ module Digest (
 	DigestMd5Challenge(..), fromDigestMd5Challenge,
 	userName, getMd5, lookupResponse,
 
-	digestMd5_,
+	digestMd5Cl,
 	) where
 
 import Control.Applicative
@@ -18,9 +18,9 @@ import qualified Data.ByteString.Char8 as BSC
 import DigestMd5
 import Papillon
 
-digestMd5_ :: (MonadState m, StateType m ~ BS.ByteString) =>
+digestMd5Cl :: (MonadState m, StateType m ~ BS.ByteString) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
-digestMd5_ sender = do
+digestMd5Cl sender = do
 	mr <- await
 	case mr of
 		Just r -> do
