@@ -6,7 +6,6 @@ import Control.Applicative
 import "monads-tf" Control.Monad.State
 import Data.Maybe
 import Data.Pipe
-import Data.UUID
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -15,11 +14,12 @@ import DigestMd5
 import Papillon
 
 digestMd5Sv :: (MonadState m, SaslState (StateType m)) =>
-	UUID -> Pipe BS.ByteString BS.ByteString m ()
-digestMd5Sv u = do
+	Pipe BS.ByteString BS.ByteString m ()
+digestMd5Sv = do
+	ss <- lift $ gets getSaslState
 	yield . fromDigestMd5Challenge $ DigestMd5Challenge {
 		realm = "localhost",
-		nonce = toASCIIBytes u,
+		nonce = fromJust $ lookup "uuid" ss,
 		qop = "auth",
 		charset = "utf-8",
 		algorithm = "md5-sess" }

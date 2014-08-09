@@ -84,7 +84,7 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
 --		lift nextUuid >>= digestMd5 Nothing >>= \un -> lift . modify .
 --			setReceiver $ Jid un "localhost" Nothing
-		lift nextUuid >>= digestMd5 Nothing
+		digestMd5 Nothing
 		makeP
 	(Just (XCBegin _), _) -> do
 		yield XCDecl

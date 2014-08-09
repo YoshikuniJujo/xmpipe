@@ -138,13 +138,13 @@ convert :: Monad m => (a -> b) -> Pipe a b m ()
 convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
 digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
-	Maybe BS.ByteString -> UUID -> Pipe Common Common m ()
-digestMd5 e u = do
+	Maybe BS.ByteString -> Pipe Common Common m ()
+digestMd5 e = do
 	yield $ XCFeatures
 		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
 	a <- await
 	case (a, e) of
-		(Just (XCAuth "DIGEST-MD5"), _) -> digestMd5Body u
+		(Just (XCAuth "DIGEST-MD5"), _) -> digestMd5Body
 		(Just (XCAuth "EXTERNAL"), Just _) -> external
 		_ -> error $ "BAD: " ++ show a
 
@@ -154,18 +154,19 @@ external = do
 	Just (SRResponse "") <- await
 	yield XCSaslSuccess
 
-digestMd5Body :: (MonadState m, SaslState (StateType m)) =>
-	UUID -> Pipe Common Common m ()
-digestMd5Body u = do
-	convert (\(SRResponse r) -> r) =$= digestMd5Sv u =$= convert SRChallenge
+digestMd5Body :: (MonadState m, SaslState (StateType m)) => Pipe Common Common m ()
+digestMd5Body = do
+	convert (\(SRResponse r) -> r) =$= digestMd5Sv =$= convert SRChallenge
 	yield XCSaslSuccess
 
 instance SaslState XmppState where
 	getSaslState xs = case receiver xs of
-		Just (Jid un _ _) -> [("username", un)]
-		_ -> []
+		Just (Jid un _ _) -> ("username", un) : ss
+		_ -> ss
+		where ss = let u : _ = uuidList xs in [("uuid", toASCIIBytes u)]
 	putSaslState ss xs = case lookup "username" ss of
 		Just un -> case receiver xs of
-			Just (Jid _ d r) -> xs { receiver = Just $ Jid un d r }
-			_ -> xs { receiver = Just $ Jid un "localhost" Nothing }
-		_ -> xs
+			Just (Jid _ d r) -> xs' { receiver = Just $ Jid un d r }
+			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
+		_ -> xs'
+		where xs' = xs { uuidList = tail $ uuidList xs }
