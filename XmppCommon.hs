@@ -2,6 +2,8 @@
 
 module XmppCommon (
 	toCommon, fromCommon,
+	DigestMd5Challenge(..),
+	fromDigestMd5Challenge, toDigestMd5Challenge,
 	Side(..), jabberQ,
 	Tag(..), toTag, fromTag,
 	Requirement(..), toRequirement, fromRequirement,
@@ -56,13 +58,11 @@ data Common
 	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| XCRaw XmlNode
 
+	| SRChallengeRaw BS.ByteString
+	| SRResponseRaw BS.ByteString
+
 	| SRChallengeNull
-	| SRChallenge {
-		realm :: BS.ByteString,
-		nonce :: BS.ByteString,
-		qop :: BS.ByteString,
-		charset :: BS.ByteString,
-		algorithm :: BS.ByteString }
+	| SRChallenge BS.ByteString -- DigestMd5Challenge
 	| SRResponse BS.ByteString DigestResponse
 	| SRChallengeRspauth BS.ByteString
 	| SRResponseNull
@@ -355,13 +355,7 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
 		Just a = parseAtts d in
 		case a of
 			[("rspauth", ra)] -> SRChallengeRspauth ra
---			_ -> error $ "hoge: " ++ show a
-			_ -> SRChallenge {
-				realm = fromJust' "3" $ lookup "realm" a,
-				nonce = fromJust' "4" $ lookup "nonce" a,
-				qop = fromJust' "5" $ lookup "qop" a,
-				charset = fromJust' "6" $ lookup "charset" a,
-				algorithm = fromJust' "7" $ lookup "algorithm" a }
+			_ -> SRChallenge d -- $ toDigestMd5Challenge d
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 	_ [] [XmlCharData cd]) = let
 		Just a = parseAtts . (\(Right s) -> s) $ B64.decode cd
@@ -518,9 +512,9 @@ fromCommon _ (XCMessage Chat i fr to (MBodyRaw ns)) =
 
 fromCommon _ SRChallengeNull = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
-fromCommon _ c@SRChallenge{} = XmlNode (nullQ "challenge")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $ fromChallenge
-		(realm c) (nonce c) (qop c) (charset c) (algorithm c)
+fromCommon _ (SRChallenge c) = XmlNode (nullQ "challenge")
+	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $
+		(: []) . XmlCharData $ B64.encode c
 fromCommon _ (SRResponse _ dr) = drToXmlNode dr
 fromCommon _ (SRChallengeRspauth sret) = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] [XmlCharData sret]
@@ -545,14 +539,6 @@ fromCommon _ (XCMessage tp i fr to (MBody (MessageBody m))) =
 
 fromCommon _ (XCRaw n) = n
 fromCommon _ c = error $ "fromCommon: not implemented yet: " ++ show c
-
-fromChallenge :: BS.ByteString -> BS.ByteString ->
-	BS.ByteString -> BS.ByteString -> BS.ByteString -> [XmlNode]
-fromChallenge r u q c a = (: []) . XmlCharData . B64.encode $ BS.concat [
-	"realm=", BSC.pack $ show r, ",",
-	"nonce=", BSC.pack $ show u, ",",
-	"qop=", BSC.pack $ show q, ",",
-	"charset=", c, ",", "algorithm=", a ] -- md5-sess" ]
 
 drToXmlNode :: DigestResponse -> XmlNode
 drToXmlNode dr = XmlNode (("", Nothing), "response")
@@ -603,3 +589,28 @@ xmlNodesToBody [b]
 	| XmlNode ((_, Just q), "body") _ [] _ <- b,
 		q `elem` ["jabber:client", "jabber:server"] = MBody (toBody b)
 xmlNodesToBody ns = MBodyRaw ns
+
+data DigestMd5Challenge = DigestMd5Challenge {
+	realm :: BS.ByteString,
+	nonce :: BS.ByteString,
+	qop :: BS.ByteString,
+	charset :: BS.ByteString,
+	algorithm :: BS.ByteString }
+	deriving Show
+
+toDigestMd5Challenge :: BS.ByteString -> DigestMd5Challenge
+toDigestMd5Challenge d = let
+	Just a = parseAtts d in
+	DigestMd5Challenge {
+		realm = fromJust' "3" $ lookup "realm" a,
+		nonce = fromJust' "4" $ lookup "nonce" a,
+		qop = fromJust' "5" $ lookup "qop" a,
+		charset = fromJust' "6" $ lookup "charset" a,
+		algorithm = fromJust' "7" $ lookup "algorithm" a }
+
+fromDigestMd5Challenge :: DigestMd5Challenge -> BS.ByteString
+fromDigestMd5Challenge c = BS.concat [
+	"realm=", BSC.pack . show $ realm c, ",",
+	"nonce=", BSC.pack . show $ nonce c, ",",
+	"qop=", BSC.pack . show $ qop c, ",",
+	"charset=", charset c, ",", "algorithm=", algorithm c ]

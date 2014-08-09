@@ -162,8 +162,9 @@ digestMd5 sender = do
 		_ -> error "digestMd5: bad response"
 
 digestMd5Data :: BS.ByteString -> Common -> [Common]
-digestMd5Data sender (SRChallenge r n q c _a) = [SRResponse h dr]
+digestMd5Data sender (SRChallenge dmc) = [SRResponse h dr]
 	where
+	DigestMd5Challenge r n q c _a = toDigestMd5Challenge dmc
 	Just h = lookup "response" $ responseToKvs True dr
 	dr = DR {
 		drUserName = sender, drRealm = r, drPassword = "password",

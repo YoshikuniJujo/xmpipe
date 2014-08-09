@@ -11,3 +11,8 @@ input :: HandleLike h =>
 
 output :: HandleLike h =>
 	h -> Maybe (TChan (Maybe IOException)) -> Pipe Xmpp () m ()
+
+---
+
+ByteString -> [State SaslState ByteString]
+[ByteString -> State SaslState ()]
