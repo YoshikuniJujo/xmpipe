@@ -146,32 +146,3 @@ digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 digestMd5 s = do
 	yield $ XCAuth "DIGEST-MD5"
 	convert (\(SRChallenge c) -> c) =$= digestMd5_ s =$= convert SRResponse
-
-digestMd5_ :: (MonadState m, StateType m ~ BS.ByteString) =>
-	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
-digestMd5_ sender = do
-	mr <- await
-	case mr of
-		Just r -> do
-			let [s] = digestMd5Data sender r
-			lift . put $ getMd5 False s
-			yield s
-		_ -> error "digestMd5: unexpected end of input"
-	mr' <- await
-	case mr' of
-		Just s -> do
-			sa0 <- lift get
-			let Just sa = toRspauth s
-			unless (sa == sa0) $ error "process: bad server"
-			mapM_ yield $ digestMd5Data sender s
-		_ -> error "digestMd5: unexpected end of input"
-
-digestMd5Data :: BS.ByteString -> BS.ByteString -> [BS.ByteString]
-digestMd5Data _ dmc | Just _ <- toRspauth dmc = [""]
-digestMd5Data sender dmc = [fromDigestResponse dr]
-	where
-	DigestMd5Challenge r n q c _a = toDigestMd5Challenge dmc
-	dr = DR {
-		drUserName = sender, drRealm = r, drPassword = "password",
-		drCnonce = "00DEADBEEF00", drNonce = n, drNc = "00000001",
-		drQop = q, drDigestUri = "xmpp/localhost", drCharset = c }
