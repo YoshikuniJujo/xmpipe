@@ -127,8 +127,8 @@ handleP h = do
 showBS :: Show a => a -> BS.ByteString
 showBS = BSC.pack . (++ "\n") . show
 
-convert :: Monad m => (a -> b) -> Pipe a b m ()
-convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
+-- convert :: Monad m => (a -> b) -> Pipe a b m ()
+-- convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
 external :: Monad m => Pipe Common Common m ()
 external = do
@@ -138,36 +138,40 @@ external = do
 		Just (SRChallenge "") -> yield $ SRResponse ""
 		_ -> error $ "external: bad " ++ show mr
 
+convert :: Monad m => (a -> b) -> Pipe a b m ()
+convert f = await >>= maybe (return ()) ((>> convert f) . yield . f)
+
 digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	BS.ByteString -> Pipe Common Common m ()
-digestMd5 sender = do
+digestMd5 s = do
 	yield $ XCAuth "DIGEST-MD5"
+	convert (\(SRChallenge c) -> c) =$= digestMd5_ s =$= convert SRResponse
+
+digestMd5_ :: (MonadState m, StateType m ~ BS.ByteString) =>
+	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
+digestMd5_ sender = do
 	mr <- await
 	case mr of
 		Just r -> do
-			let ret = digestMd5Data sender r
-			case ret of
-				[SRResponse s] -> lift . put $ getMd5 False s
-				_ -> return ()
-			mapM_ yield ret
-		Nothing -> error "digestMd5: unexpected end of input"
+			let [s] = digestMd5Data sender r
+			lift . put $ getMd5 False s
+			yield s
+		_ -> error "digestMd5: unexpected end of input"
 	mr' <- await
 	case mr' of
-		Just r'@(SRChallenge s) -> do
+		Just s -> do
 			sa0 <- lift get
 			let Just sa = toRspauth s
 			unless (sa == sa0) $ error "process: bad server"
-			mapM_ yield $ digestMd5Data sender r'
-		Nothing -> error "digestMd5: unexpected end of input"
-		_ -> error "digestMd5: bad response"
+			mapM_ yield $ digestMd5Data sender s
+		_ -> error "digestMd5: unexpected end of input"
 
-digestMd5Data :: BS.ByteString -> Common -> [Common]
-digestMd5Data _ (SRChallenge dmc) | Just _ <- toRspauth dmc = [SRResponse ""]
-digestMd5Data sender (SRChallenge dmc) = [SRResponse $ fromDigestResponse dr]
+digestMd5Data :: BS.ByteString -> BS.ByteString -> [BS.ByteString]
+digestMd5Data _ dmc | Just _ <- toRspauth dmc = [""]
+digestMd5Data sender dmc = [fromDigestResponse dr]
 	where
 	DigestMd5Challenge r n q c _a = toDigestMd5Challenge dmc
 	dr = DR {
 		drUserName = sender, drRealm = r, drPassword = "password",
 		drCnonce = "00DEADBEEF00", drNonce = n, drNc = "00000001",
 		drQop = q, drDigestUri = "xmpp/localhost", drCharset = c }
-digestMd5Data _ _ = []

@@ -16,3 +16,10 @@ output :: HandleLike h =>
 
 ByteString -> [State SaslState ByteString]
 [ByteString -> State SaslState ()]
+
+---
+
+XmlNode (("", Just "urn:ietf:params:xml:ns:xmpp-sasl"), "failure")
+	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] []
+	[XmlNode (("", Just "urn:ietf:params:xml:ns:xmpp-sasl"),
+		"not-authorized") [] [] []]
