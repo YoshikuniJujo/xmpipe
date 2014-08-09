@@ -164,15 +164,12 @@ digestMd5Body u = do
 		qop = "auth",
 		charset = "utf-8",
 		algorithm = "md5-sess" }
---	Just (SRResponse r dr@DR { drUserName = un }) <- await
 	Just (SRResponse s) <- await
 	let	r = lookupResponse s
-		dr@DR { drUserName = un } = toDigestResponse s
-		cret = calcMd5 True dr
---		cret = fromJust . lookup "response" $ responseToKvs True dr
+		un = userName s
+		cret = getMd5 True s
 	unless (r == cret) $ error "digestMd5: bad authentication"
-	let sret = ("rspauth=" `BS.append`) $ calcMd5 False dr
---		fromJust . lookup "response" $ responseToKvs False dr
+	let sret = ("rspauth=" `BS.append`) $ getMd5 False s
 	yield $ SRChallenge sret
 	Just (SRResponse  "") <- await
 	yield XCSaslSuccess

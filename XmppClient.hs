@@ -147,11 +147,7 @@ digestMd5 sender = do
 		Just r -> do
 			let ret = digestMd5Data sender r
 			case ret of
-				[SRResponse s] -> let
-					dr = toDigestResponse s in
-					lift . put $ calcMd5 False dr
---						. fromJust . lookup "response"
---						$ responseToKvs False dr
+				[SRResponse s] -> lift . put $ getMd5 False s
 				_ -> return ()
 			mapM_ yield ret
 		Nothing -> error "digestMd5: unexpected end of input"

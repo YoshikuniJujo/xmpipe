@@ -41,9 +41,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64 as B64
 
-import Digest
-import Papillon
-
 data Common
 	= XCDecl
 	| XCBegin [(Tag, BS.ByteString)]
@@ -342,12 +339,7 @@ toCommon (XmlNode ((_, Just q), "message") _ as ns)
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
 	_ [] []) = SRChallenge ""
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
-	_ [] [XmlCharData c]) = let
-		Right d = B64.decode c
-		Just a = parseAtts d in
-		case a of
-			[("rspauth", _ra)] -> SRChallenge d -- ra
-			_ -> SRChallenge d
+	_ [] [XmlCharData c]) = let Right d = B64.decode c in SRChallenge d
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 	_ [] [XmlCharData cd]) = let Right s = B64.decode cd in SRResponse s
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")

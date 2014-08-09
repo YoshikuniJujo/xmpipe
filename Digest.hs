@@ -1,15 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Digest (
-	DigestResponse(..),
---	responseToContent,
---	B64.encode,
---	kvsToS,
---	responseToKvs,
-	calcMd5,
-
-	lookupResponse, toDigestResponse, fromDigestResponse, toRspauth,
+	DigestResponse(..), fromDigestResponse,
 	DigestMd5Challenge(..), fromDigestMd5Challenge, toDigestMd5Challenge,
+
+	userName, getMd5, lookupResponse, toRspauth,
 	) where
 
 import Control.Applicative
@@ -17,7 +12,6 @@ import Data.Maybe
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import qualified Data.ByteString.Base64 as B64
 
 import DigestMd5
 import Papillon
@@ -75,9 +69,6 @@ toRspauth d = case parseAtts d of
 	Just [("rspauth", ra)] -> Just ra
 	_ -> Nothing
 
-responseToContent :: DigestResponse -> BS.ByteString
-responseToContent = B64.encode . kvsToS . responseToKvs True
-
 kvsToS :: [(BS.ByteString, BS.ByteString)] -> BS.ByteString
 kvsToS [] = ""
 kvsToS [(k, v)] = k `BS.append` "=" `BS.append` v
@@ -111,6 +102,12 @@ data DigestResponse = DR {
 	drDigestUri :: BS.ByteString,
 	drCharset :: BS.ByteString }
 	deriving Show
+
+userName :: BS.ByteString -> BS.ByteString
+userName = drUserName . toDigestResponse
+
+getMd5 :: Bool -> BS.ByteString -> BS.ByteString
+getMd5 cl = calcMd5 cl . toDigestResponse
 
 calcMd5 :: Bool -> DigestResponse -> BS.ByteString
 calcMd5 isClient = digestMd5 isClient
