@@ -21,6 +21,11 @@ SASL
 
 * [RFC 4422](http://tools.ietf.org/html/rfc4422)
 
+SASL EXTERNAL
+-------------
+
+* [XEP-0178](http://www.xmpp.org/extensions/xep-0178.html)
+
 Service Discovery
 -----------------
 
