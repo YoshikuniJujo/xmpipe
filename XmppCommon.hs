@@ -2,6 +2,8 @@
 
 module XmppCommon (
 	toCommon, fromCommon,
+	lookupResponse, toDigestResponse, fromDigestResponse,
+	toRspauth,
 	DigestMd5Challenge(..),
 	fromDigestMd5Challenge, toDigestMd5Challenge,
 	Side(..), jabberQ,
@@ -58,14 +60,10 @@ data Common
 	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| XCRaw XmlNode
 
-	| SRChallengeRaw BS.ByteString
-	| SRResponseRaw BS.ByteString
-
-	| SRChallengeNull
 	| SRChallenge BS.ByteString -- DigestMd5Challenge
-	| SRResponse BS.ByteString DigestResponse
-	| SRChallengeRspauth BS.ByteString
-	| SRResponseNull
+	| SRResponse BS.ByteString -- BS.ByteString DigestResponse
+--	| SRChallengeRspauth BS.ByteString
+
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
 	deriving Show
@@ -347,35 +345,18 @@ toCommon (XmlNode ((_, Just q), "message") _ as ns)
 	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
 
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
-	_ [] []) = SRChallengeNull
+	_ [] []) = SRChallenge ""
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
 	_ [] [XmlCharData c]) = let
 		Right d = B64.decode c
 		Just a = parseAtts d in
 		case a of
-			[("rspauth", ra)] -> SRChallengeRspauth ra
-			_ -> SRChallenge d -- $ toDigestMd5Challenge d
+			[("rspauth", _ra)] -> SRChallenge d -- ra
+			_ -> SRChallenge d
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
-	_ [] [XmlCharData cd]) = let Right s = B64.decode cd in
-		SRResponse (lookupResponse s) (toDigestResponse s)
-		{-
+	_ [] [XmlCharData cd]) = let Right s = B64.decode cd in SRResponse s
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
-	_ [] [XmlCharData cd]) = let
-		Just a = parseAtts . (\(Right s) -> s) $ B64.decode cd
-		in
-		SRResponse (fromJust $ lookup "response" a) DR {
-			drUserName = fromJust $ lookup "username" a,
-			drRealm = fromJust $ lookup "realm" a,
-			drPassword = "password",
-			drCnonce = fromJust $ lookup "cnonce" a,
-			drNonce = fromJust $ lookup "nonce" a,
-			drNc = fromJust $ lookup "nc" a,
-			drQop = fromJust $ lookup "qop" a,
-			drDigestUri = fromJust $ lookup "digest-uri" a,
-			drCharset = fromJust $ lookup "charset" a }
-			-}
-toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
-	_ [] []) = SRResponseNull
+	_ [] []) = SRResponse ""
 
 toCommon (XmlNode ((_, Just q), "iq") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
@@ -514,15 +495,15 @@ fromCommon _ (XCMessage Chat i fr to (MBodyRaw ns)) =
 		(fromTag From ,) . fromJid <$> fr,
 		Just (fromTag To, fromJid to) ]) ns
 
-fromCommon _ SRChallengeNull = XmlNode (nullQ "challenge")
+fromCommon _ (SRChallenge "") = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 fromCommon _ (SRChallenge c) = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $
 		(: []) . XmlCharData $ B64.encode c
-fromCommon _ (SRResponse _ dr) = drToXmlNode dr
-fromCommon _ (SRChallengeRspauth sret) = XmlNode (nullQ "challenge")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] [XmlCharData sret]
-fromCommon _ SRResponseNull = drnToXmlNode
+fromCommon _ (SRResponse "") = drnToXmlNode -- _ dr) = drToXmlNode $ fromDigestResponse dr
+fromCommon _ (SRResponse s) = drToXmlNode s -- _ dr) = drToXmlNode $ fromDigestResponse dr
+-- fromCommon _ (SRChallenge sret) = XmlNode (nullQ "challenge")
+--	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] [XmlCharData sret]
 fromCommon _ (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(catMaybes [
 		Just $ iqTypeToAtt tp,
@@ -544,10 +525,10 @@ fromCommon _ (XCMessage tp i fr to (MBody (MessageBody m))) =
 fromCommon _ (XCRaw n) = n
 fromCommon _ c = error $ "fromCommon: not implemented yet: " ++ show c
 
-drToXmlNode :: DigestResponse -> XmlNode
-drToXmlNode dr = XmlNode (("", Nothing), "response")
+drToXmlNode :: BS.ByteString -> XmlNode
+drToXmlNode dr = XmlNode (nullQ "response")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] []
-	[XmlCharData . encode . kvsToS $ responseToKvs True dr]
+	[XmlCharData $ encode dr]
 
 drnToXmlNode :: XmlNode
 drnToXmlNode = XmlNode (nullQ "response")
@@ -618,20 +599,6 @@ fromDigestMd5Challenge c = BS.concat [
 	"nonce=", BSC.pack . show $ nonce c, ",",
 	"qop=", BSC.pack . show $ qop c, ",",
 	"charset=", charset c, ",", "algorithm=", algorithm c ]
-		{-
---		Just a = parseAtts . (\(Right s) -> s) $ B64.decode cd
-		in
-		SRResponse (fromJust $ lookup "response" a) DR {
-			drUserName = fromJust $ lookup "username" a,
-			drRealm = fromJust $ lookup "realm" a,
-			drPassword = "password",
-			drCnonce = fromJust $ lookup "cnonce" a,
-			drNonce = fromJust $ lookup "nonce" a,
-			drNc = fromJust $ lookup "nc" a,
-			drQop = fromJust $ lookup "qop" a,
-			drDigestUri = fromJust $ lookup "digest-uri" a,
-			drCharset = fromJust $ lookup "charset" a }
-			-}
 
 lookupResponse :: BS.ByteString -> BS.ByteString
 lookupResponse bs = let Just a = parseAtts bs in fromJust $ lookup "response" a
@@ -648,3 +615,11 @@ toDigestResponse bs = let
 		drQop = fromJust $ lookup "qop" a,
 		drDigestUri = fromJust $ lookup "digest-uri" a,
 		drCharset = fromJust $ lookup "charset" a }
+
+fromDigestResponse :: DigestResponse -> BS.ByteString
+fromDigestResponse = kvsToS . responseToKvs True
+
+toRspauth :: BS.ByteString -> Maybe BS.ByteString
+toRspauth d = case parseAtts d of
+	Just [("rspauth", ra)] -> Just ra
+	_ -> Nothing

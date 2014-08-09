@@ -41,7 +41,6 @@ import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import qualified Data.ByteString.Base64 as B64
 
 import DigestSv
 
@@ -151,8 +150,8 @@ digestMd5 e u = do
 
 external :: Monad m => BS.ByteString -> Pipe Common Common m BS.ByteString
 external e = do
-	yield SRChallengeNull
-	Just SRResponseNull <- await
+	yield $ SRChallenge ""
+	Just (SRResponse "") <- await
 	yield XCSaslSuccess
 	return e
 
@@ -165,12 +164,15 @@ digestMd5Body u = do
 		qop = "auth",
 		charset = "utf-8",
 		algorithm = "md5-sess" }
-	Just (SRResponse r dr@DR { drUserName = un }) <- await
-	let cret = fromJust . lookup "response" $ responseToKvs True dr
+--	Just (SRResponse r dr@DR { drUserName = un }) <- await
+	Just (SRResponse s) <- await
+	let	r = lookupResponse s
+		dr@DR { drUserName = un } = toDigestResponse s
+		cret = fromJust . lookup "response" $ responseToKvs True dr
 	unless (r == cret) $ error "digestMd5: bad authentication"
-	let sret = B64.encode . ("rspauth=" `BS.append`) . fromJust
+	let sret = ("rspauth=" `BS.append`) . fromJust
 		. lookup "response" $ responseToKvs False dr
-	yield $ SRChallengeRspauth sret
-	Just SRResponseNull <- await
+	yield $ SRChallenge sret
+	Just (SRResponse  "") <- await
 	yield XCSaslSuccess
 	return un

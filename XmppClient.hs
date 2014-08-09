@@ -135,7 +135,7 @@ external = do
 	yield $ XCAuth "EXTERNAL"
 	mr <- await
 	case mr of
-		Just SRChallengeNull -> yield SRResponseNull
+		Just (SRChallenge "") -> yield $ SRResponse ""
 		_ -> error $ "external: bad " ++ show mr
 
 digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
@@ -147,28 +147,33 @@ digestMd5 sender = do
 		Just r -> do
 			let ret = digestMd5Data sender r
 			case ret of
-				[SRResponse _ dr] -> lift . put . fromJust .
-					lookup "response" $ responseToKvs False dr
+				[SRResponse s] -> let
+					dr = toDigestResponse s in
+					lift . put . fromJust . lookup "response"
+						$ responseToKvs False dr
 				_ -> return ()
 			mapM_ yield ret
 		Nothing -> error "digestMd5: unexpected end of input"
 	mr' <- await
 	case mr' of
-		Just r'@(SRChallengeRspauth sa) -> do
+		Just r'@(SRChallenge s) -> do
 			sa0 <- lift get
+			let Just sa = toRspauth s
 			unless (sa == sa0) $ error "process: bad server"
 			mapM_ yield $ digestMd5Data sender r'
 		Nothing -> error "digestMd5: unexpected end of input"
 		_ -> error "digestMd5: bad response"
 
 digestMd5Data :: BS.ByteString -> Common -> [Common]
-digestMd5Data sender (SRChallenge dmc) = [SRResponse h dr]
+digestMd5Data _ (SRChallenge dmc)
+	| Just ra <- toRspauth dmc = [SRResponse ""]
+digestMd5Data sender (SRChallenge dmc) = [SRResponse $ fromDigestResponse dr]
 	where
 	DigestMd5Challenge r n q c _a = toDigestMd5Challenge dmc
-	Just h = lookup "response" $ responseToKvs True dr
+--	Just h = lookup "response" $ responseToKvs True dr
 	dr = DR {
 		drUserName = sender, drRealm = r, drPassword = "password",
 		drCnonce = "00DEADBEEF00", drNonce = n, drNc = "00000001",
 		drQop = q, drDigestUri = "xmpp/localhost", drCharset = c }
-digestMd5Data _ (SRChallengeRspauth _) = [SRResponseNull]
+-- digestMd5Data _ (SRChallengeRspauth _) = [SRResponse ""]
 digestMd5Data _ _ = []
