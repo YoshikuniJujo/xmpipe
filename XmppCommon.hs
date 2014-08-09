@@ -356,6 +356,10 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
 			[("rspauth", ra)] -> SRChallengeRspauth ra
 			_ -> SRChallenge d -- $ toDigestMd5Challenge d
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
+	_ [] [XmlCharData cd]) = let Right s = B64.decode cd in
+		SRResponse (lookupResponse s) (toDigestResponse s)
+		{-
+toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 	_ [] [XmlCharData cd]) = let
 		Just a = parseAtts . (\(Right s) -> s) $ B64.decode cd
 		in
@@ -369,6 +373,7 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 			drQop = fromJust $ lookup "qop" a,
 			drDigestUri = fromJust $ lookup "digest-uri" a,
 			drCharset = fromJust $ lookup "charset" a }
+			-}
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 	_ [] []) = SRResponseNull
 
@@ -613,3 +618,33 @@ fromDigestMd5Challenge c = BS.concat [
 	"nonce=", BSC.pack . show $ nonce c, ",",
 	"qop=", BSC.pack . show $ qop c, ",",
 	"charset=", charset c, ",", "algorithm=", algorithm c ]
+		{-
+--		Just a = parseAtts . (\(Right s) -> s) $ B64.decode cd
+		in
+		SRResponse (fromJust $ lookup "response" a) DR {
+			drUserName = fromJust $ lookup "username" a,
+			drRealm = fromJust $ lookup "realm" a,
+			drPassword = "password",
+			drCnonce = fromJust $ lookup "cnonce" a,
+			drNonce = fromJust $ lookup "nonce" a,
+			drNc = fromJust $ lookup "nc" a,
+			drQop = fromJust $ lookup "qop" a,
+			drDigestUri = fromJust $ lookup "digest-uri" a,
+			drCharset = fromJust $ lookup "charset" a }
+			-}
+
+lookupResponse :: BS.ByteString -> BS.ByteString
+lookupResponse bs = let Just a = parseAtts bs in fromJust $ lookup "response" a
+
+toDigestResponse :: BS.ByteString -> DigestResponse
+toDigestResponse bs = let
+	Just a = parseAtts bs in
+	DR {	drUserName = fromJust $ lookup "username" a,
+		drRealm = fromJust $ lookup "realm" a,
+		drPassword = "password",
+		drCnonce = fromJust $ lookup "cnonce" a,
+		drNonce = fromJust $ lookup "nonce" a,
+		drNc = fromJust $ lookup "nc" a,
+		drQop = fromJust $ lookup "qop" a,
+		drDigestUri = fromJust $ lookup "digest-uri" a,
+		drCharset = fromJust $ lookup "charset" a }
