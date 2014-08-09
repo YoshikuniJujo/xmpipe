@@ -1,17 +1,13 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module XmppCommon (
+
 	toCommon, fromCommon,
-	lookupResponse, toDigestResponse, fromDigestResponse,
-	toRspauth,
-	DigestMd5Challenge(..),
-	fromDigestMd5Challenge, toDigestMd5Challenge,
 	Side(..), jabberQ,
 	Tag(..), toTag, fromTag,
 	Requirement(..), toRequirement, fromRequirement,
 	Feature(..), toFeature, fromFeature,
-	Mechanism(..), toMechanism, fromMechanism,
-		toMechanism', fromMechanism',
+	Mechanism(..), toMechanism, fromMechanism, toMechanism', fromMechanism',
 	MessageType(..), toMessageType, fromMessageType, messageTypeToAtt,
 	Jid(..), toJid, fromJid,
 	MessageBody(..), toBody,
@@ -55,14 +51,13 @@ data Common
 	| XCFeatures [Feature]
 	| XCStarttls
 	| XCProceed
-	| XCAuth BS.ByteString -- Mechanism
-	| XCSaslSuccess
 	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| XCRaw XmlNode
 
-	| SRChallenge BS.ByteString -- DigestMd5Challenge
-	| SRResponse BS.ByteString -- BS.ByteString DigestResponse
---	| SRChallengeRspauth BS.ByteString
+	| XCAuth BS.ByteString
+	| SRChallenge BS.ByteString
+	| SRResponse BS.ByteString
+	| XCSaslSuccess
 
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
@@ -438,10 +433,6 @@ fromBind (Resource r) = [
 	]
 fromBind (BindRaw n) = [n]
 
-fromJust' :: String -> Maybe a -> a
-fromJust' _ (Just x) = x
-fromJust' em _ = error em
-
 resource :: BS.ByteString -> XmlNode
 resource r = XmlNode (nullQ "resource") [] [] [XmlCharData r]
 
@@ -528,7 +519,7 @@ fromCommon _ c = error $ "fromCommon: not implemented yet: " ++ show c
 drToXmlNode :: BS.ByteString -> XmlNode
 drToXmlNode dr = XmlNode (nullQ "response")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] []
-	[XmlCharData $ encode dr]
+	[XmlCharData $ B64.encode dr]
 
 drnToXmlNode :: XmlNode
 drnToXmlNode = XmlNode (nullQ "response")
@@ -574,52 +565,3 @@ xmlNodesToBody [b]
 	| XmlNode ((_, Just q), "body") _ [] _ <- b,
 		q `elem` ["jabber:client", "jabber:server"] = MBody (toBody b)
 xmlNodesToBody ns = MBodyRaw ns
-
-data DigestMd5Challenge = DigestMd5Challenge {
-	realm :: BS.ByteString,
-	nonce :: BS.ByteString,
-	qop :: BS.ByteString,
-	charset :: BS.ByteString,
-	algorithm :: BS.ByteString }
-	deriving Show
-
-toDigestMd5Challenge :: BS.ByteString -> DigestMd5Challenge
-toDigestMd5Challenge d = let
-	Just a = parseAtts d in
-	DigestMd5Challenge {
-		realm = fromJust' "3" $ lookup "realm" a,
-		nonce = fromJust' "4" $ lookup "nonce" a,
-		qop = fromJust' "5" $ lookup "qop" a,
-		charset = fromJust' "6" $ lookup "charset" a,
-		algorithm = fromJust' "7" $ lookup "algorithm" a }
-
-fromDigestMd5Challenge :: DigestMd5Challenge -> BS.ByteString
-fromDigestMd5Challenge c = BS.concat [
-	"realm=", BSC.pack . show $ realm c, ",",
-	"nonce=", BSC.pack . show $ nonce c, ",",
-	"qop=", BSC.pack . show $ qop c, ",",
-	"charset=", charset c, ",", "algorithm=", algorithm c ]
-
-lookupResponse :: BS.ByteString -> BS.ByteString
-lookupResponse bs = let Just a = parseAtts bs in fromJust $ lookup "response" a
-
-toDigestResponse :: BS.ByteString -> DigestResponse
-toDigestResponse bs = let
-	Just a = parseAtts bs in
-	DR {	drUserName = fromJust $ lookup "username" a,
-		drRealm = fromJust $ lookup "realm" a,
-		drPassword = "password",
-		drCnonce = fromJust $ lookup "cnonce" a,
-		drNonce = fromJust $ lookup "nonce" a,
-		drNc = fromJust $ lookup "nc" a,
-		drQop = fromJust $ lookup "qop" a,
-		drDigestUri = fromJust $ lookup "digest-uri" a,
-		drCharset = fromJust $ lookup "charset" a }
-
-fromDigestResponse :: DigestResponse -> BS.ByteString
-fromDigestResponse = kvsToS . responseToKvs True
-
-toRspauth :: BS.ByteString -> Maybe BS.ByteString
-toRspauth d = case parseAtts d of
-	Just [("rspauth", ra)] -> Just ra
-	_ -> Nothing

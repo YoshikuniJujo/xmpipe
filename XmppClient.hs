@@ -149,8 +149,9 @@ digestMd5 sender = do
 			case ret of
 				[SRResponse s] -> let
 					dr = toDigestResponse s in
-					lift . put . fromJust . lookup "response"
-						$ responseToKvs False dr
+					lift . put $ calcMd5 False dr
+--						. fromJust . lookup "response"
+--						$ responseToKvs False dr
 				_ -> return ()
 			mapM_ yield ret
 		Nothing -> error "digestMd5: unexpected end of input"
@@ -165,15 +166,12 @@ digestMd5 sender = do
 		_ -> error "digestMd5: bad response"
 
 digestMd5Data :: BS.ByteString -> Common -> [Common]
-digestMd5Data _ (SRChallenge dmc)
-	| Just ra <- toRspauth dmc = [SRResponse ""]
+digestMd5Data _ (SRChallenge dmc) | Just _ <- toRspauth dmc = [SRResponse ""]
 digestMd5Data sender (SRChallenge dmc) = [SRResponse $ fromDigestResponse dr]
 	where
 	DigestMd5Challenge r n q c _a = toDigestMd5Challenge dmc
---	Just h = lookup "response" $ responseToKvs True dr
 	dr = DR {
 		drUserName = sender, drRealm = r, drPassword = "password",
 		drCnonce = "00DEADBEEF00", drNonce = n, drNc = "00000001",
 		drQop = q, drDigestUri = "xmpp/localhost", drCharset = c }
--- digestMd5Data _ (SRChallengeRspauth _) = [SRResponse ""]
 digestMd5Data _ _ = []

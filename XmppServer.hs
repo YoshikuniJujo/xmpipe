@@ -42,7 +42,7 @@ import Text.XML.Pipe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
-import DigestSv
+import Digest
 
 import XmppCommon
 
@@ -168,10 +168,11 @@ digestMd5Body u = do
 	Just (SRResponse s) <- await
 	let	r = lookupResponse s
 		dr@DR { drUserName = un } = toDigestResponse s
-		cret = fromJust . lookup "response" $ responseToKvs True dr
+		cret = calcMd5 True dr
+--		cret = fromJust . lookup "response" $ responseToKvs True dr
 	unless (r == cret) $ error "digestMd5: bad authentication"
-	let sret = ("rspauth=" `BS.append`) . fromJust
-		. lookup "response" $ responseToKvs False dr
+	let sret = ("rspauth=" `BS.append`) $ calcMd5 False dr
+--		fromJust . lookup "response" $ responseToKvs False dr
 	yield $ SRChallenge sret
 	Just (SRResponse  "") <- await
 	yield XCSaslSuccess
