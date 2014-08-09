@@ -132,7 +132,7 @@ convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
 external :: Monad m => Pipe Common Common m ()
 external = do
-	yield $ XCAuth External
+	yield $ XCAuth "EXTERNAL"
 	mr <- await
 	case mr of
 		Just SRChallengeNull -> yield SRResponseNull
@@ -141,7 +141,7 @@ external = do
 digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
 	BS.ByteString -> Pipe Common Common m ()
 digestMd5 sender = do
-	yield $ XCAuth DigestMd5
+	yield $ XCAuth "DIGEST-MD5"
 	mr <- await
 	case mr of
 		Just r -> do

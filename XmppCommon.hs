@@ -53,7 +53,7 @@ data Common
 	| XCFeatures [Feature]
 	| XCStarttls
 	| XCProceed
-	| XCAuth Mechanism
+	| XCAuth BS.ByteString -- Mechanism
 	| XCSaslSuccess
 	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| XCRaw XmlNode
@@ -329,11 +329,10 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed")
 	_ [] []) = XCProceed
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
-	_ [((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) = XCAuth External
+	_ [((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) = XCAuth "EXTERNAL" -- External
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
-	| [(Mechanism, m)] <- map (first toTag) as =
-		XCAuth $ toMechanism' m
+	| [(Mechanism, m)] <- map (first toTag) as = XCAuth m
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
 	_ [] []) = XCSaslSuccess
 toCommon (XmlNode ((_, Just q), "message") _ as ns)
@@ -495,12 +494,12 @@ fromCommon _ XCStarttls = XmlNode (nullQ "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 fromCommon _ XCProceed = XmlNode (nullQ "proceed")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromCommon _ (XCAuth External) = XmlNode (nullQ "auth")
+fromCommon _ (XCAuth "EXTERNAL") = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[(nullQ "mechanism", "EXTERNAL")] [XmlCharData "="]
 fromCommon _ (XCAuth m) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[(nullQ "mechanism", fromMechanism' m)] []
+	[(nullQ "mechanism", m)] []
 fromCommon _ XCSaslSuccess =
 	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 fromCommon _ (XCMessage Chat i fr to (MBodyRaw ns)) =
