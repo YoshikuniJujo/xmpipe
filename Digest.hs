@@ -1,22 +1,41 @@
-{-# LANGUAGE OverloadedStrings, TypeFamilies, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
-module Digest (
-	DigestMd5Challenge(..), fromDigestMd5Challenge,
-	userName, getMd5, lookupResponse,
-
-	digestMd5Cl,
-	) where
+module Digest (SaslState(..), digestMd5Cl, digestMd5Sv) where
 
 import Control.Applicative
 import "monads-tf" Control.Monad.State
 import Data.Maybe
 import Data.Pipe
+import Data.UUID
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
 import DigestMd5
 import Papillon
+
+digestMd5Sv :: (MonadState m, SaslState (StateType m)) =>
+	UUID -> Pipe BS.ByteString BS.ByteString m ()
+digestMd5Sv u = do
+	yield . fromDigestMd5Challenge $ DigestMd5Challenge {
+		realm = "localhost",
+		nonce = toASCIIBytes u,
+		qop = "auth",
+		charset = "utf-8",
+		algorithm = "md5-sess" }
+	Just s <- await
+	let	r = lookupResponse s
+		un = userName s
+		cret = getMd5 True s
+	unless (r == cret) $ error "digestMd5: bad authentication"
+	let sret = ("rspauth=" `BS.append`) $ getMd5 False s
+	yield sret
+	Just "" <- await
+	lift . modify $ putSaslState [("username", un)]
+
+class SaslState s where
+	getSaslState :: s -> [(BS.ByteString, BS.ByteString)]
+	putSaslState :: [(BS.ByteString, BS.ByteString)] -> s -> s
 
 digestMd5Cl :: (MonadState m, StateType m ~ BS.ByteString) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()

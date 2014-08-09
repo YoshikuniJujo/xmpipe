@@ -127,9 +127,6 @@ handleP h = do
 showBS :: Show a => a -> BS.ByteString
 showBS = BSC.pack . (++ "\n") . show
 
--- convert :: Monad m => (a -> b) -> Pipe a b m ()
--- convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
-
 external :: Monad m => Pipe Common Common m ()
 external = do
 	yield $ XCAuth "EXTERNAL"

@@ -138,39 +138,34 @@ convert :: Monad m => (a -> b) -> Pipe a b m ()
 convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
 digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
-	Maybe BS.ByteString -> UUID -> Pipe Common Common m BS.ByteString
+	Maybe BS.ByteString -> UUID -> Pipe Common Common m ()
 digestMd5 e u = do
 	yield $ XCFeatures
 		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
 	a <- await
 	case (a, e) of
 		(Just (XCAuth "DIGEST-MD5"), _) -> digestMd5Body u
-		(Just (XCAuth "EXTERNAL"), Just n) -> external n
+		(Just (XCAuth "EXTERNAL"), Just _) -> external
 		_ -> error $ "BAD: " ++ show a
 
-external :: Monad m => BS.ByteString -> Pipe Common Common m BS.ByteString
-external e = do
+external :: Monad m => Pipe Common Common m ()
+external = do
 	yield $ SRChallenge ""
 	Just (SRResponse "") <- await
 	yield XCSaslSuccess
-	return e
 
-digestMd5Body :: (MonadState m, StateType m ~ XmppState) =>
-	UUID -> Pipe Common Common m BS.ByteString
+digestMd5Body :: (MonadState m, SaslState (StateType m)) =>
+	UUID -> Pipe Common Common m ()
 digestMd5Body u = do
-	yield . SRChallenge . fromDigestMd5Challenge $ DigestMd5Challenge {
-		realm = "localhost",
-		nonce = toASCIIBytes u,
-		qop = "auth",
-		charset = "utf-8",
-		algorithm = "md5-sess" }
-	Just (SRResponse s) <- await
-	let	r = lookupResponse s
-		un = userName s
-		cret = getMd5 True s
-	unless (r == cret) $ error "digestMd5: bad authentication"
-	let sret = ("rspauth=" `BS.append`) $ getMd5 False s
-	yield $ SRChallenge sret
-	Just (SRResponse  "") <- await
+	convert (\(SRResponse r) -> r) =$= digestMd5Sv u =$= convert SRChallenge
 	yield XCSaslSuccess
-	return un
+
+instance SaslState XmppState where
+	getSaslState xs = case receiver xs of
+		Just (Jid un _ _) -> [("username", un)]
+		_ -> []
+	putSaslState ss xs = case lookup "username" ss of
+		Just un -> case receiver xs of
+			Just (Jid _ d r) -> xs { receiver = Just $ Jid un d r }
+			_ -> xs { receiver = Just $ Jid un "localhost" Nothing }
+		_ -> xs
