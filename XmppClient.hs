@@ -2,6 +2,7 @@
 	PackageImports, FlexibleContexts #-}
 
 module XmppClient (
+	XmppState(..),
 	fromCaps,
 	toCaps,
 	XmlNode(..),
@@ -138,8 +139,20 @@ external = do
 convert :: Monad m => (a -> b) -> Pipe a b m ()
 convert f = await >>= maybe (return ()) ((>> convert f) . yield . f)
 
-digestMd5 :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
-	BS.ByteString -> Pipe Common Common m ()
-digestMd5 s = do
+data XmppState = XmppState {
+	rspauth :: BS.ByteString,
+	username :: BS.ByteString } deriving Show
+
+instance SaslState XmppState where
+	getSaslState ss = [("username", username ss), ("rspauth", rspauth ss)]
+	putSaslState ss xs = case (lookup "rspauth" ss, lookup "username" ss) of
+		(Just ra, Just un) -> xs { rspauth = ra, username = un }
+		(Just ra, _) -> xs { rspauth = ra }
+		(_, Just un) -> xs { username = un }
+		_ -> xs
+
+digestMd5 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
+	Pipe Common Common m ()
+digestMd5 = do
 	yield $ XCAuth "DIGEST-MD5"
-	convert (\(SRChallenge c) -> c) =$= digestMd5Cl s =$= convert SRResponse
+	convert (\(SRChallenge c) -> c) =$= digestMd5Cl =$= convert SRResponse

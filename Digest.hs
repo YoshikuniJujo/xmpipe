@@ -37,20 +37,22 @@ class SaslState s where
 	getSaslState :: s -> [(BS.ByteString, BS.ByteString)]
 	putSaslState :: [(BS.ByteString, BS.ByteString)] -> s -> s
 
-digestMd5Cl :: (MonadState m, StateType m ~ BS.ByteString) =>
-	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
-digestMd5Cl sender = do
+digestMd5Cl :: (MonadState m, SaslState (StateType m)) =>
+	Pipe BS.ByteString BS.ByteString m ()
+digestMd5Cl = do
+	Just sender <- lookup "username" `liftM` lift (gets getSaslState)
 	mr <- await
 	case mr of
 		Just r -> do
 			let [s] = digestMd5Data sender r
-			lift . put $ getMd5 False s
+			lift . modify $ putSaslState [("rspauth", getMd5 False s)]
 			yield s
 		_ -> error "digestMd5: unexpected end of input"
 	mr' <- await
 	case mr' of
 		Just s -> do
-			sa0 <- lift get
+			Just sa0 <- lookup "rspauth"
+				`liftM` lift (gets getSaslState)
 			let Just sa = toRspauth s
 			unless (sa == sa0) $ error "process: bad server"
 			mapM_ yield $ digestMd5Data sender s

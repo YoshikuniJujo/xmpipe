@@ -46,7 +46,8 @@ main = do
 	(`run` g) $ do
 		p <- open' h "localhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 			[(k, c)] ca
-		xmpp (SHandle p) `evalStateT` ("" :: BS.ByteString)
+		xmpp (SHandle p) `evalStateT`
+			XmppState { username = jidToUser sender, rspauth = "" }
 
 pipe :: Monad m => Pipe a a m ()
 pipe = await >>= maybe (return ()) yield
@@ -59,10 +60,10 @@ startTls = XCRaw $ XmlNode (("", Nothing), "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 
 xmpp :: (HandleLike h, MonadState (HandleMonad h),
-		BS.ByteString ~ StateType (HandleMonad h)) => h -> HandleMonad h ()
+		XmppState ~ StateType (HandleMonad h)) => h -> HandleMonad h ()
 xmpp h = voidM . runPipe $ input h =$= proc =$= output h
 
-proc :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
+proc :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 proc = yield XCDecl
 	>> yield (XCBegin
@@ -75,15 +76,15 @@ jidToHost (Jid _ d _) = d
 jidToUser :: Jid -> BS.ByteString
 jidToUser (Jid u _ _) = u
 
-process :: (Monad m, MonadState m, StateType m ~ BS.ByteString) =>
+process :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
 	Just (XCFeatures [FtMechanisms ms])
-		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
+		| DigestMd5 `elem` ms -> digestMd5 >> process
 	Just (XCFeatures [_, FtMechanisms ms])
-		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
+		| DigestMd5 `elem` ms -> digestMd5 >> process
 	Just (XCFeatures [FtMechanisms ms, _])
-		| DigestMd5 `elem` ms -> digestMd5 (jidToUser sender) >> process
+		| DigestMd5 `elem` ms -> digestMd5 >> process
 	Just XCSaslSuccess -> mapM_ yield [XCDecl, begin] >> process
 	Just (XCFeatures _fs) -> mapM_ yield binds >> process
 	Just (SRPresence _ ns) -> case toCaps ns of
