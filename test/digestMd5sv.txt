@@ -1,0 +1,2 @@
+realm="localhost",nonce="7658cddf-0e44-4de2-87df-41323bce97f4",qop="auth",charset=utf-8,algorithm=md5-sess
+rspauth=9ac73e25a908479ae5f6cd13175eba56

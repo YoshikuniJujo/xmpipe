@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings, PackageImports #-}
 
 module Sasl (
-	Sasl(..), Send, Recieve, SaslState(..), pipeCl ) where
+	Sasl(..), Send, Recieve, SaslState(..), pipeCl,
+	client2server, server2client,
+	) where
 
 import "monads-tf" Control.Monad.State
 import Data.Pipe

@@ -14,6 +14,7 @@ import qualified Data.ByteString.Char8 as BSC
 import Sasl
 
 data ExampleState = ExampleState [(BS.ByteString, BS.ByteString)]
+	deriving Show
 
 instance SaslState ExampleState where
 	getSaslState (ExampleState s) = s
@@ -33,8 +34,7 @@ toStdout :: MonadIO m => Pipe BS.ByteString () m ()
 toStdout = await >>= maybe (return ())
 	((>> toStdout) . liftIO . BSC.putStrLn . BSC.pack . show)
 
-runTestSasl :: Monad m =>
-	Pipe () () (StateT ExampleState m) () -> m ()
+runTestSasl :: Monad m => Pipe () () (StateT ExampleState m) () -> m ()
 runTestSasl p = do
 	ret <- (`evalStateT` ExampleState []) $ runPipe p
 	case ret of
