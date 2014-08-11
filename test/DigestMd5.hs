@@ -3,6 +3,8 @@
 module DigestMd5 (
 	DigestResponse(..), fromDigestResponse,
 	digestMd5,
+
+	DigestMd5Challenge(..), fromDigestMd5Challenge,
 ) where
 
 import Control.Applicative
@@ -26,16 +28,16 @@ hex2 w = replicate (2 - length s) '0' ++ s
 
 digestMd5 :: Bool -> ByteString -> ByteString -> ByteString -> ByteString -> ByteString
 	-> ByteString -> ByteString -> ByteString -> ByteString
-digestMd5 isClient username realm password qop uri nonce nc cnonce = z
+digestMd5 isClient username rlm password q uri n nc cnonce = z
 	where
-	x = username +++ ":" +++ realm +++ ":" +++ password
+	x = username +++ ":" +++ rlm +++ ":" +++ password
 	y = hash x
-	a1 = y +++ ":" +++ nonce +++ ":" +++ cnonce -- +++ ":" +++ authzid
+	a1 = y +++ ":" +++ n +++ ":" +++ cnonce -- +++ ":" +++ authzid
 	ha1 = hash32 a1
 	a2 = (if isClient then "AUTHENTICATE" else "") +++ ":" +++ uri
 	ha2 = hash32 a2
-	kd = ha1 +++ ":" +++ nonce +++ ":" +++ nc +++ ":" +++ cnonce +++ ":" +++
-		qop +++ ":" +++ ha2
+	kd = ha1 +++ ":" +++ n +++ ":" +++ nc +++ ":" +++ cnonce +++ ":" +++
+		q +++ ":" +++ ha2
 	z = hash32 kd
 
 data DigestResponse = DR {
@@ -79,3 +81,18 @@ calcMd5 :: Bool -> DigestResponse -> BS.ByteString
 calcMd5 isClient = digestMd5 isClient
 	<$> drUserName <*> drRealm <*> drPassword <*> drQop <*> drDigestUri
 	<*> drNonce <*> drNc <*> drCnonce
+
+data DigestMd5Challenge = DigestMd5Challenge {
+	realm :: BS.ByteString,
+	nonce :: BS.ByteString,
+	qop :: BS.ByteString,
+	charset :: BS.ByteString,
+	algorithm :: BS.ByteString }
+	deriving Show
+
+fromDigestMd5Challenge :: DigestMd5Challenge -> BS.ByteString
+fromDigestMd5Challenge c = BS.concat [
+	"realm=", BSC.pack . show $ realm c, ",",
+	"nonce=", BSC.pack . show $ nonce c, ",",
+	"qop=", BSC.pack . show $ qop c, ",",
+	"charset=", charset c, ",", "algorithm=", algorithm c ]

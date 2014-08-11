@@ -1,11 +1,9 @@
 {-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
 module NewSasl (
-	Send, Receive,
-	SaslState(..), ExampleState(..),
-	pipeCl, pipeSv,
-	DigestMd5Challenge(..), fromDigestMd5Challenge,
-	fromFile, toStdout,
+	SaslState(..), Send, Receive, pipeCl, pipeSv,
+
+	ExampleState(..), fromFile, toStdout,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -47,21 +45,6 @@ pipeSv _ _ = error "pipeSv: bad"
 class SaslState s where
 	getSaslState :: s -> [(BS.ByteString, BS.ByteString)]
 	putSaslState :: [(BS.ByteString, BS.ByteString)] -> s -> s
-
-data DigestMd5Challenge = DigestMd5Challenge {
-	realm :: BS.ByteString,
-	nonce :: BS.ByteString,
-	qop :: BS.ByteString,
-	charset :: BS.ByteString,
-	algorithm :: BS.ByteString }
-	deriving Show
-
-fromDigestMd5Challenge :: DigestMd5Challenge -> BS.ByteString
-fromDigestMd5Challenge c = BS.concat [
-	"realm=", BSC.pack . show $ realm c, ",",
-	"nonce=", BSC.pack . show $ nonce c, ",",
-	"qop=", BSC.pack . show $ qop c, ",",
-	"charset=", charset c, ",", "algorithm=", algorithm c ]
 
 data ExampleState = ExampleState [(BS.ByteString, BS.ByteString)]
 	deriving Show
