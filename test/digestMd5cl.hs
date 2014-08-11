@@ -79,27 +79,23 @@ main :: IO ()
 main = do
 	r <- (`runStateT` ExampleState exampleInit) $ do
 		runPipe $ fromFile serverFile
-			=$= pipeCl digestMd5Sasl client server
+			=$= pipeCl client server
 			=$= toStdout
 	print r
 	
 
-pipeCl :: Monad m => Sasl s m -> [StateT s m BS.ByteString]
+pipeCl :: Monad m => [StateT s m BS.ByteString]
 	-> [BS.ByteString -> StateT s m ()]
 	-> Pipe BS.ByteString BS.ByteString (StateT s m) ()
-pipeCl (Result rslt) _ _ = do
-	r <- lift rslt
-	case r of
-		(True, _) -> yield "success"
-		_ -> yield "failure"
-pipeCl sasl (send : sends) (rcv : rcvs) = await >>= \mbs -> case mbs of
+pipeCl [] [] = await >>= \mbs -> case mbs of
+	Just bs -> trace (BSC.unpack bs) $ return ()
+	_ -> return ()
+pipeCl (send : sends) (rcv : rcvs) = await >>= \mbs -> case mbs of
 	Just bs -> do
-		let sasl' = server2client sasl $ rcv bs >> return bs
-		let sasl'' = client2server sasl' send
 		lift $ rcv bs
 		s <- lift send
 		yield s
-		pipeCl sasl'' sends rcvs
+		pipeCl sends rcvs
 	_ -> return ()
 
 putReceive :: (Monad m, SaslState s) => BS.ByteString -> StateT s m ()
