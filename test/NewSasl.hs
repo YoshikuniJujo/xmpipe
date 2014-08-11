@@ -1,10 +1,9 @@
 {-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
 module NewSasl (
-	SaslState(..), Send, Receive, pipeCl, pipeSv,
+	SaslState(..), Server(..), Client(..), Send, Receive, pipeCl, pipeSv,
 
-	ExampleState(..), fromFile, toStdout,
-	) where
+	ExampleState(..), fromFile, toStdout ) where
 
 import "monads-tf" Control.Monad.State
 import Control.Monad.Trans.Control
@@ -13,6 +12,11 @@ import System.IO
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+
+data Server s m =
+	Server (Maybe (Receive s m)) [(Send s m, Receive s m)] (Maybe (Send s m))
+data Client s m =
+	Client (Maybe (Send s m)) [(Receive s m, Send s m)] (Maybe (Receive s m))
 
 type Send s m = StateT s m BS.ByteString
 type Receive s m = BS.ByteString -> StateT s m ()
@@ -28,19 +32,15 @@ toStdout :: MonadIO m => Pipe BS.ByteString () m ()
 toStdout = await >>= maybe (return ())
 	((>> toStdout) . liftIO . BSC.putStrLn . BSC.pack . show)
 
-pipeSv :: Monad m => [StateT s m BS.ByteString]
-	-> [BS.ByteString -> StateT s m ()]
-	-> Pipe BS.ByteString BS.ByteString (StateT s m) ()
-pipeSv [] [] = return ()
-pipeSv [send] [] = lift send >>= yield
-pipeSv (send : sends) (rcv : rcvs) = do
+pipeSv :: Monad m => Server s m -> Pipe BS.ByteString BS.ByteString (StateT s m) ()
+pipeSv (Server (Just rcv) srs send') = await >>=
+	maybe (return ()) ((>> pipeSv (Server Nothing srs send')) . lift . rcv)
+pipeSv (Server _ [] (Just send')) = lift send' >>= yield
+pipeSv (Server _ [] _) = return ()
+pipeSv (Server _ ((send, rcv) : srs) send') = do
 	lift send >>= yield
-	await >>= \mbs -> case mbs of
-		Just bs -> do
-			lift $ rcv bs
-			pipeSv sends rcvs
-		_ -> return ()
-pipeSv _ _ = error "pipeSv: bad"
+	await >>= maybe (return ())
+		((>> pipeSv (Server Nothing srs send')) . lift . rcv)
 
 class SaslState s where
 	getSaslState :: s -> [(BS.ByteString, BS.ByteString)]
@@ -53,17 +53,12 @@ instance SaslState ExampleState where
 	getSaslState (ExampleState s) = s
 	putSaslState s _ = ExampleState s
 
-pipeCl :: Monad m => [StateT s m BS.ByteString]
-	-> [BS.ByteString -> StateT s m ()]
-	-> Pipe BS.ByteString BS.ByteString (StateT s m) ()
-pipeCl [] [] = await >>= \mbs -> case mbs of
-	Just _bs -> return ()
+pipeCl :: Monad m => Client s m -> Pipe BS.ByteString BS.ByteString (StateT s m) ()
+pipeCl (Client (Just i) rss rcv') =
+	lift i >>= yield >> pipeCl (Client Nothing rss rcv')
+pipeCl (Client _ [] (Just rcv)) = await >>= maybe (return ()) (lift . rcv)
+pipeCl (Client _ [] _) = return ()
+pipeCl (Client _ ((rcv, send) : rss) rcv') = await >>= \mbs -> case mbs of
+	Just bs -> lift (rcv bs) >> lift send >>= yield >>
+		pipeCl (Client Nothing rss rcv')
 	_ -> return ()
-pipeCl (send : sends) (rcv : rcvs) = await >>= \mbs -> case mbs of
-	Just bs -> do
-		lift $ rcv bs
-		s <- lift send
-		yield s
-		pipeCl sends rcvs
-	_ -> return ()
-pipeCl _ _ = error "pipeCl: bad"
