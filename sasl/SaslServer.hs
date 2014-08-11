@@ -14,16 +14,17 @@ import DigestMd5
 import Papillon
 import NewSasl
 
-digestMd5Sv :: (Monad m, SaslState s) => Server s m
+digestMd5Sv :: (MonadState m, SaslState (StateType m)) => Server m
 digestMd5Sv = Server Nothing (zip server client) Nothing
 
-server :: (Monad m, SaslState s) => [Send s m]
+server :: (MonadState m, SaslState (StateType m)) => [Send m]
 server = [mkChallenge, mkRspAuth, mkResult]
 
-client :: (Monad m, SaslState s) => [Receive s m]
+client :: (MonadState m, SaslState (StateType m)) => [Receive m]
 client = [putResponse, \"" -> return ()]
 
-mkChallenge, mkRspAuth, mkResult :: (Monad m, SaslState s) => Send s m
+mkChallenge, mkRspAuth, mkResult ::
+	(MonadState m, SaslState (StateType m)) => Send m
 mkChallenge = do
 	st <- gets getSaslState
 	let	Just rlm = lookup "realm" st
@@ -56,7 +57,7 @@ mkRspAuth = do
 
 mkResult = return "success"
 
-putResponse :: (Monad m, SaslState s) => Receive s m
+putResponse :: (MonadState m, SaslState (StateType m)) => Receive m
 putResponse bs = do
 	st <- gets getSaslState
 	let	Just rs = parseAtts bs

@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module SaslClient (
-	pipeCl, digestMd5Cl, ExampleState(..),
-	fromFile, toStdout,
+	SaslState(..), pipeCl, digestMd5Cl,
+
+	ExampleState(..), fromFile, toStdout,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -11,16 +12,16 @@ import NewSasl
 import DigestMd5
 import Papillon
 
-digestMd5Cl :: (Monad m, SaslState s) => Client s m
+digestMd5Cl :: (MonadState m, SaslState (StateType m)) => Client m
 digestMd5Cl = Client Nothing (zip server client) Nothing
 
-client :: (Monad m, SaslState s) => [Send s m]
+client :: (MonadState m, SaslState (StateType m)) => [Send m]
 client = [mkResponse, return ""]
 
-server :: (Monad m, SaslState s) => [Receive s m]
+server :: (MonadState m, SaslState (StateType m)) => [Receive m]
 server = [putReceive, const $ return ()]
 
-mkResponse :: (Monad m, SaslState s) => Send s m
+mkResponse :: (MonadState m, SaslState (StateType m)) => Send m
 mkResponse = do
 	st <- gets getSaslState
 	let	Just ps = lookup "password" st
@@ -48,7 +49,7 @@ mkResponse = do
 		drDigestUri = "xmpp/localhost",
 		drCharset = c }
 
-putReceive :: (Monad m, SaslState s) => Receive s m
+putReceive :: (MonadState m, SaslState (StateType m)) => Receive m
 putReceive bs = do
 	let Just ch = parseAtts bs
 	st <- gets getSaslState

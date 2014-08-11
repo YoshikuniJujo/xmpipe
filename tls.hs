@@ -46,8 +46,10 @@ main = do
 	(`run` g) $ do
 		p <- open' h "localhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 			[(k, c)] ca
-		xmpp (SHandle p) `evalStateT`
-			XmppState { username = jidToUser sender, rspauth = "" }
+		xmpp (SHandle p) `evalStateT` XmppState [
+				("username", jidToUser sender),
+				("password", "password"),
+				("rspauth", "") ]
 
 pipe :: Monad m => Pipe a a m ()
 pipe = await >>= maybe (return ()) yield

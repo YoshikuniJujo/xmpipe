@@ -58,12 +58,23 @@ instance HandleLike h => HandleLike (SHandle s h) where
 
 data XmppState = XmppState {
 	receiver :: Maybe Jid,
-	uuidList :: [UUID] }
+	uuidList :: [UUID],
+	saslState :: [(BS.ByteString, BS.ByteString)]
+	}
 
 initXmppState :: [UUID] -> XmppState
 initXmppState uuids = XmppState {
 	receiver = Nothing,
-	uuidList = uuids }
+	uuidList = uuids,
+	saslState = [
+		("password", "password"),
+		("realm", "localhost"),
+		("nonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
+		("qop", "auth"),
+		("charset", "utf-8"),
+		("algorithm", "md5-sess")
+		]
+	}
 
 setReceiver :: Jid -> XmppState -> XmppState
 setReceiver j xs = xs { receiver = Just j }
@@ -161,12 +172,18 @@ digestMd5Body = do
 
 instance SaslState XmppState where
 	getSaslState xs = case receiver xs of
-		Just (Jid un _ _) -> ("username", un) : ss
-		_ -> ss
-		where ss = let u : _ = uuidList xs in [("uuid", toASCIIBytes u)]
+		Just (Jid un _ _) -> ("username", un) : ss'
+		_ -> ss'
+		where
+		ss' = let u : _ = uuidList xs in [("uuid", toASCIIBytes u)] ++ ss
+		ss = saslState xs
 	putSaslState ss xs = case lookup "username" ss of
 		Just un -> case receiver xs of
 			Just (Jid _ d r) -> xs' { receiver = Just $ Jid un d r }
 			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
 		_ -> xs'
-		where xs' = xs { uuidList = tail $ uuidList xs }
+		where
+		xs' = xs {
+			uuidList = tail $ uuidList xs,
+			saslState = ss
+			}

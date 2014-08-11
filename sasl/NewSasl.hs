@@ -13,13 +13,11 @@ import System.IO
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
-data Server s m =
-	Server (Maybe (Receive s m)) [(Send s m, Receive s m)] (Maybe (Send s m))
-data Client s m =
-	Client (Maybe (Send s m)) [(Receive s m, Send s m)] (Maybe (Receive s m))
+data Server m = Server (Maybe (Receive m)) [(Send m, Receive m)] (Maybe (Send m))
+data Client m = Client (Maybe (Send m)) [(Receive m, Send m)] (Maybe (Receive m))
 
-type Send s m = StateT s m BS.ByteString
-type Receive s m = BS.ByteString -> StateT s m ()
+type Send m = m BS.ByteString
+type Receive m = BS.ByteString -> m ()
 
 fromFile :: (MonadBaseControl IO m, MonadIO m) =>
 	FilePath -> Pipe () BS.ByteString m ()
@@ -32,7 +30,7 @@ toStdout :: MonadIO m => Pipe BS.ByteString () m ()
 toStdout = await >>= maybe (return ())
 	((>> toStdout) . liftIO . BSC.putStrLn . BSC.pack . show)
 
-pipeSv :: Monad m => Server s m -> Pipe BS.ByteString BS.ByteString (StateT s m) ()
+pipeSv :: Monad m => Server m -> Pipe BS.ByteString BS.ByteString m ()
 pipeSv (Server (Just rcv) srs send') = await >>=
 	maybe (return ()) ((>> pipeSv (Server Nothing srs send')) . lift . rcv)
 pipeSv (Server _ [] (Just send')) = lift send' >>= yield
@@ -53,7 +51,7 @@ instance SaslState ExampleState where
 	getSaslState (ExampleState s) = s
 	putSaslState s _ = ExampleState s
 
-pipeCl :: Monad m => Client s m -> Pipe BS.ByteString BS.ByteString (StateT s m) ()
+pipeCl :: Monad m => Client m -> Pipe BS.ByteString BS.ByteString m ()
 pipeCl (Client (Just i) rss rcv') =
 	lift i >>= yield >> pipeCl (Client Nothing rss rcv')
 pipeCl (Client _ [] (Just rcv)) = await >>= maybe (return ()) (lift . rcv)

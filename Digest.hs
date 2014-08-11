@@ -1,7 +1,21 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
-module Digest (SaslState(..), digestMd5Cl, digestMd5Sv) where
+module Digest (SASL.SaslState(..), digestMd5Cl, digestMd5Sv) where
 
+import "monads-tf" Control.Monad.State
+import Data.Pipe
+
+import qualified Data.ByteString as BS
+
+import qualified SaslServer as SASL
+import qualified SaslClient as SASL
+
+digestMd5Cl, digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
+	Pipe BS.ByteString BS.ByteString m ()
+digestMd5Cl = SASL.pipeCl SASL.digestMd5Cl
+digestMd5Sv = SASL.pipeSv SASL.digestMd5Sv
+
+{-
 import Control.Applicative
 import "monads-tf" Control.Monad.State
 import Data.Maybe
@@ -165,3 +179,4 @@ calcMd5 :: Bool -> DigestResponse -> BS.ByteString
 calcMd5 isClient = digestMd5 isClient
 	<$> drUserName <*> drRealm <*> drPassword <*> drQop <*> drDigestUri
 	<*> drNonce <*> drNc <*> drCnonce
+	-}
