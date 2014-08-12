@@ -172,20 +172,25 @@ external = do
 	yield $ XCSaslSuccess Nothing
 
 digestMd5Body :: (MonadState m, SaslState (StateType m)) => Pipe Common Common m ()
-digestMd5Body = do
-	convert (\(SRResponse r) -> r) =$= digestMd5Sv =$= convert SRChallenge
-	yield $ XCSaslSuccess Nothing
+digestMd5Body = saslPipe Nothing digestMd5Sv
 
 scramSha1 :: (MonadState m, SaslState (StateType m)) =>
 	BS.ByteString -> Pipe Common Common m ()
-scramSha1 i =
-	(yield i >> convert (\(SRResponse r) -> r)) =$= scramSha1Sv =$= outputScram
+scramSha1 i = saslPipe (Just i) scramSha1Sv
+
+saslPipe :: (MonadState m, SaslState (StateType m)) => (Maybe BS.ByteString)
+	-> Pipe BS.ByteString (Either Result BS.ByteString) m ()
+	-> Pipe Common Common m ()
+saslPipe (Just i) s =
+	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
+saslPipe _ s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScram
 
 outputScram :: (MonadState m, SaslState (StateType m)) =>
-	Pipe BS.ByteString Common m ()
-outputScram = do
-	await >>= maybe (return ()) (yield . SRChallenge)
-	await >>= maybe (return ()) (yield . XCSaslSuccess . Just)
+	Pipe (Either Result BS.ByteString) Common m ()
+outputScram = await >>= \mch -> case mch of
+	Just (Right r) -> yield (SRChallenge r) >> outputScram
+	Just (Left (Digest.Result _ r)) -> yield $ XCSaslSuccess r
+	Nothing -> return ()
 
 instance SaslState XmppState where
 	getSaslState xs = case receiver xs of

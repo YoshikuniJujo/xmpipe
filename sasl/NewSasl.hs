@@ -1,7 +1,7 @@
-{-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts, TupleSections, PackageImports #-}
 
 module NewSasl (
-	SaslState(..), Send, Receive,
+	SaslState(..), Send, Receive, Result(..),
 	Client(..), pipeCl, doesClientHasInit,
 	Server(..), pipeSv,
 
@@ -21,6 +21,8 @@ data Client m = Client (Maybe (Send m)) [(Receive m, Send m)] (Maybe (Receive m)
 type Send m = m BS.ByteString
 type Receive m = BS.ByteString -> m ()
 
+data Result = Result Bool (Maybe BS.ByteString)
+
 doesClientHasInit :: Client m -> Bool
 doesClientHasInit (Client (Just _) _ _) = True
 doesClientHasInit _ = False
@@ -36,13 +38,14 @@ toStdout :: MonadIO m => Pipe BS.ByteString () m ()
 toStdout = await >>= maybe (return ())
 	((>> toStdout) . liftIO . BSC.putStrLn . BSC.pack . show)
 
-pipeSv :: Monad m => Server m -> Pipe BS.ByteString BS.ByteString m ()
+pipeSv :: Monad m =>
+	Server m -> Pipe BS.ByteString (Either Result BS.ByteString) m ()
 pipeSv (Server (Just rcv) srs send') = await >>=
 	maybe (return ()) ((>> pipeSv (Server Nothing srs send')) . lift . rcv)
-pipeSv (Server _ [] (Just send')) = lift send' >>= yield
+pipeSv (Server _ [] (Just send')) = lift send' >>= yield . Left . Result True . Just
 pipeSv (Server _ [] _) = return ()
 pipeSv (Server _ ((send, rcv) : srs) send') = do
-	lift send >>= yield
+	lift send >>= yield . Right
 	await >>= maybe (return ())
 		((>> pipeSv (Server Nothing srs send')) . lift . rcv)
 

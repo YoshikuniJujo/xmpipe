@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
 module SaslServer (
-	pipeSv, digestMd5Sv,
+	pipeSv, digestMd5Sv, Result(..),
 
 	ExampleState(..), fromFile, toStdout,
 	) where
@@ -15,7 +15,7 @@ import Papillon
 import NewSasl
 
 digestMd5Sv :: (MonadState m, SaslState (StateType m)) => Server m
-digestMd5Sv = Server Nothing (zip server client) Nothing
+digestMd5Sv = Server Nothing (zip server client) (Just $ return "")
 
 server :: (MonadState m, SaslState (StateType m)) => [Send m]
 server = [mkChallenge, mkRspAuth, mkResult]
