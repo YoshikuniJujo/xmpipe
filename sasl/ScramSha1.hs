@@ -6,11 +6,15 @@ module ScramSha1 (
 	clientFinalMessage,
 	serverFinalMessage,
 
+	readServerFirstMessage,
+	readServerFinalMessage,
+
 	exampleFlow,
 	exampleClientProof,
 	exampleServerSignature,
 	) where
 
+import Control.Applicative
 import Data.Bits
 
 import qualified Data.ByteString as BS
@@ -19,6 +23,7 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Crypto.Hash.SHA1 as SHA1
 
 import Hmac
+import Fields
 
 clientFirstMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString
 clientFirstMessage un nnc = "n,," `BS.append` clientFirstMessageBare un nnc
@@ -26,8 +31,17 @@ clientFirstMessage un nnc = "n,," `BS.append` clientFirstMessageBare un nnc
 clientFinalMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString -> Int
 	-> BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
 clientFinalMessage un ps slt i cb cnnc snnc = BS.concat [
-	clientFinalMessageWithoutProof cb cnnc snnc, ",",
+	clientFinalMessageWithoutProof cb snnc, ",",
 	"p=", clientProof un ps slt i cb cnnc snnc ]
+
+readServerFirstMessage :: BS.ByteString -> Maybe (BS.ByteString, BS.ByteString, Int)
+readServerFirstMessage ch = do
+	let kv = readFields ch
+	(,,) <$> lookup "r" kv <*> lookup "s" kv
+		<*> (read . BSC.unpack <$> lookup "i" kv)
+
+readServerFinalMessage :: BS.ByteString -> Maybe BS.ByteString
+readServerFinalMessage = lookup "v" . readFields
 
 serverFinalMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString -> Int
 	-> BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
@@ -38,9 +52,18 @@ testFlow :: BS.ByteString -> BS.ByteString -> BS.ByteString -> Int
 	-> BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
 testFlow un ps slt i cb cnnc snnc = BS.concat [
 	"C: ", clientFirstMessage un cnnc, "\n",
-	"S: ", serverFirstMessage cnnc snnc slt i, "\n",
+	"S: ", serverFirstMessage snnc slt i, "\n",
 	"C: ", clientFinalMessage un ps slt i cb cnnc snnc, "\n",
 	"S: ", serverFinalMessage un ps slt i cb cnnc snnc, "\n" ]
+
+exampleServerFirstMessage :: BS.ByteString
+exampleServerFirstMessage =
+	serverFirstMessage exampleServerNonce exampleSalt exampleI
+
+exampleServerFinalMessage :: BS.ByteString
+exampleServerFinalMessage = serverFinalMessage
+	"user" "pencil" exampleSalt exampleI "n,,"
+	exampleClientNonce exampleServerNonce
 
 exampleFlow :: BS.ByteString
 exampleFlow = testFlow
@@ -71,22 +94,20 @@ storedKey ps salt i = SHA1.hash $ clientKey ps salt i
 clientFirstMessageBare :: BS.ByteString -> BS.ByteString -> BS.ByteString
 clientFirstMessageBare un nnc = BS.concat ["n=", un, ",r=", nnc]
 
-serverFirstMessage ::
-	BS.ByteString -> BS.ByteString -> BS.ByteString -> Int -> BS.ByteString
-serverFirstMessage cnnc snnc slt i = BS.concat
-	["r=", cnnc, snnc, ",s=", B64.encode slt, ",i=", BSC.pack $ show i]
+serverFirstMessage :: BS.ByteString -> BS.ByteString -> Int -> BS.ByteString
+serverFirstMessage snnc slt i = BS.concat
+	["r=", snnc, ",s=", B64.encode slt, ",i=", BSC.pack $ show i]
 
-clientFinalMessageWithoutProof ::
-	BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
-clientFinalMessageWithoutProof cb cnnc snnc =
-	BS.concat ["c=", B64.encode cb, ",r=", cnnc, snnc]
+clientFinalMessageWithoutProof :: BS.ByteString -> BS.ByteString -> BS.ByteString
+clientFinalMessageWithoutProof cb snnc =
+	BS.concat ["c=", B64.encode cb, ",r=", snnc]
 
 authMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
 	-> BS.ByteString -> Int -> BS.ByteString
 authMessage cb un cnnc snnc slt i = BS.concat [
 	clientFirstMessageBare un cnnc, ",",
-	serverFirstMessage cnnc snnc slt i, ",",
-	clientFinalMessageWithoutProof cb cnnc snnc ]
+	serverFirstMessage snnc slt i, ",",
+	clientFinalMessageWithoutProof cb snnc ]
 
 clientSignature :: BS.ByteString -> BS.ByteString -> BS.ByteString -> Int
 	-> BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
@@ -121,7 +142,7 @@ exampleClientNonce :: BS.ByteString
 exampleClientNonce = "fyko+d2lbbFgONRv9qkxdawL"
 
 exampleServerNonce :: BS.ByteString
-exampleServerNonce = "3rfcNHYJY1ZVvWVs7j"
+exampleServerNonce = exampleClientNonce `BS.append` "3rfcNHYJY1ZVvWVs7j"
 
 exampleI :: Int
 exampleI = 4096
