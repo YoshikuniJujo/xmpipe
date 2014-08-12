@@ -13,10 +13,11 @@ import DigestMd5
 import Papillon
 
 digestMd5Cl :: (MonadState m, SaslState (StateType m)) => Client m
-digestMd5Cl = Client Nothing (zip server client) Nothing
+digestMd5Cl = Client Nothing (zip server client) (Just . const $ return ()) -- Nothing
 
 client :: (MonadState m, SaslState (StateType m)) => [Send m]
-client = [mkResponse, return ""]
+-- client = [mkResponse, return ""]
+client = [mkResponse]
 
 server :: (MonadState m, SaslState (StateType m)) => [Receive m]
 server = [putReceive, const $ return ()]

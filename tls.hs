@@ -89,14 +89,14 @@ doScramSha1 = scramSha1 >> mapM_ yield [XCDecl, begin]
 process :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
--- {-
+{-
 	Just (XCFeatures [FtMechanisms ms])
 		| ScramSha1 `elem` ms -> doScramSha1 >> process
 	Just (XCFeatures [_, FtMechanisms ms])
 		| ScramSha1 `elem` ms -> doScramSha1 >> process
 	Just (XCFeatures [FtMechanisms ms, _])
 		| ScramSha1 `elem` ms -> doScramSha1 >> process
---		-}
+-}
 	Just (XCFeatures [FtMechanisms ms])
 		| DigestMd5 `elem` ms -> doDigestMd5 >> process
 	Just (XCFeatures [_, FtMechanisms ms])

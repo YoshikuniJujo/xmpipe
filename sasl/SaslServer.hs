@@ -15,13 +15,15 @@ import Papillon
 import NewSasl
 
 digestMd5Sv :: (MonadState m, SaslState (StateType m)) => Server m
-digestMd5Sv = Server Nothing (zip server client) (Just $ return "")
+-- digestMd5Sv = Server Nothing (zip server client) (Just $ return "")
+digestMd5Sv = Server Nothing (zip server client) (Just mkRspAuth)
 
 server :: (MonadState m, SaslState (StateType m)) => [Send m]
 server = [mkChallenge, mkRspAuth, mkResult]
 
 client :: (MonadState m, SaslState (StateType m)) => [Receive m]
-client = [putResponse, \"" -> return ()]
+client = [putResponse]
+-- client = [putResponse, \"" -> return ()]
 
 mkChallenge, mkRspAuth, mkResult ::
 	(MonadState m, SaslState (StateType m)) => Send m
