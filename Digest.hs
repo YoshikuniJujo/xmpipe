@@ -3,6 +3,7 @@
 module Digest (
 	SASL.SaslState(..),
 	digestMd5Cl, digestMd5Sv,
+	scramInitCl,
 	scramSha1Cl,
 	) where
 
@@ -20,6 +21,9 @@ digestMd5Cl, digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
 	Pipe BS.ByteString BS.ByteString m ()
 digestMd5Cl = SASL.pipeCl SASL.digestMd5Cl
 digestMd5Sv = SASL.pipeSv SASL.digestMd5Sv
+
+scramInitCl :: (MonadState m, SASL.SaslState (StateType m)) => m BS.ByteString
+scramInitCl = let ScramSha1.Client (Just i) _ _ = ScramSha1.scramSha1Client in i
 
 scramSha1Cl :: (MonadState m, SASL.SaslState (StateType m)) =>
 	Pipe BS.ByteString BS.ByteString m ()

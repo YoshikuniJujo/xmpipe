@@ -155,8 +155,10 @@ digestMd5 = do
 scramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 scramSha1 = do
-	yield . XCAuth "SCRAM-SHA-1" $ Just
-		"n,,n=yoshikuni,r=00DEADBEEF00"
+	s <- lift scramInitCl
+	yield . XCAuth "SCRAM-SHA-1" $ Just s
+--	yield . XCAuth "SCRAM-SHA-1" $ Just
+--		"n,,n=yoshikuni,r=00DEADBEEF00"
 --	await >>= maybe (return ()) (\(SRChallenge "") -> return ())
 	convert (\(SRChallenge c) -> c) =$= scramSha1Cl =$= convert SRResponse
 --	yield $ SRResponse ""
