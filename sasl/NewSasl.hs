@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
 module NewSasl (
-	SaslState(..), Server(..), Client(..), Send, Receive, pipeCl, pipeSv,
+	SaslState(..), Send, Receive,
+	Client(..), pipeCl, doesClientHasInit,
+	Server(..), pipeSv,
 
 	ExampleState(..), fromFile, toStdout ) where
 
@@ -18,6 +20,10 @@ data Client m = Client (Maybe (Send m)) [(Receive m, Send m)] (Maybe (Receive m)
 
 type Send m = m BS.ByteString
 type Receive m = BS.ByteString -> m ()
+
+doesClientHasInit :: Client m -> Bool
+doesClientHasInit (Client (Just _) _ _) = True
+doesClientHasInit _ = False
 
 fromFile :: (MonadBaseControl IO m, MonadIO m) =>
 	FilePath -> Pipe () BS.ByteString m ()
@@ -55,7 +61,7 @@ pipeCl :: Monad m => Client m -> Pipe BS.ByteString BS.ByteString m ()
 pipeCl (Client (Just i) rss rcv') =
 	lift i >>= yield >> pipeCl (Client Nothing rss rcv')
 pipeCl (Client _ [] (Just rcv)) = await >>= maybe (return ()) (lift . rcv)
-pipeCl (Client _ [] _) = return ()
+pipeCl (Client _ [] _) = await >> return ()
 pipeCl (Client _ ((rcv, send) : rss) rcv') = await >>= \mbs -> case mbs of
 	Just bs -> lift (rcv bs) >> lift send >>= yield >>
 		pipeCl (Client Nothing rss rcv')

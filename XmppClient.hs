@@ -140,7 +140,7 @@ external = do
 convert :: Monad m => (a -> b) -> Pipe a b m ()
 convert f = await >>= maybe (return ()) ((>> convert f) . yield . f)
 
-data XmppState = XmppState [(BS.ByteString, BS.ByteString)]
+data XmppState = XmppState [(BS.ByteString, BS.ByteString)] deriving Show
 
 instance SaslState XmppState where
 	getSaslState (XmppState ss) = ss
@@ -148,25 +148,29 @@ instance SaslState XmppState where
 
 digestMd5 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
-digestMd5 = do
-	yield $ XCAuth "DIGEST-MD5" Nothing
-	convert (\(SRChallenge c) -> c) =$= digestMd5Cl =$= convert SRResponse
+digestMd5 = saslPipe digestMd5Cl
 
 scramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
-scramSha1 = do
---	lift scramInitCl >>= yield . XCAuth "SCRAM-SHA-1" . Just
---	convert (\(SRChallenge c) -> c) =$= scramSha1Cl =$= convert SRResponse
-	convert (\(SRChallenge c) -> c) =$= scramSha1Cl =$= outputScramSha1
-	
+scramSha1 = saslPipe scramSha1Cl
+
+saslPipe :: (Monad m, MonadState m, StateType m ~ XmppState) =>
+	(BS.ByteString, (Pipe BS.ByteString BS.ByteString m (), Bool))
+		-> Pipe Common Common m ()
+saslPipe m =
+	inputScramSha1 =$= fst (snd m) =$= outputScramSha1 (snd (snd m)) (fst m)
 
 inputScramSha1 :: Monad m => Pipe Common BS.ByteString m ()
 inputScramSha1 = await >>= \mc -> case mc of
 	Just (SRChallenge c) -> yield c >> inputScramSha1
---	Just (SRSuccess
---	convert (\(SRChallenge c) -> c)
+	Just (XCSaslSuccess (Just d)) -> yield d
+	Just (XCSaslSuccess _) -> yield ""
+	_ -> error "inputScramSha1: bad"
 
-outputScramSha1 :: Monad m => Pipe BS.ByteString Common m ()
-outputScramSha1 = do
-	await >>= maybe (return ()) (yield . XCAuth "SCRAM-SHA-1" . Just)
+outputScramSha1 :: Monad m =>
+	Bool -> BS.ByteString -> Pipe BS.ByteString Common m ()
+outputScramSha1 ci mn = do
+	if ci
+	then await >>= maybe (return ()) (yield . XCAuth mn . Just)
+	else yield $ XCAuth mn Nothing
 	convert SRResponse

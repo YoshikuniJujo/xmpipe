@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module SaslScramSha1Client (scramSha1Client, Client(..)) where
+module SaslScramSha1Client
+	(Client(..), scramSha1Client, doesClientHasInit) where
 
 import "monads-tf" Control.Monad.State
 
@@ -45,4 +46,14 @@ serverFinal :: (MonadState m, SaslState (StateType m)) => Receive m
 serverFinal ch = do
 	let Just v = readServerFinalMessage ch
 	st <- gets getSaslState
-	modify . putSaslState $ [("verify", v)] ++ st
+	let	Just un = lookup "username" st
+		Just ps = lookup "password" st
+		Just slt = lookup "salt" st
+		Just i = lookup "i" st
+		cb = "n,,"
+		Just cnnc = lookup "cnonce" st
+		Just nnc = lookup "nonce" st
+		sfm = serverFinalMessage un ps slt (read $ BSC.unpack i) cb cnnc nnc
+	let Just v' = readServerFinalMessage sfm
+	unless (v == v') $ error "serverFinal: bad"
+	modify . putSaslState $ [("verify", v), ("sfm", sfm)] ++ st

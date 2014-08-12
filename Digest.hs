@@ -3,8 +3,9 @@
 module Digest (
 	SASL.SaslState(..),
 	digestMd5Cl, digestMd5Sv,
-	scramInitCl,
+
 	scramSha1Cl,
+--	doesClientHasInit,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -17,16 +18,14 @@ import qualified SaslClient as SASL
 
 import qualified SaslScramSha1Client as ScramSha1
 
-digestMd5Cl, digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
-	Pipe BS.ByteString BS.ByteString m ()
-digestMd5Cl = SASL.pipeCl SASL.digestMd5Cl
-digestMd5Sv = SASL.pipeSv SASL.digestMd5Sv
-
-scramInitCl :: (MonadState m, SASL.SaslState (StateType m)) => m BS.ByteString
-scramInitCl = let ScramSha1.Client (Just i) _ _ = ScramSha1.scramSha1Client in i
+digestMd5Cl :: (MonadState m, SASL.SaslState (StateType m)) =>
+	(BS.ByteString, (Pipe BS.ByteString BS.ByteString m (), Bool))
+digestMd5Cl = ("DIGEST-MD5", (SASL.pipeCl SASL.digestMd5Cl, False))
 
 scramSha1Cl :: (MonadState m, SASL.SaslState (StateType m)) =>
+	(BS.ByteString, (Pipe BS.ByteString BS.ByteString m (), Bool))
+scramSha1Cl = ("SCRAM-SHA-1", (SASL.pipeCl ScramSha1.scramSha1Client, True))
+
+digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
 	Pipe BS.ByteString BS.ByteString m ()
-scramSha1Cl = SASL.pipeCl
-	. (\(ScramSha1.Client i sc _) -> ScramSha1.Client i sc Nothing)
-	$ ScramSha1.scramSha1Client
+digestMd5Sv = SASL.pipeSv SASL.digestMd5Sv

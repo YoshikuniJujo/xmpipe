@@ -46,12 +46,13 @@ main = do
 	(`run` g) $ do
 		p <- open' h "localhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 			[(k, c)] ca
-		xmpp (SHandle p) `evalStateT` XmppState [
+		((), st) <- xmpp (SHandle p) `runStateT` XmppState [
 				("username", jidToUser sender),
 				("password", "password"),
 				("rspauth", ""),
 				("cnonce", "00DEADBEEF00")
 				]
+		liftIO $ print st
 
 pipe :: Monad m => Pipe a a m ()
 pipe = await >>= maybe (return ()) yield
@@ -80,22 +81,29 @@ jidToHost (Jid _ d _) = d
 jidToUser :: Jid -> BS.ByteString
 jidToUser (Jid u _ _) = u
 
+doDigestMd5, doScramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
+	Pipe Common Common m ()
+doDigestMd5 = digestMd5 >> mapM_ yield [XCDecl, begin]
+doScramSha1 = scramSha1 >> mapM_ yield [XCDecl, begin]
+
 process :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
+-- {-
 	Just (XCFeatures [FtMechanisms ms])
-		| ScramSha1 `elem` ms -> scramSha1 >> process
+		| ScramSha1 `elem` ms -> doScramSha1 >> process
 	Just (XCFeatures [_, FtMechanisms ms])
-		| ScramSha1 `elem` ms -> scramSha1 >> process
+		| ScramSha1 `elem` ms -> doScramSha1 >> process
 	Just (XCFeatures [FtMechanisms ms, _])
-		| ScramSha1 `elem` ms -> scramSha1 >> process
+		| ScramSha1 `elem` ms -> doScramSha1 >> process
+--		-}
 	Just (XCFeatures [FtMechanisms ms])
-		| DigestMd5 `elem` ms -> digestMd5 >> process
+		| DigestMd5 `elem` ms -> doDigestMd5 >> process
 	Just (XCFeatures [_, FtMechanisms ms])
-		| DigestMd5 `elem` ms -> digestMd5 >> process
+		| DigestMd5 `elem` ms -> doDigestMd5 >> process
 	Just (XCFeatures [FtMechanisms ms, _])
-		| DigestMd5 `elem` ms -> digestMd5 >> process
-	Just (XCSaslSuccess _) -> mapM_ yield [XCDecl, begin] >> process
+		| DigestMd5 `elem` ms -> doDigestMd5 >> process
+--	Just (XCSaslSuccess _) -> mapM_ yield [XCDecl, begin] >> process
 	Just (XCFeatures _fs) -> mapM_ yield binds >> process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->

@@ -18,8 +18,6 @@ module ScramSha1 (
 	exampleServerSignature,
 	) where
 
-import Debug.Trace
-
 import Control.Applicative
 import Data.Bits
 
@@ -111,7 +109,7 @@ clientFinalMessageWithoutProof cb snnc =
 
 authMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
 	-> BS.ByteString -> Int -> BS.ByteString
-authMessage cb un cnnc snnc slt i = (\am -> trace (show am) am) $ BS.concat [
+authMessage cb un cnnc snnc slt i = BS.concat [
 	clientFirstMessageBare un cnnc, ",",
 	serverFirstMessage snnc slt i, ",",
 	clientFinalMessageWithoutProof cb snnc ]
