@@ -6,7 +6,9 @@ module ScramSha1 (
 	clientFinalMessage,
 	serverFinalMessage,
 
+	readClientFirstMessage,
 	readServerFirstMessage,
+	readClientFinalMessage,
 	readServerFinalMessage,
 
 	exampleFlow,
@@ -32,11 +34,26 @@ import Fields
 clientFirstMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString
 clientFirstMessage un nnc = "n,," `BS.append` clientFirstMessageBare un nnc
 
+readClientFirstMessage :: BS.ByteString -> Maybe (BS.ByteString, BS.ByteString)
+readClientFirstMessage rs = case BS.splitAt 3 rs of
+	("n,,", rs') -> do
+		let kv = readFields rs'
+		(,) <$> lookup "n" kv <*> lookup "r" kv
+	_ -> Nothing
+
 clientFinalMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString -> Int
 	-> BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
 clientFinalMessage un ps slt i cb cnnc snnc = BS.concat [
 	clientFinalMessageWithoutProof cb snnc, ",",
 	"p=", clientProof un ps slt i cb cnnc snnc ]
+
+readClientFinalMessage ::
+ 	BS.ByteString -> Maybe (BS.ByteString, BS.ByteString, BS.ByteString)
+readClientFinalMessage rs = do
+	let kv = readFields rs
+	(,,)	<$> ((\(Right r) -> r) . B64.decode <$> lookup "c" kv)
+		<*> lookup "r" kv
+		<*> ((\(Right r) -> r) . B64.decode <$> lookup "p" kv)
 
 readServerFirstMessage :: BS.ByteString -> Maybe (BS.ByteString, BS.ByteString, Int)
 readServerFirstMessage ch = do

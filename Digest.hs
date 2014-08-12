@@ -4,7 +4,7 @@ module Digest (
 	SASL.SaslState(..),
 	digestMd5Cl, digestMd5Sv,
 
-	scramSha1Cl,
+	scramSha1Cl, scramSha1Sv,
 --	doesClientHasInit,
 	) where
 
@@ -17,6 +17,7 @@ import qualified SaslServer as SASL
 import qualified SaslClient as SASL
 
 import qualified SaslScramSha1Client as ScramSha1
+import qualified SaslScramSha1Server as ScramSha1
 
 digestMd5Cl :: (MonadState m, SASL.SaslState (StateType m)) =>
 	(BS.ByteString, (Pipe BS.ByteString BS.ByteString m (), Bool))
@@ -29,3 +30,7 @@ scramSha1Cl = ("SCRAM-SHA-1", (SASL.pipeCl ScramSha1.scramSha1Client, True))
 digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
 	Pipe BS.ByteString BS.ByteString m ()
 digestMd5Sv = SASL.pipeSv SASL.digestMd5Sv
+
+scramSha1Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
+	Pipe BS.ByteString BS.ByteString m ()
+scramSha1Sv = SASL.pipeSv ScramSha1.scramSha1Server

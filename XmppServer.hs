@@ -72,7 +72,11 @@ initXmppState uuids = XmppState {
 		("nonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
 		("qop", "auth"),
 		("charset", "utf-8"),
-		("algorithm", "md5-sess")
+		("algorithm", "md5-sess"),
+
+		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
+		("salt", "pepper"),
+		("i", "4492")
 		]
 	}
 
@@ -158,7 +162,8 @@ digestMd5 e = do
 	case (a, e) of
 		(Just (XCAuth "DIGEST-MD5" Nothing), _) -> digestMd5Body
 		(Just (XCAuth "EXTERNAL" Nothing), Just _) -> external
-		_ -> error $ "BAD: " ++ show a
+		(Just (XCAuth "SCRAM-SHA-1" (Just i)), _) -> scramSha1 i
+		_ -> error $ "digestMd5: " ++ show a
 
 external :: Monad m => Pipe Common Common m ()
 external = do
@@ -170,6 +175,17 @@ digestMd5Body :: (MonadState m, SaslState (StateType m)) => Pipe Common Common m
 digestMd5Body = do
 	convert (\(SRResponse r) -> r) =$= digestMd5Sv =$= convert SRChallenge
 	yield $ XCSaslSuccess Nothing
+
+scramSha1 :: (MonadState m, SaslState (StateType m)) =>
+	BS.ByteString -> Pipe Common Common m ()
+scramSha1 i =
+	(yield i >> convert (\(SRResponse r) -> r)) =$= scramSha1Sv =$= outputScram
+
+outputScram :: (MonadState m, SaslState (StateType m)) =>
+	Pipe BS.ByteString Common m ()
+outputScram = do
+	await >>= maybe (return ()) (yield . SRChallenge)
+	await >>= maybe (return ()) (yield . XCSaslSuccess . Just)
 
 instance SaslState XmppState where
 	getSaslState xs = case receiver xs of
