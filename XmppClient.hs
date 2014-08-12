@@ -16,6 +16,7 @@ module XmppClient (
 	convert,
 	external,
 	digestMd5,
+	scramSha1,
 	SHandle(..),
 	input, output,
 	Query(..),
@@ -130,7 +131,7 @@ showBS = BSC.pack . (++ "\n") . show
 
 external :: Monad m => Pipe Common Common m ()
 external = do
-	yield $ XCAuth "EXTERNAL"
+	yield $ XCAuth "EXTERNAL" Nothing
 	mr <- await
 	case mr of
 		Just (SRChallenge "") -> yield $ SRResponse ""
@@ -141,26 +142,31 @@ convert f = await >>= maybe (return ()) ((>> convert f) . yield . f)
 
 data XmppState = XmppState [(BS.ByteString, BS.ByteString)]
 
-{-
-data XmppState = XmppState {
-	rspauth :: BS.ByteString,
-	username :: BS.ByteString, } deriving Show
-	-}
-
 instance SaslState XmppState where
 	getSaslState (XmppState ss) = ss
 	putSaslState ss _ = XmppState ss
-{-
-	getSaslState ss = [("username", username ss), ("rspauth", rspauth ss)]
-	putSaslState ss xs = case (lookup "rspauth" ss, lookup "username" ss) of
-		(Just ra, Just un) -> xs { rspauth = ra, username = un }
-		(Just ra, _) -> xs { rspauth = ra }
-		(_, Just un) -> xs { username = un }
-		_ -> xs
-		-}
 
 digestMd5 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 digestMd5 = do
-	yield $ XCAuth "DIGEST-MD5"
+	yield $ XCAuth "DIGEST-MD5" Nothing
 	convert (\(SRChallenge c) -> c) =$= digestMd5Cl =$= convert SRResponse
+
+scramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
+	Pipe Common Common m ()
+scramSha1 = do
+	yield . XCAuth "SCRAM-SHA-1" $ Just
+		"n,,n=yoshikuni,r=00DEADBEEF00"
+--	await >>= maybe (return ()) (\(SRChallenge "") -> return ())
+	convert (\(SRChallenge c) -> c) =$= scramSha1Cl =$= convert SRResponse
+--	yield $ SRResponse ""
+
+inputScramSha1 :: Monad m => BS.ByteString -> Pipe Common BS.ByteString m ()
+inputScramSha1 i = do
+	yield i
+	convert (\(SRChallenge c) -> c)
+
+{-
+outputScramSha1 :: Pipe BS.ByteString (Either BS.ByteString Common) m ()
+outputScramSha1
+-}

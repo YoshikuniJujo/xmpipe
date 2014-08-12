@@ -152,11 +152,12 @@ digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
 	Maybe BS.ByteString -> Pipe Common Common m ()
 digestMd5 e = do
 	yield $ XCFeatures
-		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
+--		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
+		[FtMechanisms $ (if isJust e then (External :) else id) [ScramSha1, DigestMd5]]
 	a <- await
 	case (a, e) of
-		(Just (XCAuth "DIGEST-MD5"), _) -> digestMd5Body
-		(Just (XCAuth "EXTERNAL"), Just _) -> external
+		(Just (XCAuth "DIGEST-MD5" Nothing), _) -> digestMd5Body
+		(Just (XCAuth "EXTERNAL" Nothing), Just _) -> external
 		_ -> error $ "BAD: " ++ show a
 
 external :: Monad m => Pipe Common Common m ()

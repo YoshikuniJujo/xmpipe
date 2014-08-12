@@ -23,10 +23,11 @@ makeKey h bs k
 	| otherwise = k `BS.append` BS.replicate (bs - BS.length k) 0
 
 makePad :: [Word8] -> BS.ByteString -> BS.ByteString
-makePad p = BS.pack . mkp p . BS.unpack
+makePad iop = BS.pack . mkp iop . BS.unpack
 	where
 	mkp _ [] = []
 	mkp (p : ps) (k : ks) = p `xor` k : mkp ps ks
+	mkp _ _ = error "makePad: bad"
 
 bsToHex :: BS.ByteString -> String
 bsToHex = concatMap (flip showHex "") . BS.unpack

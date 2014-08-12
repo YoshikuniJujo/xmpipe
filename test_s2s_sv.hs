@@ -75,7 +75,7 @@ process = await >>= \mx -> case mx of
 		yield . XCFeatures $ if a then [] else [FtMechanisms [External]]
 --		trace "THERE" $ return ()
 		process
-	Just (XCAuth "EXTERNAL") -> do
+	Just (XCAuth "EXTERNAL" Nothing) -> do
 		lift $ modify authed
 		yield XCSaslSuccess
 		process

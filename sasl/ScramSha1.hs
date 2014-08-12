@@ -10,9 +10,15 @@ module ScramSha1 (
 	readServerFinalMessage,
 
 	exampleFlow,
+	exampleServerFirstMessage,
+	exampleServerFinalMessage,
+	exampleProof,
+	exampleSignature,
 	exampleClientProof,
 	exampleServerSignature,
 	) where
+
+import Debug.Trace
 
 import Control.Applicative
 import Data.Bits
@@ -37,7 +43,8 @@ clientFinalMessage un ps slt i cb cnnc snnc = BS.concat [
 readServerFirstMessage :: BS.ByteString -> Maybe (BS.ByteString, BS.ByteString, Int)
 readServerFirstMessage ch = do
 	let kv = readFields ch
-	(,,) <$> lookup "r" kv <*> lookup "s" kv
+	(,,)	<$> lookup "r" kv
+		<*> ((\(Right r) -> r) . B64.decode <$> lookup "s" kv)
 		<*> (read . BSC.unpack <$> lookup "i" kv)
 
 readServerFinalMessage :: BS.ByteString -> Maybe BS.ByteString
@@ -104,7 +111,7 @@ clientFinalMessageWithoutProof cb snnc =
 
 authMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString -> BS.ByteString
 	-> BS.ByteString -> Int -> BS.ByteString
-authMessage cb un cnnc snnc slt i = BS.concat [
+authMessage cb un cnnc snnc slt i = (\am -> trace (show am) am) $ BS.concat [
 	clientFirstMessageBare un cnnc, ",",
 	serverFirstMessage snnc slt i, ",",
 	clientFinalMessageWithoutProof cb snnc ]

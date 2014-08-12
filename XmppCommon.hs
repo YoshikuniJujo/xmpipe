@@ -51,7 +51,7 @@ data Common
 	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| XCRaw XmlNode
 
-	| XCAuth BS.ByteString
+	| XCAuth BS.ByteString (Maybe BS.ByteString)
 	| SRChallenge BS.ByteString
 	| SRResponse BS.ByteString
 	| XCSaslSuccess
@@ -191,14 +191,14 @@ data Mechanism
 	deriving (Eq, Show)
 
 toMechanism' :: BS.ByteString -> Mechanism
-toMechanism' "SCRAM-SHA1" = ScramSha1
+toMechanism' "SCRAM-SHA-1" = ScramSha1
 toMechanism' "DIGEST-MD5" = DigestMd5
 toMechanism' "PLAIN" = Plain
 toMechanism' "EXTERNAL" = External
 toMechanism' m = MechanismRaw m
 
 fromMechanism' :: Mechanism -> BS.ByteString
-fromMechanism' ScramSha1 = "SCRAM-SHA1"
+fromMechanism' ScramSha1 = "SCRAM-SHA-1"
 fromMechanism' DigestMd5 = "DIGEST-MD5"
 fromMechanism' Plain = "PLAIN"
 fromMechanism' External = "EXTERNAL"
@@ -319,12 +319,12 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed")
 	_ [] []) = XCProceed
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
-	_ [((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) = XCAuth "EXTERNAL" -- External
+	_ [((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) = XCAuth "EXTERNAL" Nothing
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
-	| [(Mechanism, m)] <- map (first toTag) as = XCAuth m
+	| [(Mechanism, m)] <- map (first toTag) as = XCAuth m Nothing
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
-	_ [] []) = XCSaslSuccess
+	_ [] _) = XCSaslSuccess
 toCommon (XmlNode ((_, Just q), "message") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
 		XCMessage tp i fr to $ xmlNodesToBody ns
@@ -463,12 +463,15 @@ fromCommon _ XCStarttls = XmlNode (nullQ "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 fromCommon _ XCProceed = XmlNode (nullQ "proceed")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromCommon _ (XCAuth "EXTERNAL") = XmlNode (nullQ "auth")
+fromCommon _ (XCAuth "EXTERNAL" Nothing) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[(nullQ "mechanism", "EXTERNAL")] [XmlCharData "="]
-fromCommon _ (XCAuth m) = XmlNode (nullQ "auth")
+fromCommon _ (XCAuth m Nothing) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[(nullQ "mechanism", m)] []
+fromCommon _ (XCAuth m (Just i)) = XmlNode (nullQ "auth")
+	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
+	[(nullQ "mechanism", m)] [XmlCharData $ B64.encode i]
 fromCommon _ XCSaslSuccess =
 	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 fromCommon _ (XCMessage Chat i fr to (MBodyRaw ns)) =

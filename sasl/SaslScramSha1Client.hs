@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module SaslScramSha1Client (scramSha1Client) where
+module SaslScramSha1Client (scramSha1Client, Client(..)) where
 
 import "monads-tf" Control.Monad.State
 

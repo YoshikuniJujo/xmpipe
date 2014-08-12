@@ -49,7 +49,9 @@ main = do
 		xmpp (SHandle p) `evalStateT` XmppState [
 				("username", jidToUser sender),
 				("password", "password"),
-				("rspauth", "") ]
+				("rspauth", ""),
+				("cnonce", "00DEADBEEF00")
+				]
 
 pipe :: Monad m => Pipe a a m ()
 pipe = await >>= maybe (return ()) yield
@@ -81,6 +83,12 @@ jidToUser (Jid u _ _) = u
 process :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
+	Just (XCFeatures [FtMechanisms ms])
+		| ScramSha1 `elem` ms -> scramSha1 >> process
+	Just (XCFeatures [_, FtMechanisms ms])
+		| ScramSha1 `elem` ms -> scramSha1 >> process
+	Just (XCFeatures [FtMechanisms ms, _])
+		| ScramSha1 `elem` ms -> scramSha1 >> process
 	Just (XCFeatures [FtMechanisms ms])
 		| DigestMd5 `elem` ms -> digestMd5 >> process
 	Just (XCFeatures [_, FtMechanisms ms])
