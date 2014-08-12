@@ -54,7 +54,7 @@ data Common
 	| XCAuth BS.ByteString (Maybe BS.ByteString)
 	| SRChallenge BS.ByteString
 	| SRResponse BS.ByteString
-	| XCSaslSuccess
+	| XCSaslSuccess (Maybe BS.ByteString)
 
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
@@ -324,7 +324,10 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
 	| [(Mechanism, m)] <- map (first toTag) as = XCAuth m Nothing
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
-	_ [] _) = XCSaslSuccess
+	_ [] []) = XCSaslSuccess Nothing
+toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
+	_ [] [XmlCharData d]) =
+	XCSaslSuccess . Just . (\(Right r) -> r) $ B64.decode d
 toCommon (XmlNode ((_, Just q), "message") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
 		XCMessage tp i fr to $ xmlNodesToBody ns
@@ -472,8 +475,11 @@ fromCommon _ (XCAuth m Nothing) = XmlNode (nullQ "auth")
 fromCommon _ (XCAuth m (Just i)) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[(nullQ "mechanism", m)] [XmlCharData $ B64.encode i]
-fromCommon _ XCSaslSuccess =
+fromCommon _ (XCSaslSuccess Nothing) =
 	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
+fromCommon _ (XCSaslSuccess (Just d)) =
+	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] []
+	[XmlCharData $ B64.encode d]
 fromCommon _ (XCMessage Chat i fr to (MBodyRaw ns)) =
 	XmlNode (nullQ "message") [] (catMaybes [
 		Just (fromTag Type, "chat"),

@@ -155,20 +155,18 @@ digestMd5 = do
 scramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 scramSha1 = do
-	s <- lift scramInitCl
-	yield . XCAuth "SCRAM-SHA-1" $ Just s
---	yield . XCAuth "SCRAM-SHA-1" $ Just
---		"n,,n=yoshikuni,r=00DEADBEEF00"
---	await >>= maybe (return ()) (\(SRChallenge "") -> return ())
-	convert (\(SRChallenge c) -> c) =$= scramSha1Cl =$= convert SRResponse
---	yield $ SRResponse ""
+--	lift scramInitCl >>= yield . XCAuth "SCRAM-SHA-1" . Just
+--	convert (\(SRChallenge c) -> c) =$= scramSha1Cl =$= convert SRResponse
+	convert (\(SRChallenge c) -> c) =$= scramSha1Cl =$= outputScramSha1
+	
 
-inputScramSha1 :: Monad m => BS.ByteString -> Pipe Common BS.ByteString m ()
-inputScramSha1 i = do
-	yield i
-	convert (\(SRChallenge c) -> c)
+inputScramSha1 :: Monad m => Pipe Common BS.ByteString m ()
+inputScramSha1 = await >>= \mc -> case mc of
+	Just (SRChallenge c) -> yield c >> inputScramSha1
+--	Just (SRSuccess
+--	convert (\(SRChallenge c) -> c)
 
-{-
-outputScramSha1 :: Pipe BS.ByteString (Either BS.ByteString Common) m ()
-outputScramSha1
--}
+outputScramSha1 :: Monad m => Pipe BS.ByteString Common m ()
+outputScramSha1 = do
+	await >>= maybe (return ()) (yield . XCAuth "SCRAM-SHA-1" . Just)
+	convert SRResponse

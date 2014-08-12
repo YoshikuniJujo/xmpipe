@@ -28,5 +28,5 @@ scramInitCl = let ScramSha1.Client (Just i) _ _ = ScramSha1.scramSha1Client in i
 scramSha1Cl :: (MonadState m, SASL.SaslState (StateType m)) =>
 	Pipe BS.ByteString BS.ByteString m ()
 scramSha1Cl = SASL.pipeCl
-	. (\(ScramSha1.Client _ sc _) -> ScramSha1.Client Nothing sc Nothing)
+	. (\(ScramSha1.Client i sc _) -> ScramSha1.Client i sc Nothing)
 	$ ScramSha1.scramSha1Client

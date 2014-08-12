@@ -77,7 +77,7 @@ process = await >>= \mx -> case mx of
 		process
 	Just (XCAuth "EXTERNAL" Nothing) -> do
 		lift $ modify authed
-		yield XCSaslSuccess
+		yield $ XCSaslSuccess Nothing
 		process
 	Just XCMessage{} -> do
 		yield . XCMessage Chat "hoge"

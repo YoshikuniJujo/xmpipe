@@ -164,12 +164,12 @@ external :: Monad m => Pipe Common Common m ()
 external = do
 	yield $ SRChallenge ""
 	Just (SRResponse "") <- await
-	yield XCSaslSuccess
+	yield $ XCSaslSuccess Nothing
 
 digestMd5Body :: (MonadState m, SaslState (StateType m)) => Pipe Common Common m ()
 digestMd5Body = do
 	convert (\(SRResponse r) -> r) =$= digestMd5Sv =$= convert SRChallenge
-	yield XCSaslSuccess
+	yield $ XCSaslSuccess Nothing
 
 instance SaslState XmppState where
 	getSaslState xs = case receiver xs of

@@ -53,7 +53,7 @@ proc i e = await >>= \mx -> case mx of
 	Just (XCFeatures [FtMechanisms [External]]) -> do
 		yield $ XCAuth "EXTERNAL" Nothing
 		proc i e
-	Just XCSaslSuccess -> yield XCDecl >> yield begin >> proc i e
+	Just (XCSaslSuccess _) -> yield XCDecl >> yield begin >> proc i e
 	Just (XCFeatures []) -> federation
 	Just XCMessage{} -> federation
 	Just XCEnd -> yield XCEnd
