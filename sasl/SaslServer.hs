@@ -1,10 +1,6 @@
 {-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
-module SaslServer (
-	pipeSv, digestMd5Sv, Success(..),
-
-	ExampleState(..), fromFile, toStdout,
-	) where
+module SaslServer (pipeSv, digestMd5Sv, Success(..)) where
 
 import "monads-tf" Control.Monad.State
 
