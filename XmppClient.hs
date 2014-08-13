@@ -161,8 +161,7 @@ saslPipe m =
 inputScramSha1 :: Monad m => Pipe Common (Either Result BS.ByteString) m ()
 inputScramSha1 = await >>= \mc -> case mc of
 	Just (SRChallenge c) -> yield (Right c) >> inputScramSha1
-	Just (XCSaslSuccess (Just d)) -> yield . Left . Digest.Result True $ Just d
-	Just (XCSaslSuccess _) -> yield . Left $ Digest.Result True Nothing
+	Just (XCSaslSuccess d) -> yield . Left $ Digest.Result True d
 	_ -> error "inputScramSha1: bad"
 
 outputScramSha1 :: Monad m =>
