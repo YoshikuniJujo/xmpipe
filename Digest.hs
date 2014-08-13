@@ -42,10 +42,10 @@ make n s = (n, (SASL.pipeCl s, ScramSha1.doesClientHasInit s))
 
 saslServers :: (MonadState m, SASL.SaslState (StateType m)) => [(
 	BS.ByteString,
-	Pipe BS.ByteString (Either SASL.Result BS.ByteString) m () )]
+	(Pipe BS.ByteString (Either SASL.Result BS.ByteString) m (), Bool) )]
 saslServers = [
-	("DIGEST-MD5", digestMd5Sv),
-	("SCRAM-SHA-1", scramSha1Sv) ]
+	("DIGEST-MD5", (digestMd5Sv, False)),
+	("SCRAM-SHA-1", (scramSha1Sv, True)) ]
 
 digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
 	Pipe BS.ByteString (Either SASL.Result BS.ByteString) m ()

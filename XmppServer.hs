@@ -9,7 +9,7 @@ module XmppServer (
 	nullQ,
 	handleP,
 	checkP,
-	digestMd5,
+	runSasl,
 	toCommon, fromCommon,
 	Jid(..),
 	MessageType(..),
@@ -152,17 +152,12 @@ checkP h = do
 convert :: Monad m => (a -> b) -> Pipe a b m ()
 convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
-digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
-	Maybe BS.ByteString -> Pipe Common Common m ()
-digestMd5 e = do
-	yield $ XCFeatures
---		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
-		[FtMechanisms $ (if isJust e then ("EXTERNAL" :) else id) ["SCRAM-SHA-1", "DIGEST-MD5"]]
-	a <- await
-	case (a, e) of
-		(Just (XCAuth "DIGEST-MD5" i), _) -> digestMd5Body i
-		(Just (XCAuth "SCRAM-SHA-1" i), _) -> scramSha1 i
-		(Just (XCAuth "EXTERNAL" Nothing), Just _) -> external
+runSasl :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
+runSasl = do
+	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5"]]
+	await >>= \a -> case a of
+		Just (XCAuth "EXTERNAL" Nothing) -> external
+		Just (XCAuth m i) -> sasl m i
 		_ -> error $ "digestMd5: " ++ show a
 
 external :: Monad m => Pipe Common Common m ()
@@ -171,13 +166,9 @@ external = do
 	Just (SRResponse "") <- await
 	yield $ XCSaslSuccess Nothing
 
-digestMd5Body :: (MonadState m, SaslState (StateType m)) =>
-	Maybe BS.ByteString -> Pipe Common Common m ()
-digestMd5Body i = saslPipe False i . fromJust $ lookup "DIGEST-MD5" saslServers
-
-scramSha1 :: (MonadState m, SaslState (StateType m)) =>
-	Maybe BS.ByteString -> Pipe Common Common m ()
-scramSha1 i = saslPipe True i . fromJust $ lookup "SCRAM-SHA-1" saslServers
+sasl :: (MonadState m, SaslState (StateType m)) =>
+	BS.ByteString -> Maybe BS.ByteString -> Pipe Common Common m ()
+sasl n i = let Just (s, b) = lookup n saslServers in saslPipe b i s
 
 saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
 	-> (Maybe BS.ByteString)

@@ -74,17 +74,14 @@ xmpp sl h = do
 	hlPut h $ xmlString [XmlEnd (("stream", Nothing), "stream")]
 	hlClose h
 
-makeP :: (MonadState m, StateType m ~ XmppState) =>
-	Pipe Common Common m ()
+makeP :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
---		lift nextUuid >>= digestMd5 Nothing >>= \un -> lift . modify .
---			setReceiver $ Jid un "localhost" Nothing
-		digestMd5 Nothing
+		runSasl
 		makeP
 	(Just (XCBegin _), _) -> do
 		yield XCDecl
