@@ -157,7 +157,7 @@ digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
 digestMd5 e = do
 	yield $ XCFeatures
 --		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
-		[FtMechanisms $ (if isJust e then (External :) else id) [ScramSha1, DigestMd5]]
+		[FtMechanisms $ (if isJust e then ("EXTERNAL" :) else id) ["SCRAM-SHA-1", "DIGEST-MD5"]]
 	a <- await
 	case (a, e) of
 		(Just (XCAuth "DIGEST-MD5" i), _) -> digestMd5Body i
@@ -173,11 +173,11 @@ external = do
 
 digestMd5Body :: (MonadState m, SaslState (StateType m)) =>
 	Maybe BS.ByteString -> Pipe Common Common m ()
-digestMd5Body i = saslPipe False i digestMd5Sv
+digestMd5Body i = saslPipe False i . fromJust $ lookup "DIGEST-MD5" saslServers
 
 scramSha1 :: (MonadState m, SaslState (StateType m)) =>
 	Maybe BS.ByteString -> Pipe Common Common m ()
-scramSha1 i = saslPipe True i scramSha1Sv
+scramSha1 i = saslPipe True i . fromJust $ lookup "SCRAM-SHA-1" saslServers
 
 saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
 	-> (Maybe BS.ByteString)
@@ -187,7 +187,7 @@ saslPipe True (Just i) s =
 	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
 saslPipe True _ s =
 	(convert (\(SRResponse r) -> r)) =$= s =$= (yield (SRChallenge "") >> outputScram)
-saslPipe False _ s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScram
+saslPipe False Nothing s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScram
 saslPipe _ _ _ = error "saslPipe: no need of initial data"
 
 outputScram :: (MonadState m, SaslState (StateType m)) =>

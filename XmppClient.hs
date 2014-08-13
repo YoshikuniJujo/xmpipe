@@ -2,6 +2,7 @@
 	PackageImports, FlexibleContexts #-}
 
 module XmppClient (
+	sasl,
 	XmppState(..),
 	fromCaps,
 	toCaps,
@@ -15,8 +16,6 @@ module XmppClient (
 	handleP,
 	convert,
 	external,
-	digestMd5,
-	scramSha1,
 	SHandle(..),
 	input, output,
 	Query(..),
@@ -47,6 +46,7 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Maybe
+import Data.List
 import Data.Pipe
 import Data.HandleLike
 import Text.XML.Pipe
@@ -147,13 +147,9 @@ instance SaslState XmppState where
 	getSaslState (XmppState ss) = ss
 	putSaslState ss _ = XmppState ss
 
-digestMd5 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
-	Pipe Common Common m ()
-digestMd5 = saslPipe digestMd5Cl
-
-scramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
-	Pipe Common Common m ()
-scramSha1 = saslPipe scramSha1Cl
+sasl :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
+	BS.ByteString -> Pipe Common Common m ()
+sasl n = saslPipe . fromJust $ find ((== n) . fst) saslClients
 
 saslPipe :: (Monad m, MonadState m, StateType m ~ XmppState) => (
 		BS.ByteString,

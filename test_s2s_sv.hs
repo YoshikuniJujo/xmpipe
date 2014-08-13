@@ -72,7 +72,7 @@ process = await >>= \mx -> case mx of
 		a <- lift $ gets xsAuthed
 		yield XCDecl
 		nextUuid >>= yield . begin
-		yield . XCFeatures $ if a then [] else [FtMechanisms [External]]
+		yield . XCFeatures $ if a then [] else [FtMechanisms ["EXTERNAL"]]
 --		trace "THERE" $ return ()
 		process
 	Just (XCAuth "EXTERNAL" Nothing) -> do

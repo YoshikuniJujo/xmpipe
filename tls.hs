@@ -4,6 +4,7 @@ import Control.Applicative
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Maybe
+import Data.List
 import Data.Pipe
 import Data.HandleLike
 import System.Environment
@@ -72,8 +73,7 @@ xmpp h = voidM . runPipe $ input h =$= proc =$= output h
 proc :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
 	Pipe Common Common m ()
 proc = yield XCDecl
-	>> yield (XCBegin
-		[(To, "localhost"), (Version, "1.0"), (Lang, "en")])
+	>> yield (XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
 
 jidToHost :: Jid -> BS.ByteString
@@ -82,29 +82,23 @@ jidToHost (Jid _ d _) = d
 jidToUser :: Jid -> BS.ByteString
 jidToUser (Jid u _ _) = u
 
-doDigestMd5, doScramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
-	Pipe Common Common m ()
-doDigestMd5 = digestMd5 >> mapM_ yield [XCDecl, begin]
-doScramSha1 = scramSha1 >> mapM_ yield [XCDecl, begin]
+saslList :: [BS.ByteString]
+saslList = ["SCRAM-SHA-1", "DIGEST-MD5"]
+
+getMatched :: [BS.ByteString] -> [BS.ByteString] -> Maybe BS.ByteString
+getMatched xs ys = listToMaybe $ xs `intersect` ys
+
+isFtMechanisms :: Feature -> Bool
+isFtMechanisms (FtMechanisms _) = True
+isFtMechanisms _ = False
 
 process :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
--- {-
-	Just (XCFeatures [FtMechanisms ms])
-		| ScramSha1 `elem` ms -> doScramSha1 >> process
-	Just (XCFeatures [_, FtMechanisms ms])
-		| ScramSha1 `elem` ms -> doScramSha1 >> process
-	Just (XCFeatures [FtMechanisms ms, _])
-		| ScramSha1 `elem` ms -> doScramSha1 >> process
--- -}
-	Just (XCFeatures [FtMechanisms ms])
-		| DigestMd5 `elem` ms -> doDigestMd5 >> process
-	Just (XCFeatures [_, FtMechanisms ms])
-		| DigestMd5 `elem` ms -> doDigestMd5 >> process
-	Just (XCFeatures [FtMechanisms ms, _])
-		| DigestMd5 `elem` ms -> doDigestMd5 >> process
---	Just (XCSaslSuccess _) -> mapM_ yield [XCDecl, begin] >> process
+	Just (XCFeatures fts)
+		| Just (FtMechanisms ms) <- find isFtMechanisms fts,
+			Just n <- getMatched saslList ms ->
+			sasl n >> mapM_ yield [XCDecl, begin] >> process
 	Just (XCFeatures _fs) -> mapM_ yield binds >> process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->

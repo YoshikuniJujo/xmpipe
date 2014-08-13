@@ -150,7 +150,7 @@ fromRequirement Required = XmlNode (nullQ "required") [] [] []
 fromRequirement (NoRequirement _) = undefined
 
 data Feature
-	= FtMechanisms [Mechanism]
+	= FtMechanisms [BS.ByteString]
 	| FtStarttls Requirement
 	| FtRosterver Requirement
 	| FtBind Requirement
@@ -205,23 +205,13 @@ fromMechanism' External = "EXTERNAL"
 fromMechanism' (MechanismRaw m) = m
 fromMechanism' (McRaw _) = error "fromMechanism': bad"
 
-toMechanism :: XmlNode -> Mechanism
+toMechanism :: XmlNode -> BS.ByteString
 toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "SCRAM-SHA-1"]) = ScramSha1
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "DIGEST-MD5"]) = DigestMd5
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "PLAIN"]) = Plain
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData "EXTERNAL"]) = External
-toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
-	_ [] [XmlCharData n]) = MechanismRaw n
-toMechanism n = McRaw n
+	_ [] [XmlCharData m]) = m
+toMechanism _ = error "toMechanism: bad"
 
-fromMechanism :: Mechanism -> XmlNode
-fromMechanism (McRaw n) = n
-fromMechanism m =
-	XmlNode (nullQ "mechanism") [] [] [XmlCharData $ fromMechanism' m]
+fromMechanism :: BS.ByteString -> XmlNode
+fromMechanism m = XmlNode (nullQ "mechanism") [] [] [XmlCharData m]
 
 data MessageType = Normal | Chat | Groupchat | Headline | MTError
 	deriving (Eq, Show)
