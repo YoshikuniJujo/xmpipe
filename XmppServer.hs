@@ -34,6 +34,7 @@ import Data.UUID
 
 import Control.Monad
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.Pipe
 import Data.HandleLike
@@ -152,7 +153,9 @@ checkP h = do
 convert :: Monad m => (a -> b) -> Pipe a b m ()
 convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
-runSasl :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
+runSasl :: (
+	MonadState m, StateType m ~ XmppState,
+	MonadError m, Error (ErrorType m) ) => Pipe Common Common m ()
 runSasl = do
 	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5"]]
 	await >>= \a -> case a of
@@ -166,7 +169,9 @@ external = do
 	Just (SRResponse "") <- await
 	yield $ XCSaslSuccess Nothing
 
-sasl :: (MonadState m, SaslState (StateType m)) =>
+sasl :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) =>
 	BS.ByteString -> Maybe BS.ByteString -> Pipe Common Common m ()
 sasl n i = let Just (s, b) = lookup n saslServers in saslPipe b i s
 

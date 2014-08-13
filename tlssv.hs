@@ -11,6 +11,7 @@ import System.Random
 import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Data.Maybe
 import Data.Pipe
@@ -67,14 +68,17 @@ main = do
 
 xmpp :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-		HandleLike h) =>
+	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)),
+	HandleLike h) =>
 	TVar [(String, TChan Common)] -> h -> HandleMonad h ()
 xmpp sl h = do
 	voidM . runPipe $ input h =$= makeP =$= output sl h
 	hlPut h $ xmlString [XmlEnd (("stream", Nothing), "stream")]
 	hlClose h
 
-makeP :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
+makeP :: (
+	MonadState m, StateType m ~ XmppState,
+	MonadError m, Error (ErrorType m)) => Pipe Common Common m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
 		yield XCDecl

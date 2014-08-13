@@ -36,12 +36,16 @@ make :: (MonadState m, SASL.SaslState (StateType m), MonadError m) =>
 		(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (), Bool))
 make n s = (n, (\(x, y) -> (y, x)) $ SASL.client s)
 
-saslServers :: (MonadState m, SASL.SaslState (StateType m)) => [(
+saslServers :: (
+	MonadState m, SASL.SaslState (StateType m),
+	MonadError m, Error (ErrorType m)) => [(
 	BS.ByteString,
 	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool) )]
 saslServers = [("DIGEST-MD5", digestMd5Sv), ("SCRAM-SHA-1", scramSha1Sv)]
 
-digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
+digestMd5Sv :: (
+	MonadState m, SASL.SaslState (StateType m),
+	MonadError m, Error (ErrorType m)) =>
 	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
 digestMd5Sv = (\(x, y) -> (y, x)) $ SASL.server SASL.digestMd5Sv
 
