@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
-module SaslServer (server, digestMd5Sv, Success(..)) where
+module Network.Sasl.DigestMd5.Server (server, digestMd5Sv, Success(..)) where
 
 import "monads-tf" Control.Monad.State
 

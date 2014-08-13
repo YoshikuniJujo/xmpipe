@@ -9,8 +9,8 @@ import Data.Pipe
 
 import qualified Data.ByteString as BS
 
-import qualified SaslServer as SASL
-import qualified SaslClient as SASL
+import qualified Network.Sasl.DigestMd5.Server as SASL
+import qualified Network.Sasl.DigestMd5.Client as SASL
 
 import qualified SaslScramSha1Client as ScramSha1
 import qualified SaslScramSha1Server as ScramSha1
