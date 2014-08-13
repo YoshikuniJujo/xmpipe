@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
 module SaslServer (
-	pipeSv, digestMd5Sv, Result(..),
+	pipeSv, digestMd5Sv, Success(..),
 
 	ExampleState(..), fromFile, toStdout,
 	) where

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, TupleSections, PackageImports #-}
 
 module NewSasl (
-	SaslState(..), Send, Receive, Result(..),
+	SaslState(..), Send, Receive, Success(..),
 	Client(..), pipeCl, Server(..), pipeSv,
 
 	ExampleState(..), fromFile, toStdout ) where
@@ -21,7 +21,7 @@ data Client m = Client (Maybe (Send m)) [(Receive m, Send m)] (Maybe (Receive m)
 type Send m = m BS.ByteString
 type Receive m = BS.ByteString -> m ()
 
-data Result = Result Bool (Maybe BS.ByteString)
+data Success = Success (Maybe BS.ByteString)
 
 fromFile :: (MonadBaseControl IO m, MonadIO m) =>
 	FilePath -> Pipe () BS.ByteString m ()
@@ -35,14 +35,14 @@ toStdout = await >>= maybe (return ())
 	((>> toStdout) . liftIO . BSC.putStrLn . BSC.pack . show)
 
 pipeSv :: Monad m => Server m -> (Bool,
-	Pipe BS.ByteString (Either Result BS.ByteString) m ())
+	Pipe BS.ByteString (Either Success BS.ByteString) m ())
 pipeSv s@(Server i _ _) = (isJust i, pipeSv_ s)
 
 pipeSv_ :: Monad m =>
-	Server m -> Pipe BS.ByteString (Either Result BS.ByteString) m ()
+	Server m -> Pipe BS.ByteString (Either Success BS.ByteString) m ()
 pipeSv_ (Server (Just rcv) srs send') = await >>=
 	maybe (return ()) ((>> pipeSv_ (Server Nothing srs send')) . lift . rcv)
-pipeSv_ (Server _ [] (Just send')) = lift send' >>= yield . Left . Result True . Just
+pipeSv_ (Server _ [] (Just send')) = lift send' >>= yield . Left . Success . Just
 pipeSv_ (Server _ [] _) = return ()
 pipeSv_ (Server _ ((send, rcv) : srs) send') = do
 	lift send >>= yield . Right
@@ -61,17 +61,17 @@ instance SaslState ExampleState where
 	putSaslState s _ = ExampleState s
 
 pipeCl :: Monad m => Client m -> (Bool,
-	Pipe (Either Result BS.ByteString) BS.ByteString m ())
+	Pipe (Either Success BS.ByteString) BS.ByteString m ())
 pipeCl c@(Client i _ _) = (isJust i, pipeCl_ c)
 
 pipeCl_ :: Monad m =>
-	Client m -> Pipe (Either Result BS.ByteString) BS.ByteString m ()
+	Client m -> Pipe (Either Success BS.ByteString) BS.ByteString m ()
 pipeCl_ (Client (Just i) rss rcv') =
 	lift i >>= yield >> pipeCl_ (Client Nothing rss rcv')
 pipeCl_ (Client _ [] (Just rcv)) = await >>= \mi -> case mi of
-	Just (Left (Result True (Just d))) -> lift $ rcv d
+	Just (Left (Success (Just d))) -> lift $ rcv d
 	Just (Right d) -> lift (rcv d) >> yield "" >> await >>= \mi' -> case mi' of
-		Just (Left (Result True Nothing)) -> return ()
+		Just (Left (Success Nothing)) -> return ()
 		_ -> error "pipeCl_: bad"
 	_ -> return ()
 -- maybe (return ()) (lift . rcv)

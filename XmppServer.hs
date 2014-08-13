@@ -172,7 +172,7 @@ sasl n i = let Just (s, b) = lookup n saslServers in saslPipe b i s
 
 saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
 	-> (Maybe BS.ByteString)
-	-> Pipe BS.ByteString (Either Result BS.ByteString) m ()
+	-> Pipe BS.ByteString (Either Success BS.ByteString) m ()
 	-> Pipe Common Common m ()
 saslPipe True (Just i) s =
 	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
@@ -182,10 +182,10 @@ saslPipe False Nothing s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScra
 saslPipe _ _ _ = error "saslPipe: no need of initial data"
 
 outputScram :: (MonadState m, SaslState (StateType m)) =>
-	Pipe (Either Result BS.ByteString) Common m ()
+	Pipe (Either Success BS.ByteString) Common m ()
 outputScram = await >>= \mch -> case mch of
 	Just (Right r) -> yield (SRChallenge r) >> outputScram
-	Just (Left (Digest.Result _ r)) -> yield $ XCSaslSuccess r
+	Just (Left (Digest.Success r)) -> yield $ XCSaslSuccess r
 	Nothing -> return ()
 
 instance SaslState XmppState where

@@ -153,15 +153,15 @@ sasl n = saslPipe . fromJust $ find ((== n) . fst) saslClients
 
 saslPipe :: (Monad m, MonadState m, StateType m ~ XmppState) => (
 		BS.ByteString,
-		(Pipe (Either Result BS.ByteString) BS.ByteString m (), Bool)
+		(Pipe (Either Success BS.ByteString) BS.ByteString m (), Bool)
 	) -> Pipe Common Common m ()
 saslPipe m =
 	inputScramSha1 =$= fst (snd m) =$= outputScramSha1 (snd (snd m)) (fst m)
 
-inputScramSha1 :: Monad m => Pipe Common (Either Result BS.ByteString) m ()
+inputScramSha1 :: Monad m => Pipe Common (Either Success BS.ByteString) m ()
 inputScramSha1 = await >>= \mc -> case mc of
 	Just (SRChallenge c) -> yield (Right c) >> inputScramSha1
-	Just (XCSaslSuccess d) -> yield . Left $ Digest.Result True d
+	Just (XCSaslSuccess d) -> yield . Left $ Digest.Success d
 	_ -> error "inputScramSha1: bad"
 
 outputScramSha1 :: Monad m =>
