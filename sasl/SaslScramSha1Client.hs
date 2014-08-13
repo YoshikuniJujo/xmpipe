@@ -3,13 +3,14 @@
 module SaslScramSha1Client (Client(..), scramSha1Client, doesClientHasInit) where
 
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 
 import NewSasl
 import ScramSha1
 
 import qualified Data.ByteString.Char8 as BSC
 
-scramSha1Client :: (MonadState m, SaslState (StateType m)) => Client m
+scramSha1Client :: (MonadState m, SaslState (StateType m), MonadError m) => Client m
 scramSha1Client =
 	Client (Just clientFirst) [(serverFirst, clientFinal)] (Just serverFinal)
 

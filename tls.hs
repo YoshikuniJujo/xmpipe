@@ -2,6 +2,7 @@
 
 import Control.Applicative
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.Pipe
 import Data.HandleLike
@@ -64,11 +65,11 @@ startTls :: Common
 startTls = XCRaw $ XmlNode (("", Nothing), "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 
-xmpp :: (HandleLike h, MonadState (HandleMonad h),
+xmpp :: (HandleLike h, MonadState (HandleMonad h), MonadError (HandleMonad h),
 		XmppState ~ StateType (HandleMonad h)) => h -> HandleMonad h ()
 xmpp h = voidM . runPipe $ input h =$= proc =$= output h
 
-proc :: (Monad m, MonadState m, StateType m ~ XmppState) =>
+proc :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
 	Pipe Common Common m ()
 proc = yield XCDecl
 	>> yield (XCBegin
@@ -81,12 +82,12 @@ jidToHost (Jid _ d _) = d
 jidToUser :: Jid -> BS.ByteString
 jidToUser (Jid u _ _) = u
 
-doDigestMd5, doScramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
+doDigestMd5, doScramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
 	Pipe Common Common m ()
 doDigestMd5 = digestMd5 >> mapM_ yield [XCDecl, begin]
 doScramSha1 = scramSha1 >> mapM_ yield [XCDecl, begin]
 
-process :: (Monad m, MonadState m, StateType m ~ XmppState) =>
+process :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
 -- {-

@@ -45,6 +45,7 @@ module XmppClient (
 
 import Control.Monad
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.Pipe
 import Data.HandleLike
@@ -150,7 +151,7 @@ digestMd5 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
 	Pipe Common Common m ()
 digestMd5 = saslPipe digestMd5Cl
 
-scramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState) =>
+scramSha1 :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
 	Pipe Common Common m ()
 scramSha1 = saslPipe scramSha1Cl
 

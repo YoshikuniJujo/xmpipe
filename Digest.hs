@@ -11,6 +11,7 @@ module Digest (
 	) where
 
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 import Data.Pipe
 
 import qualified Data.ByteString as BS
@@ -26,7 +27,7 @@ digestMd5Cl :: (MonadState m, SASL.SaslState (StateType m)) => (
 	(Pipe (Either SASL.Result BS.ByteString) BS.ByteString m (), Bool))
 digestMd5Cl = ("DIGEST-MD5", (SASL.pipeCl SASL.digestMd5Cl, False))
 
-scramSha1Cl :: (MonadState m, SASL.SaslState (StateType m)) => (
+scramSha1Cl :: (MonadState m, SASL.SaslState (StateType m), MonadError m) => (
 	BS.ByteString,
 	(Pipe (Either SASL.Result BS.ByteString) BS.ByteString m (), Bool))
 scramSha1Cl = ("SCRAM-SHA-1", (SASL.pipeCl ScramSha1.scramSha1Client, True))
