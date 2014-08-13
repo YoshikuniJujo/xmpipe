@@ -6,7 +6,7 @@ import "monads-tf" Control.Monad.State
 
 import qualified Data.ByteString.Char8 as BSC
 
-import NewSasl
+import Network.Sasl
 import ScramSha1
 
 

@@ -4,7 +4,7 @@ module SaslClient (SaslState(..), client, digestMd5Cl) where
 
 import "monads-tf" Control.Monad.State
 
-import NewSasl
+import Network.Sasl
 import DigestMd5
 import Papillon
 

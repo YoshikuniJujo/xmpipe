@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, TupleSections, PackageImports #-}
 
-module NewSasl (
+module Network.Sasl (
 	SaslState(..), Send, Receive, Success(..),
 	Client(..), client, Server(..), server ) where
 

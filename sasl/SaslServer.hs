@@ -8,7 +8,7 @@ import qualified Data.ByteString as BS
 
 import DigestMd5
 import Papillon
-import NewSasl
+import Network.Sasl
 
 digestMd5Sv :: (MonadState m, SaslState (StateType m)) => Server m
 -- digestMd5Sv = Server Nothing (zip server client) (Just $ return "")

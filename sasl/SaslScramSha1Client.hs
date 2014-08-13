@@ -5,7 +5,7 @@ module SaslScramSha1Client (Client(..), scramSha1Client) where
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 
-import NewSasl
+import Network.Sasl
 import ScramSha1
 
 import qualified Data.ByteString.Char8 as BSC
