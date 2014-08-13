@@ -3,7 +3,7 @@
 module NewSasl (
 	SaslState(..), Send, Receive, Result(..),
 	Client(..), pipeCl, doesClientHasInit,
-	Server(..), pipeSv,
+	Server(..), pipeSv, doesServerWantInit,
 
 	ExampleState(..), fromFile, toStdout ) where
 
@@ -26,6 +26,10 @@ data Result = Result Bool (Maybe BS.ByteString)
 doesClientHasInit :: Client m -> Bool
 doesClientHasInit (Client (Just _) _ _) = True
 doesClientHasInit _ = False
+
+doesServerWantInit :: Server m -> Bool
+doesServerWantInit (Server (Just _) _ _) = True
+doesServerWantInit _ = False
 
 fromFile :: (MonadBaseControl IO m, MonadIO m) =>
 	FilePath -> Pipe () BS.ByteString m ()

@@ -7,6 +7,7 @@ module Digest (
 
 	scramSha1Cl, scramSha1Sv,
 --	doesClientHasInit,
+	ScramSha1.doesServerWantInit,
 	) where
 
 import "monads-tf" Control.Monad.State

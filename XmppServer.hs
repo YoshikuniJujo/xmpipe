@@ -156,13 +156,13 @@ digestMd5 :: (MonadState m, StateType m ~ XmppState) =>
 	Maybe BS.ByteString -> Pipe Common Common m ()
 digestMd5 e = do
 	yield $ XCFeatures
-		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
---		[FtMechanisms $ (if isJust e then (External :) else id) [ScramSha1, DigestMd5]]
+--		[FtMechanisms $ (if isJust e then (External :) else id) [DigestMd5]]
+		[FtMechanisms $ (if isJust e then (External :) else id) [ScramSha1, DigestMd5]]
 	a <- await
 	case (a, e) of
-		(Just (XCAuth "DIGEST-MD5" Nothing), _) -> digestMd5Body
+		(Just (XCAuth "DIGEST-MD5" i), _) -> digestMd5Body i
+		(Just (XCAuth "SCRAM-SHA-1" i), _) -> scramSha1 i
 		(Just (XCAuth "EXTERNAL" Nothing), Just _) -> external
-		(Just (XCAuth "SCRAM-SHA-1" (Just i)), _) -> scramSha1 i
 		_ -> error $ "digestMd5: " ++ show a
 
 external :: Monad m => Pipe Common Common m ()
@@ -171,19 +171,24 @@ external = do
 	Just (SRResponse "") <- await
 	yield $ XCSaslSuccess Nothing
 
-digestMd5Body :: (MonadState m, SaslState (StateType m)) => Pipe Common Common m ()
-digestMd5Body = saslPipe Nothing digestMd5Sv
+digestMd5Body :: (MonadState m, SaslState (StateType m)) =>
+	Maybe BS.ByteString -> Pipe Common Common m ()
+digestMd5Body i = saslPipe False i digestMd5Sv
 
 scramSha1 :: (MonadState m, SaslState (StateType m)) =>
-	BS.ByteString -> Pipe Common Common m ()
-scramSha1 i = saslPipe (Just i) scramSha1Sv
+	Maybe BS.ByteString -> Pipe Common Common m ()
+scramSha1 i = saslPipe True i scramSha1Sv
 
-saslPipe :: (MonadState m, SaslState (StateType m)) => (Maybe BS.ByteString)
+saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
+	-> (Maybe BS.ByteString)
 	-> Pipe BS.ByteString (Either Result BS.ByteString) m ()
 	-> Pipe Common Common m ()
-saslPipe (Just i) s =
+saslPipe True (Just i) s =
 	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
-saslPipe _ s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScram
+saslPipe True _ s =
+	(convert (\(SRResponse r) -> r)) =$= s =$= (yield (SRChallenge "") >> outputScram)
+saslPipe False _ s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScram
+saslPipe _ _ _ = error "saslPipe: no need of initial data"
 
 outputScram :: (MonadState m, SaslState (StateType m)) =>
 	Pipe (Either Result BS.ByteString) Common m ()
