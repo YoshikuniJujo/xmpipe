@@ -20,12 +20,14 @@ import qualified SaslClient as SASL
 import qualified SaslScramSha1Client as ScramSha1
 import qualified SaslScramSha1Server as ScramSha1
 
-digestMd5Cl :: (MonadState m, SASL.SaslState (StateType m)) =>
-	(BS.ByteString, (Pipe BS.ByteString BS.ByteString m (), Bool))
+digestMd5Cl :: (MonadState m, SASL.SaslState (StateType m)) => (
+	BS.ByteString,
+	(Pipe (Either SASL.Result BS.ByteString) BS.ByteString m (), Bool))
 digestMd5Cl = ("DIGEST-MD5", (SASL.pipeCl SASL.digestMd5Cl, False))
 
-scramSha1Cl :: (MonadState m, SASL.SaslState (StateType m)) =>
-	(BS.ByteString, (Pipe BS.ByteString BS.ByteString m (), Bool))
+scramSha1Cl :: (MonadState m, SASL.SaslState (StateType m)) => (
+	BS.ByteString,
+	(Pipe (Either SASL.Result BS.ByteString) BS.ByteString m (), Bool))
 scramSha1Cl = ("SCRAM-SHA-1", (SASL.pipeCl ScramSha1.scramSha1Client, True))
 
 digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>

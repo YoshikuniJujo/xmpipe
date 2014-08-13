@@ -60,12 +60,20 @@ instance SaslState ExampleState where
 	getSaslState (ExampleState s) = s
 	putSaslState s _ = ExampleState s
 
-pipeCl :: Monad m => Client m -> Pipe BS.ByteString BS.ByteString m ()
+-- pipeCl :: Monad m => Client m -> Pipe BS.ByteString BS.ByteString m ()
+pipeCl :: Monad m =>
+ 	Client m -> Pipe (Either Result BS.ByteString) BS.ByteString m ()
 pipeCl (Client (Just i) rss rcv') =
 	lift i >>= yield >> pipeCl (Client Nothing rss rcv')
-pipeCl (Client _ [] (Just rcv)) = await >>= maybe (return ()) (lift . rcv)
+pipeCl (Client _ [] (Just rcv)) = await >>= \mi -> case mi of
+	Just (Left (Result True (Just d))) -> lift $ rcv d
+	Just (Right d) -> lift (rcv d) >> yield "" >> await >>= \mi' -> case mi' of
+		Just (Left (Result True Nothing)) -> return ()
+		_ -> error "pipeCl: bad"
+	_ -> return ()
+-- maybe (return ()) (lift . rcv)
 pipeCl (Client _ [] _) = await >> return ()
 pipeCl (Client _ ((rcv, send) : rss) rcv') = await >>= \mbs -> case mbs of
-	Just bs -> lift (rcv bs) >> lift send >>= yield >>
+	Just (Right bs) -> lift (rcv bs) >> lift send >>= yield >>
 		pipeCl (Client Nothing rss rcv')
 	_ -> return ()
