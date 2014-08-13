@@ -61,4 +61,9 @@ digestMd5Sv = (\(x, y) -> (y, x)) . SASL.server . SASL.digestMd5Sv $
 
 scramSha1Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
 	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
-scramSha1Sv = (\(x, y) -> (y, x)) $ SASL.server ScramSha1.scramSha1Server
+scramSha1Sv = (\(x, y) -> (y, x)) . SASL.server . ScramSha1.scramSha1Server $
+	\"yoshikuni" -> (slt, stk, svk, i)
+	where
+	slt = "pepper"
+	i = 4492
+	(stk, svk) = ScramSha1.salt "password" slt i
