@@ -9,6 +9,7 @@ import Data.Pipe
 
 import qualified Data.ByteString as BS
 
+import qualified Network.Sasl as SASL
 import qualified Network.Sasl.DigestMd5.Server as SASL
 import qualified Network.Sasl.DigestMd5.Client as SASL
 
@@ -47,7 +48,8 @@ digestMd5Sv :: (
 	MonadState m, SASL.SaslState (StateType m),
 	MonadError m, Error (ErrorType m)) =>
 	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
-digestMd5Sv = (\(x, y) -> (y, x)) $ SASL.server SASL.digestMd5Sv
+digestMd5Sv = (\(x, y) -> (y, x)) . SASL.server . SASL.digestMd5Sv $
+	\"yoshikuni" -> SASL.mkStored "yoshikuni" "localhost" "password"
 
 scramSha1Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
 	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
