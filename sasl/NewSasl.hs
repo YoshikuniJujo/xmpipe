@@ -2,7 +2,7 @@
 
 module NewSasl (
 	SaslState(..), Send, Receive, Success(..),
-	Client(..), pipeCl, Server(..), pipeSv ) where
+	Client(..), client, Server(..), server ) where
 
 import "monads-tf" Control.Monad.Trans
 import Data.Maybe
@@ -22,9 +22,9 @@ type Receive m = BS.ByteString -> m ()
 
 data Success = Success (Maybe BS.ByteString)
 
-pipeSv :: Monad m =>
+server :: Monad m =>
 	Server m -> (Bool, Pipe BS.ByteString (Either Success BS.ByteString) m ())
-pipeSv s@(Server i _ _) = (isJust i, pipeSv_ s)
+server s@(Server i _ _) = (isJust i, pipeSv_ s)
 
 pipeSv_ :: Monad m =>
 	Server m -> Pipe BS.ByteString (Either Success BS.ByteString) m ()
@@ -37,9 +37,9 @@ pipeSv_ (Server _ ((send, rcv) : srs) send') = do
 	await >>= maybe (return ())
 		((>> pipeSv_ (Server Nothing srs send')) . lift . rcv)
 
-pipeCl :: Monad m => Client m -> (Bool,
+client :: Monad m => Client m -> (Bool,
 	Pipe (Either Success BS.ByteString) BS.ByteString m ())
-pipeCl c@(Client i _ _) = (isJust i, pipeCl_ c)
+client c@(Client i _ _) = (isJust i, pipeCl_ c)
 
 pipeCl_ :: Monad m =>
 	Client m -> Pipe (Either Success BS.ByteString) BS.ByteString m ()

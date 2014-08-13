@@ -34,7 +34,7 @@ make :: (MonadState m, SASL.SaslState (StateType m), MonadError m) =>
 	BS.ByteString -> ScramSha1.Client m -> (
 		BS.ByteString,
 		(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (), Bool))
-make n s = (n, (\(x, y) -> (y, x)) $ SASL.pipeCl s)
+make n s = (n, (\(x, y) -> (y, x)) $ SASL.client s)
 
 saslServers :: (MonadState m, SASL.SaslState (StateType m)) => [(
 	BS.ByteString,
@@ -43,8 +43,8 @@ saslServers = [("DIGEST-MD5", digestMd5Sv), ("SCRAM-SHA-1", scramSha1Sv)]
 
 digestMd5Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
 	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
-digestMd5Sv = (\(x, y) -> (y, x)) $ SASL.pipeSv SASL.digestMd5Sv
+digestMd5Sv = (\(x, y) -> (y, x)) $ SASL.server SASL.digestMd5Sv
 
 scramSha1Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
 	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
-scramSha1Sv = (\(x, y) -> (y, x)) $ SASL.pipeSv ScramSha1.scramSha1Server
+scramSha1Sv = (\(x, y) -> (y, x)) $ SASL.server ScramSha1.scramSha1Server

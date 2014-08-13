@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
-module SaslServer (pipeSv, digestMd5Sv, Success(..)) where
+module SaslServer (server, digestMd5Sv, Success(..)) where
 
 import "monads-tf" Control.Monad.State
 
@@ -12,13 +12,13 @@ import NewSasl
 
 digestMd5Sv :: (MonadState m, SaslState (StateType m)) => Server m
 -- digestMd5Sv = Server Nothing (zip server client) (Just $ return "")
-digestMd5Sv = Server Nothing (zip server client) (Just mkRspAuth)
+digestMd5Sv = Server Nothing (zip svs cls) (Just mkRspAuth)
 
-server :: (MonadState m, SaslState (StateType m)) => [Send m]
-server = [mkChallenge, mkRspAuth, mkResult]
+svs :: (MonadState m, SaslState (StateType m)) => [Send m]
+svs = [mkChallenge, mkRspAuth, mkResult]
 
-client :: (MonadState m, SaslState (StateType m)) => [Receive m]
-client = [putResponse]
+cls :: (MonadState m, SaslState (StateType m)) => [Receive m]
+cls = [putResponse]
 -- client = [putResponse, \"" -> return ()]
 
 mkChallenge, mkRspAuth, mkResult ::
@@ -49,9 +49,9 @@ mkRspAuth = do
 		Just cn = lookup "cnonce" st
 		Just rsp = lookup "response" st
 		clc = digestMd5 True un rlm ps q uri n nc cn
-		cls = digestMd5 False un rlm ps q uri n nc cn
+		clcs = digestMd5 False un rlm ps q uri n nc cn
 	unless (clc == rsp) $ error "mkRspAuth: bad"
-	return $ "rspauth=" `BS.append` cls
+	return $ "rspauth=" `BS.append` clcs
 
 mkResult = return "success"
 

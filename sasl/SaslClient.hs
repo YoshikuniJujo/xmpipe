@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module SaslClient (SaslState(..), pipeCl, digestMd5Cl) where
+module SaslClient (SaslState(..), client, digestMd5Cl) where
 
 import "monads-tf" Control.Monad.State
 
@@ -9,14 +9,14 @@ import DigestMd5
 import Papillon
 
 digestMd5Cl :: (MonadState m, SaslState (StateType m)) => Client m
-digestMd5Cl = Client Nothing (zip server client) (Just . const $ return ()) -- Nothing
+digestMd5Cl = Client Nothing (zip svs cls) (Just . const $ return ()) -- Nothing
 
-client :: (MonadState m, SaslState (StateType m)) => [Send m]
+cls :: (MonadState m, SaslState (StateType m)) => [Send m]
 -- client = [mkResponse, return ""]
-client = [mkResponse]
+cls = [mkResponse]
 
-server :: (MonadState m, SaslState (StateType m)) => [Receive m]
-server = [putReceive, const $ return ()]
+svs :: (MonadState m, SaslState (StateType m)) => [Receive m]
+svs = [putReceive, const $ return ()]
 
 mkResponse :: (MonadState m, SaslState (StateType m)) => Send m
 mkResponse = do
