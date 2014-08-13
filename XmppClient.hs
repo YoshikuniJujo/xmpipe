@@ -147,8 +147,10 @@ instance SaslState XmppState where
 	getSaslState (XmppState ss) = ss
 	putSaslState ss _ = XmppState ss
 
-sasl :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
-	BS.ByteString -> Pipe Common Common m ()
+sasl :: (Monad m,
+		MonadState m, StateType m ~ XmppState,
+		MonadError m, Error (ErrorType m)
+	) => BS.ByteString -> Pipe Common Common m ()
 sasl n = saslPipe . fromJust $ find ((== n) . fst) saslClients
 
 saslPipe :: (Monad m, MonadState m, StateType m ~ XmppState) => (

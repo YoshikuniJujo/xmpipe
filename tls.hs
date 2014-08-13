@@ -66,11 +66,15 @@ startTls :: Common
 startTls = XCRaw $ XmlNode (("", Nothing), "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 
-xmpp :: (HandleLike h, MonadState (HandleMonad h), MonadError (HandleMonad h),
-		XmppState ~ StateType (HandleMonad h)) => h -> HandleMonad h ()
+xmpp :: (HandleLike h,
+		MonadState (HandleMonad h), XmppState ~ StateType (HandleMonad h),
+		MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
+	h -> HandleMonad h ()
 xmpp h = voidM . runPipe $ input h =$= proc =$= output h
 
-proc :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
+proc :: (Monad m,
+		MonadState m, StateType m ~ XmppState,
+		MonadError m, Error (ErrorType m) ) =>
 	Pipe Common Common m ()
 proc = yield XCDecl
 	>> yield (XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
@@ -92,7 +96,9 @@ isFtMechanisms :: Feature -> Bool
 isFtMechanisms (FtMechanisms _) = True
 isFtMechanisms _ = False
 
-process :: (Monad m, MonadState m, StateType m ~ XmppState, MonadError m) =>
+process :: (Monad m,
+		MonadState m, StateType m ~ XmppState,
+		MonadError m, Error (ErrorType m) ) =>
 	Pipe Common Common m ()
 process = await >>= \mr -> case mr of
 	Just (XCFeatures fts)

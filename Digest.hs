@@ -16,9 +16,13 @@ import qualified Network.Sasl.DigestMd5.Client as SASL
 import qualified Network.Sasl.ScramSha1.Client as ScramSha1
 import qualified Network.Sasl.ScramSha1.Server as ScramSha1
 
-saslClients :: (MonadState m, SASL.SaslState (StateType m), MonadError m) => [(
-	BS.ByteString,
-	(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (), Bool) )]
+saslClients :: (
+		MonadState m, SASL.SaslState (StateType m),
+		MonadError m, Error (ErrorType m)
+	) => [(
+		BS.ByteString,
+		(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (),
+			Bool) )]
 saslClients = [digestMd5Cl, scramSha1Cl]
 
 digestMd5Cl :: (MonadState m, SASL.SaslState (StateType m), MonadError m) => (
@@ -26,9 +30,13 @@ digestMd5Cl :: (MonadState m, SASL.SaslState (StateType m), MonadError m) => (
 	(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (), Bool))
 digestMd5Cl = make "DIGEST-MD5" SASL.digestMd5Cl
 
-scramSha1Cl :: (MonadState m, SASL.SaslState (StateType m), MonadError m) => (
-	BS.ByteString,
-	(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (), Bool))
+scramSha1Cl :: (
+		MonadState m, SASL.SaslState (StateType m),
+		MonadError m, Error (ErrorType m)
+	) => (
+		BS.ByteString,
+		(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (),
+			Bool) )
 scramSha1Cl = make "SCRAM-SHA-1" ScramSha1.scramSha1Client
 
 make :: (MonadState m, SASL.SaslState (StateType m), MonadError m) =>
