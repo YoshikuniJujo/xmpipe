@@ -2,13 +2,13 @@
 
 module NewSasl (
 	SaslState(..), Send, Receive, Result(..),
-	Client(..), pipeCl, doesClientHasInit,
-	Server(..), pipeSv, doesServerWantInit,
+	Client(..), pipeCl, Server(..), pipeSv,
 
 	ExampleState(..), fromFile, toStdout ) where
 
 import "monads-tf" Control.Monad.State
 import Control.Monad.Trans.Control
+import Data.Maybe
 import Data.Pipe
 import System.IO
 
@@ -23,14 +23,6 @@ type Receive m = BS.ByteString -> m ()
 
 data Result = Result Bool (Maybe BS.ByteString)
 
-doesClientHasInit :: Client m -> Bool
-doesClientHasInit (Client (Just _) _ _) = True
-doesClientHasInit _ = False
-
-doesServerWantInit :: Server m -> Bool
-doesServerWantInit (Server (Just _) _ _) = True
-doesServerWantInit _ = False
-
 fromFile :: (MonadBaseControl IO m, MonadIO m) =>
 	FilePath -> Pipe () BS.ByteString m ()
 fromFile fp = bracket (liftIO $ openFile fp ReadMode) (liftIO . hClose) fromHandle
@@ -42,16 +34,20 @@ toStdout :: MonadIO m => Pipe BS.ByteString () m ()
 toStdout = await >>= maybe (return ())
 	((>> toStdout) . liftIO . BSC.putStrLn . BSC.pack . show)
 
-pipeSv :: Monad m =>
+pipeSv :: Monad m => Server m -> (Bool,
+	Pipe BS.ByteString (Either Result BS.ByteString) m ())
+pipeSv s@(Server i _ _) = (isJust i, pipeSv_ s)
+
+pipeSv_ :: Monad m =>
 	Server m -> Pipe BS.ByteString (Either Result BS.ByteString) m ()
-pipeSv (Server (Just rcv) srs send') = await >>=
-	maybe (return ()) ((>> pipeSv (Server Nothing srs send')) . lift . rcv)
-pipeSv (Server _ [] (Just send')) = lift send' >>= yield . Left . Result True . Just
-pipeSv (Server _ [] _) = return ()
-pipeSv (Server _ ((send, rcv) : srs) send') = do
+pipeSv_ (Server (Just rcv) srs send') = await >>=
+	maybe (return ()) ((>> pipeSv_ (Server Nothing srs send')) . lift . rcv)
+pipeSv_ (Server _ [] (Just send')) = lift send' >>= yield . Left . Result True . Just
+pipeSv_ (Server _ [] _) = return ()
+pipeSv_ (Server _ ((send, rcv) : srs) send') = do
 	lift send >>= yield . Right
 	await >>= maybe (return ())
-		((>> pipeSv (Server Nothing srs send')) . lift . rcv)
+		((>> pipeSv_ (Server Nothing srs send')) . lift . rcv)
 
 class SaslState s where
 	getSaslState :: s -> [(BS.ByteString, BS.ByteString)]
@@ -64,20 +60,23 @@ instance SaslState ExampleState where
 	getSaslState (ExampleState s) = s
 	putSaslState s _ = ExampleState s
 
--- pipeCl :: Monad m => Client m -> Pipe BS.ByteString BS.ByteString m ()
-pipeCl :: Monad m =>
- 	Client m -> Pipe (Either Result BS.ByteString) BS.ByteString m ()
-pipeCl (Client (Just i) rss rcv') =
-	lift i >>= yield >> pipeCl (Client Nothing rss rcv')
-pipeCl (Client _ [] (Just rcv)) = await >>= \mi -> case mi of
+pipeCl :: Monad m => Client m -> (Bool,
+	Pipe (Either Result BS.ByteString) BS.ByteString m ())
+pipeCl c@(Client i _ _) = (isJust i, pipeCl_ c)
+
+pipeCl_ :: Monad m =>
+	Client m -> Pipe (Either Result BS.ByteString) BS.ByteString m ()
+pipeCl_ (Client (Just i) rss rcv') =
+	lift i >>= yield >> pipeCl_ (Client Nothing rss rcv')
+pipeCl_ (Client _ [] (Just rcv)) = await >>= \mi -> case mi of
 	Just (Left (Result True (Just d))) -> lift $ rcv d
 	Just (Right d) -> lift (rcv d) >> yield "" >> await >>= \mi' -> case mi' of
 		Just (Left (Result True Nothing)) -> return ()
-		_ -> error "pipeCl: bad"
+		_ -> error "pipeCl_: bad"
 	_ -> return ()
 -- maybe (return ()) (lift . rcv)
-pipeCl (Client _ [] _) = await >> return ()
-pipeCl (Client _ ((rcv, send) : rss) rcv') = await >>= \mbs -> case mbs of
+pipeCl_ (Client _ [] _) = await >> return ()
+pipeCl_ (Client _ ((rcv, send) : rss) rcv') = await >>= \mbs -> case mbs of
 	Just (Right bs) -> lift (rcv bs) >> lift send >>= yield >>
-		pipeCl (Client Nothing rss rcv')
+		pipeCl_ (Client Nothing rss rcv')
 	_ -> return ()

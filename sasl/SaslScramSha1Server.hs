@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module SaslScramSha1Server (scramSha1Server, doesServerWantInit) where
+module SaslScramSha1Server (scramSha1Server) where
 
 import "monads-tf" Control.Monad.State
 
