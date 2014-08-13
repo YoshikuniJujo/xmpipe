@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module DigestMd5 (
+module Network.Sasl.DigestMd5.DigestMd5 (
 	DigestResponse(..), fromDigestResponse,
 	digestMd5,
 

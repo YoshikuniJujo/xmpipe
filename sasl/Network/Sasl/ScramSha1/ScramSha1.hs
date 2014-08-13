@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, PackageImports #-}
 
-module ScramSha1 (
+module Network.Sasl.ScramSha1.ScramSha1 (
 	clientFirstMessage,
 	serverFirstMessage,
 	clientFinalMessage,
@@ -28,8 +28,8 @@ import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64 as B64
 import qualified Crypto.Hash.SHA1 as SHA1
 
-import Hmac
-import Fields
+import Network.Sasl.ScramSha1.Hmac
+import Network.Sasl.ScramSha1.Fields
 
 clientFirstMessage :: BS.ByteString -> BS.ByteString -> BS.ByteString
 clientFirstMessage un nnc = "n,," `BS.append` clientFirstMessageBare un nnc

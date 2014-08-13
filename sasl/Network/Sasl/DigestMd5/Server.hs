@@ -6,7 +6,7 @@ import "monads-tf" Control.Monad.State
 
 import qualified Data.ByteString as BS
 
-import DigestMd5
+import Network.Sasl.DigestMd5.DigestMd5
 import Papillon
 import Network.Sasl
 

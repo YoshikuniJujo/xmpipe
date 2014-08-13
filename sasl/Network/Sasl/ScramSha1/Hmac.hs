@@ -1,4 +1,4 @@
-module Hmac (hmac, bsToHex) where
+module Network.Sasl.ScramSha1.Hmac (hmac, bsToHex) where
 
 import Data.Word
 import Data.Bits

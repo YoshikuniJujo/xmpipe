@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module SaslScramSha1Client (Client(..), scramSha1Client) where
+module Network.Sasl.ScramSha1.Client (Client(..), scramSha1Client) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 
 import Network.Sasl
-import ScramSha1
+import Network.Sasl.ScramSha1.ScramSha1
 
 import qualified Data.ByteString.Char8 as BSC
 

@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module SaslScramSha1Server (scramSha1Server) where
+module Network.Sasl.ScramSha1.Server (scramSha1Server) where
 
 import "monads-tf" Control.Monad.State
 
 import qualified Data.ByteString.Char8 as BSC
 
 import Network.Sasl
-import ScramSha1
+import Network.Sasl.ScramSha1.ScramSha1
 
 
 scramSha1Server :: (MonadState m, SaslState (StateType m)) => Server m

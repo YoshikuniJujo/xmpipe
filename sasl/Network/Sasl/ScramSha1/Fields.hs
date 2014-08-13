@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Fields (readFields) where
+module Network.Sasl.ScramSha1.Fields (readFields) where
 
 import qualified Data.ByteString.Char8 as BSC
 
