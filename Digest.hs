@@ -28,11 +28,16 @@ saslServers :: (
 	(Bool, Pipe BS.ByteString (Either SASL.Success BS.ByteString) m ()) )]
 saslServers = [DM5S.sasl retrieveDM5, SS1S.sasl retrieveSS1]
 
-retrieveDM5 :: BS.ByteString -> BS.ByteString
-retrieveDM5 "yoshikuni" = DM5S.mkStored "yoshikuni" "localhost" "password"
+retrieveDM5 :: (
+	MonadState m, SASL.SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) => BS.ByteString -> m BS.ByteString
+retrieveDM5 "yoshikuni" = return $ DM5S.mkStored "yoshikuni" "localhost" "password"
 retrieveDM5 _ = error "retrieveDM5: no such user"
 
-retrieveSS1 :: BS.ByteString -> (BS.ByteString, BS.ByteString, BS.ByteString, Int)
-retrieveSS1 "yoshikuni" = (slt, stk, svk, i)
+retrieveSS1 :: (
+	MonadState m, SASL.SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) =>
+	BS.ByteString -> m (BS.ByteString, BS.ByteString, BS.ByteString, Int)
+retrieveSS1 "yoshikuni" = return (slt, stk, svk, i)
 	where slt = "pepper"; i = 4492; (stk, svk) = SS1S.salt "password" slt i
 retrieveSS1 _ = error "no such user"
