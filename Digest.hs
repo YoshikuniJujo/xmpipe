@@ -44,7 +44,7 @@ saslServer _ = error "saslServer: yet"
 
 saslServers :: (
 	MonadState m, SASL.SaslState (StateType m),
-	MonadError m, Error (ErrorType m)) => [(
+	MonadError m, DM5S.SaslError (ErrorType m)) => [(
 	BS.ByteString,
 	(Bool, Pipe BS.ByteString (Either SASL.Success BS.ByteString) m ()) )]
 saslServers = [DM5S.sasl retrieveDM5, SS1S.sasl retrieveSS1, PlnS.sasl retrievePln]
