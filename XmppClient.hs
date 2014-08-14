@@ -155,10 +155,10 @@ sasl n = saslPipe . fromJust $ find ((== n) . fst) saslClients
 
 saslPipe :: (Monad m, MonadState m, StateType m ~ XmppState) => (
 		BS.ByteString,
-		(Pipe (Either Success BS.ByteString) BS.ByteString m (), Bool)
+		(Bool, Pipe (Either Success BS.ByteString) BS.ByteString m ())
 	) -> Pipe Common Common m ()
 saslPipe m =
-	inputScramSha1 =$= fst (snd m) =$= outputScramSha1 (snd (snd m)) (fst m)
+	inputScramSha1 =$= snd (snd m) =$= outputScramSha1 (fst (snd m)) (fst m)
 
 inputScramSha1 :: Monad m => Pipe Common (Either Success BS.ByteString) m ()
 inputScramSha1 = await >>= \mc -> case mc of

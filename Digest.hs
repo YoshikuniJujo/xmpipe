@@ -10,62 +10,40 @@ import Data.Pipe
 import qualified Data.ByteString as BS
 
 import qualified Network.Sasl as SASL
-import qualified Network.Sasl.DigestMd5.Server as SASL
-import qualified Network.Sasl.DigestMd5.Client as SASL
+import qualified Network.Sasl.DigestMd5.Server as DM5S
+import qualified Network.Sasl.DigestMd5.Client as DM5C
 
-import qualified Network.Sasl.ScramSha1.Client as ScramSha1
-import qualified Network.Sasl.ScramSha1.Server as ScramSha1
+import qualified Network.Sasl.ScramSha1.Client as SS1C
+import qualified Network.Sasl.ScramSha1.Server as SS1S
 
 saslClients :: (
-		MonadState m, SASL.SaslState (StateType m),
-		MonadError m, Error (ErrorType m)
-	) => [(
-		BS.ByteString,
-		(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (),
-			Bool) )]
-saslClients = [digestMd5Cl, scramSha1Cl]
-
-digestMd5Cl :: (MonadState m, SASL.SaslState (StateType m), MonadError m) => (
+	MonadState m, SASL.SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) => [(
 	BS.ByteString,
-	(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (), Bool))
-digestMd5Cl = make "DIGEST-MD5" SASL.digestMd5Cl
-
-scramSha1Cl :: (
-		MonadState m, SASL.SaslState (StateType m),
-		MonadError m, Error (ErrorType m)
-	) => (
-		BS.ByteString,
-		(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (),
-			Bool) )
-scramSha1Cl = make "SCRAM-SHA-1" ScramSha1.scramSha1Client
-
-make :: (MonadState m, SASL.SaslState (StateType m), MonadError m) =>
-	BS.ByteString -> ScramSha1.Client m -> (
-		BS.ByteString,
-		(Pipe (Either SASL.Success BS.ByteString) BS.ByteString m (), Bool))
-make n s = (n, (\(x, y) -> (y, x)) $ SASL.client s)
+	(Bool, Pipe (Either SASL.Success BS.ByteString) BS.ByteString m ()) )]
+saslClients = [DM5C.sasl, SS1C.sasl]
 
 saslServers :: (
 	MonadState m, SASL.SaslState (StateType m),
 	MonadError m, Error (ErrorType m)) => [(
 	BS.ByteString,
-	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool) )]
+	(Bool, Pipe BS.ByteString (Either SASL.Success BS.ByteString) m ()) )]
 saslServers = [("DIGEST-MD5", digestMd5Sv), ("SCRAM-SHA-1", scramSha1Sv)]
 
 digestMd5Sv :: (
 	MonadState m, SASL.SaslState (StateType m),
 	MonadError m, Error (ErrorType m)) =>
-	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
-digestMd5Sv = (\(x, y) -> (y, x)) . SASL.server . SASL.digestMd5Sv $
-	\"yoshikuni" -> SASL.mkStored "yoshikuni" "localhost" "password"
+	(Bool, Pipe BS.ByteString (Either SASL.Success BS.ByteString) m ())
+digestMd5Sv = SASL.server . DM5S.digestMd5Sv $
+	\"yoshikuni" -> DM5S.mkStored "yoshikuni" "localhost" "password"
 
 scramSha1Sv :: (
 		MonadState m, SASL.SaslState (StateType m),
 		MonadError m, Error (ErrorType m) ) =>
-	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
-scramSha1Sv = (\(x, y) -> (y, x)) . SASL.server . ScramSha1.scramSha1Server $
+	(Bool, Pipe BS.ByteString (Either SASL.Success BS.ByteString) m ())
+scramSha1Sv = SASL.server . SS1S.scramSha1Server $
 	\"yoshikuni" -> (slt, stk, svk, i)
 	where
 	slt = "pepper"
 	i = 4492
-	(stk, svk) = ScramSha1.salt "password" slt i
+	(stk, svk) = SS1S.salt "password" slt i

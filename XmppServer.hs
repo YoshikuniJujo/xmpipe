@@ -173,7 +173,7 @@ sasl :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) =>
 	BS.ByteString -> Maybe BS.ByteString -> Pipe Common Common m ()
-sasl n i = let Just (s, b) = lookup n saslServers in saslPipe b i s
+sasl n i = let Just (b, s) = lookup n saslServers in saslPipe b i s
 
 saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
 	-> (Maybe BS.ByteString)
