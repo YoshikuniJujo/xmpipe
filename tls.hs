@@ -50,6 +50,7 @@ main = do
 			[(k, c)] ca
 		((), st) <- xmpp (SHandle p) `runStateT` XmppState [
 				("username", jidToUser sender),
+				("authcid", jidToUser sender),
 				("password", "password"),
 				("rspauth", ""),
 				("cnonce", "00DEADBEEF00")
@@ -87,7 +88,8 @@ jidToUser :: Jid -> BS.ByteString
 jidToUser (Jid u _ _) = u
 
 saslList :: [BS.ByteString]
-saslList = ["SCRAM-SHA-1", "DIGEST-MD5"]
+-- saslList = ["PLAIN", "SCRAM-SHA-1", "DIGEST-MD5"]
+saslList = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
 getMatched :: [BS.ByteString] -> [BS.ByteString] -> Maybe BS.ByteString
 getMatched xs ys = listToMaybe $ xs `intersect` ys

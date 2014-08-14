@@ -157,7 +157,7 @@ runSasl :: (
 	MonadState m, StateType m ~ XmppState,
 	MonadError m, Error (ErrorType m) ) => Pipe Common Common m ()
 runSasl = do
-	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5"]]
+	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]]
 	await >>= \a -> case a of
 		Just (XCAuth "EXTERNAL" Nothing) -> external
 		Just (XCAuth m i) -> sasl m i
