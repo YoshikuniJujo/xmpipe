@@ -1,8 +1,9 @@
-{-# LANGUAGE OverloadedStrings, TypeFamilies, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
 import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Data.Pipe
 import Data.HandleLike
@@ -14,7 +15,10 @@ import Network.PeyoTLS.Server
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
+import qualified Data.ByteString as BS
+
 import TestFederation
+import Digest
 
 data SHandle s h = SHandle h
 
@@ -57,13 +61,23 @@ data XmppState = XmppState {
 	xsUuid :: [UUID] }
 	deriving Show
 
+instance SaslState XmppState where
+	getSaslState _ = [("username", "")]
+	putSaslState _ = id
+
 authed :: XmppState -> XmppState
 authed xs = xs { xsAuthed = True }
 
 dropUuid :: XmppState -> XmppState
 dropUuid xs = xs { xsUuid = tail $ xsUuid xs }
 
-process :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
+retrieve :: Monad m => BS.ByteString -> m Bool
+retrieve "" = return True
+retrieve hn = error $ "retrieve: " ++ show hn
+
+process :: (
+	MonadState m, StateType m ~ XmppState,
+	MonadError m, Error (ErrorType m) ) => Pipe Common Common m ()
 process = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> do
 		a <- lift $ gets xsAuthed
@@ -71,9 +85,10 @@ process = await >>= \mx -> case mx of
 		nextUuid >>= yield . begin
 		yield . XCFeatures $ if a then [] else [FtMechanisms ["EXTERNAL"]]
 		process
-	Just (XCAuth "EXTERNAL" (Just "")) -> do
+	Just (XCAuth "EXTERNAL" i) -> do
 		lift $ modify authed
-		yield $ XCSaslSuccess Nothing
+		sasl (RTExternal retrieve) i
+--		yield $ XCSaslSuccess Nothing
 		process
 	Just XCMessage{} -> do
 		yield . XCMessage Chat "hoge"
@@ -108,3 +123,30 @@ nextUuid = lift $ do
 	u <- gets $ head . xsUuid
 	modify dropUuid
 	return u
+
+sasl :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) =>
+	Retrieve m -> Maybe BS.ByteString -> Pipe Common Common m ()
+sasl r i = let (_, (b, s)) = saslServer r in saslPipe b i s
+
+saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
+	-> (Maybe BS.ByteString)
+	-> Pipe BS.ByteString (Either Success BS.ByteString) m ()
+	-> Pipe Common Common m ()
+saslPipe True (Just i) s =
+	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
+saslPipe True _ s =
+	(convert (\(SRResponse r) -> r)) =$= s =$= (yield (SRChallenge "") >> outputScram)
+saslPipe False Nothing s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScram
+saslPipe _ _ _ = error "saslPipe: no need of initial data"
+
+outputScram :: (MonadState m, SaslState (StateType m)) =>
+	Pipe (Either Success BS.ByteString) Common m ()
+outputScram = await >>= \mch -> case mch of
+	Just (Right r) -> yield (SRChallenge r) >> outputScram
+	Just (Left (Digest.Success r)) -> yield $ XCSaslSuccess r
+	Nothing -> return ()
+
+convert :: Monad m => (a -> b) -> Pipe a b m ()
+convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
