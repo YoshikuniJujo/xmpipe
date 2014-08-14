@@ -59,7 +59,9 @@ digestMd5Sv :: (
 digestMd5Sv = (\(x, y) -> (y, x)) . SASL.server . SASL.digestMd5Sv $
 	\"yoshikuni" -> SASL.mkStored "yoshikuni" "localhost" "password"
 
-scramSha1Sv :: (MonadState m, SASL.SaslState (StateType m)) =>
+scramSha1Sv :: (
+		MonadState m, SASL.SaslState (StateType m),
+		MonadError m, Error (ErrorType m) ) =>
 	(Pipe BS.ByteString (Either SASL.Success BS.ByteString) m (), Bool)
 scramSha1Sv = (\(x, y) -> (y, x)) . SASL.server . ScramSha1.scramSha1Server $
 	\"yoshikuni" -> (slt, stk, svk, i)
