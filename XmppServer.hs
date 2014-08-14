@@ -19,7 +19,7 @@ module XmppServer (
 	Tag(..),
 	Bind(..),
 	Requirement(..),
-	Mechanism(..),
+--	Mechanism(..),
 	Feature(..),
 	XmppState(..), initXmppState,
 		setReceiver, setResource, nextUuid,

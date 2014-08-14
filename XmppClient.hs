@@ -25,7 +25,7 @@ module XmppClient (
 	Tag(..),
 	Bind(..),
 	Feature(..),
-	Mechanism(..),
+--	Mechanism(..),
 	Requirement(..),
 	MessageXDelay(..),
 	MessageDelay(..),

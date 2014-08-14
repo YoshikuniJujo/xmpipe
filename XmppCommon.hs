@@ -7,7 +7,6 @@ module XmppCommon (
 	Tag(..), toTag, fromTag,
 	Requirement(..), toRequirement, fromRequirement,
 	Feature(..), toFeature, fromFeature,
-	Mechanism(..), toMechanism, fromMechanism, toMechanism', fromMechanism',
 	MessageType(..), toMessageType, fromMessageType, messageTypeToAtt,
 	Jid(..), toJid, fromJid,
 	MessageBody(..), toBody,
@@ -185,26 +184,6 @@ fromFeature (FtSession r) = XmlNode (nullQ "session")
 	[("", "urn:ietf:params:xml:ns:xmpp-session")] [] [fromRequirement r]
 fromFeature (FtRaw n) = n
 
-data Mechanism
-	= ScramSha1 | DigestMd5 | Plain | External | MechanismRaw BS.ByteString
-	| McRaw XmlNode
-	deriving (Eq, Show)
-
-toMechanism' :: BS.ByteString -> Mechanism
-toMechanism' "SCRAM-SHA-1" = ScramSha1
-toMechanism' "DIGEST-MD5" = DigestMd5
-toMechanism' "PLAIN" = Plain
-toMechanism' "EXTERNAL" = External
-toMechanism' m = MechanismRaw m
-
-fromMechanism' :: Mechanism -> BS.ByteString
-fromMechanism' ScramSha1 = "SCRAM-SHA-1"
-fromMechanism' DigestMd5 = "DIGEST-MD5"
-fromMechanism' Plain = "PLAIN"
-fromMechanism' External = "EXTERNAL"
-fromMechanism' (MechanismRaw m) = m
-fromMechanism' (McRaw _) = error "fromMechanism': bad"
-
 toMechanism :: XmlNode -> BS.ByteString
 toMechanism (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism")
 	_ [] [XmlCharData m]) = m
@@ -309,14 +288,14 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed")
 	_ [] []) = XCProceed
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
-	_ [((_, "mechanism"), "EXTERNAL")] [XmlCharData "="]) = XCAuth "EXTERNAL" Nothing
-toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
 	| [(Mechanism, m)] <- map (first toTag) as = XCAuth m Nothing
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [XmlCharData i])
 	| [(Mechanism, m)] <- map (first toTag) as =
-	XCAuth m . Just . (\(Right r) -> r) $ B64.decode i
+	XCAuth m . Just . (\(Right r) -> r) $ case i of
+		"=" -> Right ""
+		_ -> B64.decode i
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
 	_ [] []) = XCSaslSuccess Nothing
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
@@ -460,15 +439,13 @@ fromCommon _ XCStarttls = XmlNode (nullQ "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 fromCommon _ XCProceed = XmlNode (nullQ "proceed")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-fromCommon _ (XCAuth "EXTERNAL" Nothing) = XmlNode (nullQ "auth")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[(nullQ "mechanism", "EXTERNAL")] [XmlCharData "="]
 fromCommon _ (XCAuth m Nothing) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
 	[(nullQ "mechanism", m)] []
 fromCommon _ (XCAuth m (Just i)) = XmlNode (nullQ "auth")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")]
-	[(nullQ "mechanism", m)] [XmlCharData $ B64.encode i]
+	[(nullQ "mechanism", m)]
+	[XmlCharData $ case i of "" -> "="; _ -> B64.encode i]
 fromCommon _ (XCSaslSuccess Nothing) =
 	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 fromCommon _ (XCSaslSuccess (Just d)) =

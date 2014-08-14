@@ -51,7 +51,7 @@ proc :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
 proc i e = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> proc i e
 	Just (XCFeatures [FtMechanisms ["EXTERNAL"]]) -> do
-		yield $ XCAuth "EXTERNAL" Nothing
+		yield $ XCAuth "EXTERNAL" (Just "")
 		proc i e
 	Just (XCSaslSuccess _) -> yield XCDecl >> yield begin >> proc i e
 	Just (XCFeatures []) -> federation

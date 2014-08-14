@@ -2,7 +2,7 @@
 
 module TestFederation (
 	input, output, nullQ,
-	Common(..), toCommon, Feature(..), Mechanism(..),
+	Common(..), toCommon, Feature(..), -- Mechanism(..),
 	Tag(..),
 	Requirement(..),
 	MessageType(..),
