@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, PackageImports #-}
 
--- import Debug.Trace
-
 import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.State
@@ -68,12 +66,10 @@ dropUuid xs = xs { xsUuid = tail $ xsUuid xs }
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Common Common m ()
 process = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> do
---		trace "HERE" $ return ()
 		a <- lift $ gets xsAuthed
 		yield XCDecl
 		nextUuid >>= yield . begin
 		yield . XCFeatures $ if a then [] else [FtMechanisms ["EXTERNAL"]]
---		trace "THERE" $ return ()
 		process
 	Just (XCAuth "EXTERNAL" (Just "")) -> do
 		lift $ modify authed
