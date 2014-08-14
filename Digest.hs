@@ -34,9 +34,9 @@ saslServers = [DM5S.sasl retrieveDM5, SS1S.sasl retrieveSS1, PlnS.sasl retrieveP
 retrievePln :: (
 	MonadState m, SASL.SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) =>
-	BS.ByteString -> BS.ByteString -> m BS.ByteString
-retrievePln "" "yoshikuni" = return "password"
-retrievePln _ _ = throwError $ strMsg "no such id"
+	BS.ByteString -> BS.ByteString -> BS.ByteString -> m Bool
+retrievePln "" "yoshikuni" "password" = return True
+retrievePln _ _ _ = return False
 
 retrieveDM5 :: (
 	MonadState m, SASL.SaslState (StateType m),
