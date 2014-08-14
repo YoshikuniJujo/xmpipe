@@ -13,7 +13,7 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
-import Data.Maybe
+-- import Data.Maybe
 import Data.Pipe
 import Data.Pipe.List
 import Data.HandleLike
@@ -53,7 +53,7 @@ main = do
 			liftIO . hlPut h . xmlString $ begin ++ tlsFeatures
 			voidM . liftIO . runPipe $ handleP h
 				=$= xmlEvent
-				=$= convert fromJust
+				=$= convert (myFromJust "here you are")
 				=$= (xmlBegin >>= xmlNodeUntil isStarttls)
 				=$= checkP h
 				=$= toList
@@ -65,6 +65,10 @@ main = do
 				getNames p >>= liftIO . print
 				(`evalStateT` initXmppState uuids) .
 					xmpp sl $ SHandle p
+
+myFromJust :: String -> Maybe a -> a
+myFromJust _ (Just x) = x
+myFromJust msg _ = error msg
 
 xmpp :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,

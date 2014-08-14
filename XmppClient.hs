@@ -44,9 +44,7 @@ module XmppClient (
 
 import Control.Monad
 import "monads-tf" Control.Monad.State
-import "monads-tf" Control.Monad.Error
 import Data.Maybe
-import Data.List
 import Data.Pipe
 import Data.HandleLike
 import Text.XML.Pipe
@@ -55,7 +53,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64 as B64
 
-import Digest
+import SaslClient
 
 import XmppCommon
 import Caps hiding (Identity)
@@ -69,6 +67,12 @@ instance HandleLike h => HandleLike (SHandle s h) where
 	hlGet (SHandle h) = lift . hlGet h
 	hlClose (SHandle h) = lift $ hlClose h
 	hlDebug (SHandle h) = (lift .) . hlDebug h
+
+data XmppState = XmppState [(BS.ByteString, BS.ByteString)] deriving Show
+
+instance SaslState XmppState where
+	getSaslState (XmppState ss) = ss
+	putSaslState ss _ = XmppState ss
 
 input :: HandleLike h => h -> Pipe () Common (HandleMonad h) ()
 input h = handleP h
@@ -137,39 +141,3 @@ external = do
 	case mr of
 		Just (SRChallenge "") -> yield $ SRResponse ""
 		_ -> error $ "external: bad " ++ show mr
-
-convert :: Monad m => (a -> b) -> Pipe a b m ()
-convert f = await >>= maybe (return ()) ((>> convert f) . yield . f)
-
-data XmppState = XmppState [(BS.ByteString, BS.ByteString)] deriving Show
-
-instance SaslState XmppState where
-	getSaslState (XmppState ss) = ss
-	putSaslState ss _ = XmppState ss
-
-sasl :: (Monad m,
-		MonadState m, StateType m ~ XmppState,
-		MonadError m, Error (ErrorType m)
-	) => BS.ByteString -> Pipe Common Common m ()
-sasl n = saslPipe . fromJust $ find ((== n) . fst) saslClients
-
-saslPipe :: (Monad m, MonadState m, StateType m ~ XmppState) => (
-		BS.ByteString,
-		(Bool, Pipe (Either Success BS.ByteString) BS.ByteString m ())
-	) -> Pipe Common Common m ()
-saslPipe m =
-	inputScramSha1 =$= snd (snd m) =$= outputScramSha1 (fst (snd m)) (fst m)
-
-inputScramSha1 :: Monad m => Pipe Common (Either Success BS.ByteString) m ()
-inputScramSha1 = await >>= \mc -> case mc of
-	Just (SRChallenge c) -> yield (Right c) >> inputScramSha1
-	Just (XCSaslSuccess d) -> yield . Left $ Digest.Success d
-	_ -> error "inputScramSha1: bad"
-
-outputScramSha1 :: Monad m =>
-	Bool -> BS.ByteString -> Pipe BS.ByteString Common m ()
-outputScramSha1 ci mn = do
-	if ci
-	then await >>= maybe (return ()) (yield . XCAuth mn . Just)
-	else yield $ XCAuth mn Nothing
-	convert SRResponse

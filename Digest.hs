@@ -12,6 +12,8 @@ import qualified Data.ByteString as BS
 import qualified Network.Sasl as SASL
 import qualified Network.Sasl.Plain.Client as PlnC
 import qualified Network.Sasl.Plain.Server as PlnS
+import qualified Network.Sasl.External.Client as ExtC
+-- import qualified Network.Sasl.External.Server as ExtS
 import qualified Network.Sasl.DigestMd5.Client as DM5C
 import qualified Network.Sasl.DigestMd5.Server as DM5S
 import qualified Network.Sasl.ScramSha1.Client as SS1C
@@ -22,7 +24,7 @@ saslClients :: (
 	MonadError m, Error (ErrorType m) ) => [(
 	BS.ByteString,
 	(Bool, Pipe (Either SASL.Success BS.ByteString) BS.ByteString m ()) )]
-saslClients = [DM5C.sasl, SS1C.sasl, PlnC.sasl]
+saslClients = [DM5C.sasl, SS1C.sasl, PlnC.sasl, ExtC.sasl]
 
 saslServers :: (
 	MonadState m, SASL.SaslState (StateType m),

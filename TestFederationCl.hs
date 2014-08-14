@@ -1,10 +1,12 @@
-{-# LANGUAGE OverloadedStrings, TupleSections, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, TupleSections, FlexibleContexts,
+	PackageImports #-}
 
 module TestFederationCl (Common, readFiles, convertMessage, connect) where
 
 import Control.Applicative
 import Control.Monad
-import "monads-tf" Control.Monad.Trans
+import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Data.Pipe
@@ -16,7 +18,10 @@ import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
+import qualified Data.ByteString as BS
+
 import TestFederation
+import SaslClient
 
 convertMessage :: Common -> Common
 convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb
@@ -27,6 +32,12 @@ readFiles = (,,)
 	<$> readCertificateStore ["certs/cacert.sample_pem"]
 	<*> readKey "certs/localhost.sample_key"
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
+
+data St = St [(BS.ByteString, BS.ByteString)]
+
+instance SaslState St where
+	getSaslState (St ss) = ss
+	putSaslState ss _ = St ss
 
 connect :: CertificateStore -> CertSecretKey -> CertificateChain -> IO (TChan Common, TChan ())
 connect ca k c = do
@@ -40,20 +51,33 @@ connect ca k c = do
 			p <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 				[(k, c)] ca
 			getNames p >>= liftIO . print
-			void . runPipe $ input p =$= process i e =$= output p
+			void . (`runStateT` St []) . runPipe $
+				inputSt p =$= process i e =$= outputSt p
 			hlClose p
 	return (i, e)
 
-process :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
+process :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m),
+	MonadIO m ) => TChan Common -> TChan () -> Pipe Common Common m ()
 process i e = yield XCDecl >> yield begin >> proc i e
 
-proc :: MonadIO m => TChan Common -> TChan () -> Pipe Common Common m ()
+proc :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m),
+	MonadIO m) =>
+	TChan Common -> TChan () -> Pipe Common Common m ()
 proc i e = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> proc i e
 	Just (XCFeatures [FtMechanisms ["EXTERNAL"]]) -> do
-		yield $ XCAuth "EXTERNAL" (Just "")
+		st <- lift $ gets getSaslState
+		lift . modify . putSaslState $ ("username", "") : st
+		sasl "EXTERNAL"
+		lift . modify $ putSaslState st
+		yield XCDecl
+		yield begin
 		proc i e
-	Just (XCSaslSuccess _) -> yield XCDecl >> yield begin >> proc i e
+--	Just (XCSaslSuccess _) -> yield XCDecl >> yield begin >> proc i e
 	Just (XCFeatures []) -> federation
 	Just XCMessage{} -> federation
 	Just XCEnd -> yield XCEnd
