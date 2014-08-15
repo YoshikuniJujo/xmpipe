@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, TypeFamilies, FlexibleContexts,
 	PackageImports #-}
 
-module FederationClient (Xmpp, readFiles, convertMessage, connect) where
+module FederationClient (Xmpp, readFiles, connect) where
 
 import Control.Applicative
 import Control.Monad
@@ -22,12 +22,7 @@ import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
 import Tools
--- import XmppType
 import SaslClient
-
-convertMessage :: Xmpp -> Xmpp
-convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb
-convertMessage c = error $ "NOT IMPLEMENTED: " ++ show c
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
 readFiles = (,,)

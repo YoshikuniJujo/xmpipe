@@ -13,16 +13,18 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
+import Data.Maybe
 import Data.Pipe
 import Data.Pipe.Basic
-import Data.Pipe.List
 import Data.HandleLike
+import System.IO
 import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Server
 import Network.PeyoTLS.ReadFile
-
 import "crypto-random" Crypto.Random
+
+import qualified Data.ByteString as BS
 
 import XmppServer
 import FederationClient
@@ -44,59 +46,74 @@ main = do
 		voidM . forkIO . (`evalStateT` g0) $ do
 			uuids <- randoms <$> lift getStdGen
 			g <- StateT $ return . cprgFork
-			liftIO . hlPut h . xmlString $ begin ++ tlsFeatures
 			voidM . liftIO . runPipe $ fromHandleLike h
 				=$= xmlEvent
 				=$= convert (myFromJust "here you are")
-				=$= (xmlBegin >>= xmlNodeUntil isStarttls)
+				=$= xmlReborn
+				=$= convert toCommon
 				=$= hlpDebug h
-				=$= toList
-			liftIO . hlPut h $ xmlString proceed
+				=$= processTls
+				=$= convert (xmlString . (: []) . fromCommon Client)
+				=$= outputTls h
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing
 --					[(k, c)] (Just ca)
 				getNames p >>= liftIO . print
-				(`evalStateT` initXmppState uuids) .
-					xmpp sl $ SHandle p
+				(`evalStateT` initXmppState uuids) $ do
+--					xmpp sl $ SHandle p
+					let sp = SHandle p
+					voidM . runPipe $ fromHandleLike sp
+						=$= xmlEvent
+						=$= convert fromJust
+						=$= xmlReborn
+						=$= convert toCommon
+						=$= hlpDebug sp
+						=$= makeP
+						=$= output sl sp
+					hlPut sp $ xmlString [XmlEnd
+						(("stream", Nothing), "stream")]
+					hlClose sp
+
+processTls :: (
+	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
+processTls = await >>= \mx -> case mx of
+	Just (XCBegin _as) -> do
+		yield XCDecl
+		yield $ XCBegin [
+			--	(Id, toASCIIBytes u),
+			(Id, "83e074ac-c014-432e9f21-d06e73f5777e"),
+			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
+		yield $ XCFeatures [FtStarttls Required]
+		processTls
+	Just XCStarttls -> yield XCProceed
+	Just _ -> error "processTls: bad"
+	_ -> return ()
+
+outputTls :: Handle -> Pipe BS.ByteString () IO ()
+outputTls h = await >>= maybe (return ()) ((>> outputTls h) . lift . BS.hPut h)
 
 output :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 	HandleLike h) =>
 	TVar [(String, TChan Xmpp)] -> h -> Pipe Xmpp () (HandleMonad h) ()
-output sl h = do
-	mx <- await
-	case mx of
-		Just m@(XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _)
-			-> do	l <- liftIO . atomically $ readTVar sl
-				case lookup "otherhost" l of
-					Just i -> liftIO . atomically
-						. writeTChan i $ convertMessage m
-					_ -> otherhost sl m
-				output sl h
-		Just x -> do
-			lift (hlPut h $ xmlString [fromCommon Client x])
-			output sl h
-		_ -> return ()
+output sl h = await >>= \mx -> case mx of
+	Just m@(XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _) -> do
+		l <- liftIO (atomically $ readTVar sl)
+		maybe (otherhost sl m) (liftIO . atomically . flip writeTChan m)
+			$ lookup "otherhost" l
+		output sl h
+	Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> output sl h
+	_ -> return ()
 
 otherhost :: MonadIO m =>
 	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp () m ()
 otherhost sl m = liftIO $ do
 	(ca, k, c) <- readFiles
 	(i, e) <- connect ca k c
-	atomically . writeTChan i $ convertMessage m
+	atomically $ writeTChan i m
 	atomically $ readTChan e
 	atomically $ modifyTVar sl (("otherhost", i) :)
-
-xmpp :: (MonadIO (HandleMonad h),
-	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-	MonadError (HandleMonad h), SaslError (ErrorType (HandleMonad h)),
-	HandleLike h) =>
-	TVar [(String, TChan Xmpp)] -> h -> HandleMonad h ()
-xmpp sl h = do
-	voidM . runPipe $ input h =$= makeP =$= output sl h
-	hlPut h $ xmlString [XmlEnd (("stream", Nothing), "stream")]
-	hlClose h
 
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
@@ -145,38 +162,3 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 
 sender :: Jid
 sender = Jid "yoshio" "otherhost" (Just "profanity")
-
-isStarttls :: XmlNode -> Bool
-isStarttls (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
-	_ [] []) = True
-isStarttls _ = False
-
-begin :: [XmlNode]
-begin = [
-	XmlDecl (1, 0),
-	XmlStart (("stream", Nothing), "stream")
-		[	("", "jabber:client"),
-			("stream", "http://etherx.jabber.org/streams") ]
-		[	(nullQ "id", "83e074ac-c014-432e9f21-d06e73f5777e"),
-			(nullQ "from", "localhost"),
-			(nullQ "version", "1.0"),
-			((("xml", Nothing), "lang"), "en") ]
-	]
-
-tlsFeatures :: [XmlNode]
-tlsFeatures =
-	[XmlNode (("stream", Nothing), "features") [] [] [mechanisms, starttls]]
-
-mechanisms :: XmlNode
-mechanisms = XmlNode (nullQ "mechanisms")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] []
-	[	XmlNode (nullQ "mechanism") [] [] [XmlCharData "SCRAM-SHA-1"],
-	 	XmlNode (nullQ "mechanism") [] [] [XmlCharData "DIGEST-MD5"] ]
-
-starttls :: XmlNode
-starttls = XmlNode (nullQ "starttls")
-	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-
-proceed :: [XmlNode]
-proceed = (: []) $ XmlNode (nullQ "proceed")
-	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []

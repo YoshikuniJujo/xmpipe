@@ -16,7 +16,6 @@ module XmppServer (
 	Tag(..),
 	Feature(..),
 	nextUuid,
-	input,
 	XmppState(..),
 	initXmppState,
 	runSasl,
@@ -28,6 +27,7 @@ module XmppServer (
 	nullQ,
 
 	fromCommon,
+	toCommon,
 	Side(..),
 	) where
 
@@ -35,11 +35,8 @@ import Data.UUID
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
-import Data.Maybe
 import Data.Pipe
 import Data.Pipe.Basic
-import Data.HandleLike
-import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 
@@ -74,14 +71,6 @@ nextUuid = do
 	xs@XmppState { uuidList = u : us } <- get
 	put xs { uuidList = us }
 	return u
-
-input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
-input h = fromHandleLike h
-	=$= xmlEvent
-	=$= convert fromJust
-	=$= xmlReborn
-	=$= convert toCommon
-	=$= hlpDebug h
 
 runSasl :: (
 	MonadState m, StateType m ~ XmppState,
