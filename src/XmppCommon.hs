@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module XmppCommon (
-
 	Common(..), toCommon, fromCommon,
 
 	Jid(..), toJid,
@@ -12,8 +11,7 @@ module XmppCommon (
 	Bind(..), Roster(..),
 
 	IqType(..), Query(..),
-	MessageType(..), MessageBody(..), MBody(..),
-
+	MessageType(..), MBody(..),
 	) where
 
 import Control.Applicative
@@ -186,9 +184,14 @@ toJid j = case rst of
 	(d, r) = BSC.span (/= '/') $ BS.tail rst
 
 data MBody
-	= MBody MessageBody
+	= MBody BS.ByteString
 	| MBodyRaw [XmlNode]
 	deriving Show
+
+toBody :: [XmlNode] -> MBody
+toBody [XmlNode ((_, Just q), "body") _ [] [XmlCharData b]]
+	| q `elem` ["jabber:client", "jabber:server"] = MBody b
+toBody ns = MBodyRaw ns
 
 toCommon :: XmlNode -> Common
 toCommon (XmlDecl (1, 0)) = XCDecl
@@ -217,7 +220,7 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
 	XCSaslSuccess . Just . (\(Right r) -> r) $ B64.decode d
 toCommon (XmlNode ((_, Just q), "message") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
-		XCMessage tp i fr to $ xmlNodesToBody ns
+		XCMessage tp i fr to $ toBody ns
 	where
 	ts = map (first toTag) as
 	tp = toMessageType . fromJust $ lookup Type ts
@@ -351,7 +354,7 @@ fromCommon _ (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(fromQuery q)
 fromCommon _ (SRPresence ts c) =
 	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
-fromCommon _ (XCMessage tp i fr to (MBody (MessageBody m))) =
+fromCommon _ (XCMessage tp i fr to (MBody m)) =
 	XmlNode (nullQ "message") []
 		(catMaybes [
 			Just $ messageTypeToAtt tp,
@@ -392,21 +395,3 @@ roster = XmlNode (nullQ "query") [("", "jabber:iq:roster")] [] []
 session :: XmlNode
 session = XmlNode (nullQ "session")
 	[("", "urn:ietf:params:xml:ns:xmpp-session")] [] []
-
-xmlNodesToBody :: [XmlNode] -> MBody
-xmlNodesToBody [b]
-	| XmlNode ((_, Just q), "body") _ [] _ <- b,
-		q `elem` ["jabber:client", "jabber:server"] = MBody (toBody b)
-xmlNodesToBody ns = MBodyRaw ns
-
-data MessageBody
-	= MessageBody BS.ByteString
-	| MBRaw XmlNode
-	deriving Show
-
-toBody :: XmlNode -> MessageBody
-toBody (XmlNode ((_, Just "jabber:client"), "body") _ [] [XmlCharData b]) =
-	MessageBody b
-toBody (XmlNode ((_, Just "jabber:server"), "body") _ [] [XmlCharData b]) =
-	MessageBody b
-toBody n = MBRaw n

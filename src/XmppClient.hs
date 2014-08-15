@@ -8,7 +8,6 @@ module XmppClient (
 	Tag(..),
 	MessageType(..),
 	MBody(..),
-	MessageBody(..),
 	Query(..),
 	input, output,
 	sasl,

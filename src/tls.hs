@@ -133,8 +133,8 @@ process = await >>= \mr -> case mr of
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
-			yield . XCMessage Chat "prof_3" Nothing recipient .
-				MBody $ MessageBody message
+			yield . XCMessage Chat "prof_3" Nothing recipient $
+				MBody message
 			yield XCEnd
 	Just _ -> process
 	_ -> return ()
