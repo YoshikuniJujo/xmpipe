@@ -81,7 +81,7 @@ checkSR h = do
 	mr <- await
 	case mr of
 		Just r -> lift (hlDebug h "critical" . (`BS.append` "\n") $
-			showBS r) >> yield r >> checkSR h
+			showSR r) >> yield r >> checkSR h
 		_ -> return ()
 
 voidM :: Monad m => m a -> m ()
@@ -110,8 +110,14 @@ handleP h = do
 	yield c
 	handleP h
 
+showSR :: Common -> BS.ByteString
+showSR (XCMessage Chat i f t (MBodyRaw ns))
+	| Just dm <- toDelayedMessage ns =
+		BSC.pack . (++ "\n") $ show ("CHAT" :: String, i, f, t, dm)
+showSR rs = BSC.pack . (++ "\n") $ show rs
+
 showBS :: Show a => a -> BS.ByteString
-showBS = BSC.pack . (++ "\n") . show
+showBS rs = BSC.pack . (++ "\n") $ show rs
 
 external :: Monad m => Pipe Common Common m ()
 external = do

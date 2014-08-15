@@ -14,6 +14,8 @@ module XmppCommon (
 	IqType(..), Query(..),
 	MessageType(..), MessageBody(..), MBody(..),
 
+	DelayedMessage(..), toDelayedMessage,
+
 	) where
 
 import Control.Applicative
@@ -199,9 +201,21 @@ toBody n = MBRaw n
 
 data MBody
 	= MBody MessageBody
-	| MBodyDelay MessageBody MessageDelay MessageXDelay
 	| MBodyRaw [XmlNode]
 	deriving Show
+
+data DelayedMessage
+	= MBodyDelay MessageBody MessageDelay MessageXDelay
+	deriving Show
+
+toDelayedMessage :: [XmlNode] -> Maybe DelayedMessage
+toDelayedMessage [b, d, xd]
+	| XmlNode ((_, Just q), "body") _ [] _ <- b,
+		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
+		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd,
+		q `elem` ["jabber:client", "jabber:server"] = Just $
+		MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
+toDelayedMessage _ = Nothing
 
 data MessageDelay
 	= MessageDelay [(DelayTag, BS.ByteString)]
@@ -441,12 +455,6 @@ session = XmlNode (nullQ "session")
 	[("", "urn:ietf:params:xml:ns:xmpp-session")] [] []
 
 xmlNodesToBody :: [XmlNode] -> MBody
-xmlNodesToBody [b, d, xd]
-	| XmlNode ((_, Just q), "body") _ [] _ <- b,
-		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
-		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd,
-		q `elem` ["jabber:client", "jabber:server"] =
-		MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
 xmlNodesToBody [b]
 	| XmlNode ((_, Just q), "body") _ [] _ <- b,
 		q `elem` ["jabber:client", "jabber:server"] = MBody (toBody b)
