@@ -114,7 +114,8 @@ process = await >>= \mx -> case mx of
 		process
 	Just (XCAuth "EXTERNAL" i) -> do
 		lift $ modify authed
-		sasl (RTExternal retrieve) i
+		sasl (fromJust $ lookup "EXTERNAL" saslServers) i
+--		sasl (RTExternal retrieve) i
 --		yield $ XCSaslSuccess Nothing
 		process
 	Just XCMessage{} -> do
@@ -154,8 +155,9 @@ nextUuid = lift $ do
 sasl :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, SaslError (ErrorType m) ) =>
-	Retrieve m -> Maybe BS.ByteString -> Pipe Common Common m ()
-sasl r i = let (_, (b, s)) = saslServer r in saslPipe b i s
+	(Bool, Pipe BS.ByteString (Either Success BS.ByteString) m ())
+		-> Maybe BS.ByteString -> Pipe Common Common m ()
+sasl r i = let (b, s) = r in saslPipe b i s
 
 saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
 	-> Maybe BS.ByteString
