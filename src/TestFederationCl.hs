@@ -9,10 +9,12 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
+import Data.Maybe
 import Data.Pipe
 import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
+import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
@@ -20,8 +22,9 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
-import TestFederation
+import XmppCommon
 import SaslClient
+import HandlePipe
 
 convertMessage :: Common -> Common
 convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb
@@ -45,16 +48,42 @@ connect ca k c = do
 	e <- atomically newTChan
 	_ <- forkIO $ do
 		h <- connectTo "localhost" $ PortNumber 55269
-		void . runPipe $ input h =$= processTls =$= output h
+		void . runPipe $ fromHandleLike h
+			=$= xmlEvent
+			=$= convert fromJust
+			=$= xmlReborn
+			=$= convert toCommon
+			=$= hlpDebug h
+			=$= processTls
+			=$= output h
 		g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 		(`run` g) $ do
 			p <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 				[(k, c)] ca
 			getNames p >>= liftIO . print
-			void . (`runStateT` St []) . runPipe $
-				inputSt p =$= process i e =$= outputSt p
+			void . (`runStateT` St []) . runPipe $ fromHandleLikeT p
+				=$= xmlEvent
+				=$= convert fromJust
+				=$= xmlReborn
+				=$= convert toCommon
+				=$= hlpDebugT p
+				=$= process i e
+				=$= outputT p
 			hlClose p
 	return (i, e)
+
+outputT :: (HandleLike h, MonadTrans t, Monad (t (HandleMonad h))) =>
+	h -> Pipe Common () (t (HandleMonad h)) ()
+outputT h = (await >>=) . maybe (return ()) $ \n -> do
+	lift (lift . hlPut h $ xmlString [fromCommon Server n]) >> case n of
+		XCEnd -> lift . lift $ hlClose h
+		_ -> outputT h
+
+output :: HandleLike h => h -> Pipe Common () (HandleMonad h) ()
+output h = (await >>=) . maybe (return ()) $ \n -> do
+	lift (hlPut h $ xmlString [fromCommon Server n]) >> case n of
+		XCEnd -> lift $ hlClose h
+		_ -> output h
 
 process :: (
 	MonadState m, SaslState (StateType m),
@@ -77,7 +106,6 @@ proc i e = await >>= \mx -> case mx of
 		yield XCDecl
 		yield begin
 		proc i e
---	Just (XCSaslSuccess _) -> yield XCDecl >> yield begin >> proc i e
 	Just (XCFeatures []) -> federation
 	Just XCMessage{} -> federation
 	Just XCEnd -> yield XCEnd

@@ -5,6 +5,7 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
+import Data.Maybe
 import Data.Pipe
 import Data.HandleLike
 import Data.UUID
@@ -17,8 +18,11 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
-import TestFederation
+-- import TestFederation
 import Digest
+
+import HandlePipe
+import XmppCommon
 
 data SHandle s h = SHandle h
 
@@ -47,7 +51,14 @@ main = do
 		let us = randoms sg :: [UUID]
 		void . forkIO . (`evalStateT` g0) $ do
 			us' <- lift . (`execStateT` XmppState False us) . runPipe $
-				input sh =$= processTls =$= output sh
+				fromHandleLike sh
+					=$= xmlEvent
+					=$= convert fromJust
+					=$= xmlReborn
+					=$= convert toCommon
+					=$= hlpDebug sh
+					=$= processTls
+					=$= output sh
 			g <- StateT $ return . cprgFork
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
@@ -55,9 +66,21 @@ main = do
 				getNames p >>= liftIO . print
 				let sp = SHandle p
 				void . (`evalStateT` us')
-					. runPipe
-					$ input sp =$= process =$= output sp
+					. runPipe $ fromHandleLike sp
+						=$= xmlEvent
+						=$= convert fromJust
+						=$= xmlReborn
+						=$= convert toCommon
+						=$= hlpDebug sp
+						=$= process
+						=$= output sp
 --				hlClose p
+
+output :: HandleLike h => h -> Pipe Common () (HandleMonad h) ()
+output h = (await >>=) . maybe (return ()) $ \n -> do
+	lift (hlPut h $ xmlString [fromCommon Server n]) >> case n of
+		XCEnd -> lift $ hlClose h
+		_ -> output h
 
 data XmppState = XmppState {
 	xsAuthed :: Bool,
