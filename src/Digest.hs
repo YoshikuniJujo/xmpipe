@@ -22,13 +22,6 @@ import qualified Network.Sasl.ScramSha1.Server as SS1S
 
 import Retrieve
 
-saslClients :: (
-	MonadState m, SASL.SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => [(
-	BS.ByteString,
-	(Bool, Pipe (Either SASL.Success BS.ByteString) BS.ByteString m ()) )]
-saslClients = [DM5C.sasl, SS1C.sasl, PlnC.sasl, ExtC.sasl]
-
 data Retrieve m
 	= RTPlain (BS.ByteString -> BS.ByteString -> BS.ByteString -> m ())
 	| RTExternal (BS.ByteString -> m ())
