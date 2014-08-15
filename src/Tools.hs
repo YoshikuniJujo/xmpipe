@@ -1,11 +1,13 @@
-{-# LANGUAGE OverloadedStrings, TypeFamilies, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, TupleSections, TypeFamilies, PackageImports #-}
 
 module Tools (
-	SHandle(..), St(..), fromHandleLike, hlpDebug, voidM) where
+	SHandle(..), St(..), fromHandleLike, hlpDebug, voidM, nullQ, myFromJust
+	) where
 
 import "monads-tf" Control.Monad.State
 import Data.Pipe
 import Data.HandleLike
+import Text.XML.Pipe
 import Network.Sasl
 
 import qualified Data.ByteString as BS
@@ -36,3 +38,10 @@ voidM = (>> return ())
 
 data St = St [(BS.ByteString, BS.ByteString)] deriving Show
 instance SaslState St where getSaslState (St ss) = ss; putSaslState ss _ = St ss
+
+myFromJust :: String -> Maybe a -> a
+myFromJust _ (Just x) = x
+myFromJust msg _ = error msg
+
+nullQ :: BS.ByteString -> QName
+nullQ = (("", Nothing) ,)

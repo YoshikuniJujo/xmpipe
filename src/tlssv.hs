@@ -24,8 +24,6 @@ import Network.PeyoTLS.ReadFile
 
 import "crypto-random" Crypto.Random
 
-import qualified Data.ByteString as BS
-
 import XmppServer
 import FederationClient
 
@@ -89,10 +87,6 @@ otherhost sl m = liftIO $ do
 	atomically . writeTChan i $ convertMessage m
 	atomically $ readTChan e
 	atomically $ modifyTVar sl (("otherhost", i) :)
-
-myFromJust :: String -> Maybe a -> a
-myFromJust _ (Just x) = x
-myFromJust msg _ = error msg
 
 xmpp :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
@@ -186,6 +180,3 @@ starttls = XmlNode (nullQ "starttls")
 proceed :: [XmlNode]
 proceed = (: []) $ XmlNode (nullQ "proceed")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
-
-nullQ :: BS.ByteString -> QName
-nullQ = (("", Nothing) ,)

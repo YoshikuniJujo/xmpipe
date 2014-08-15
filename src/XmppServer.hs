@@ -24,6 +24,8 @@ module XmppServer (
 	fromHandleLike,
 	hlpDebug,
 	voidM,
+	myFromJust,
+	nullQ,
 
 	fromCommon,
 	Side(..),
