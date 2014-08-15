@@ -36,3 +36,9 @@ Multi-User Chat
 ---------------
 
 * [XEP-0045](http://www.xmpp.org/extensions/xep-0045.html)
+
+Delayed Delivery
+----------------
+
+* [XEP-0203](http://www.xmpp.org/extensions/xep-0203.html)
+* [XEP-0091](http://www.xmpp.org/extensions/xep-0091.html)

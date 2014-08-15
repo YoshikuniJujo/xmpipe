@@ -48,7 +48,6 @@ data Common
 data Query
 	= IqBind (Maybe Requirement) Bind
 	| IqSession
---	| IqSessionNull
 	| IqRoster (Maybe Roster)
 	| QueryNull
 	| QueryRaw [XmlNode]
