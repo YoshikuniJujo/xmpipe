@@ -111,7 +111,7 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			. IqBind Nothing $ BJid j
 		makeP
 	(Just (SRIq Set i Nothing Nothing IqSession), mrcv) ->
-		yield (SRIq Result i Nothing mrcv IqSessionNull) >> makeP
+		yield (SRIq Result i Nothing mrcv QueryNull) >> makeP
 	(Just (SRIq Get i Nothing Nothing (IqRoster Nothing)), mrcv) -> do
 		yield . SRIq Result i Nothing mrcv
 			. IqRoster . Just $ Roster (Just "1") []

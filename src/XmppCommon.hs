@@ -3,20 +3,16 @@
 module XmppCommon (
 
 	Common(..), toCommon, fromCommon,
-	Jid(..), toJid,
 
+	Jid(..), toJid,
 	Side(..),
 	Feature(..),
-	Tag(..),
-	Requirement(..),
-	MessageType(..),
-	MBody(..),
+	Tag(..), Requirement(..),
 
-	MessageBody(..),
-	Roster(..),
-	Query(..),
-	IqType(..),
-	Bind(..),
+	Bind(..), Roster(..),
+
+	IqType(..), Query(..),
+	MessageType(..), MessageBody(..), MBody(..),
 
 	) where
 
@@ -52,8 +48,9 @@ data Common
 data Query
 	= IqBind (Maybe Requirement) Bind
 	| IqSession
-	| IqSessionNull
+--	| IqSessionNull
 	| IqRoster (Maybe Roster)
+	| QueryNull
 	| QueryRaw [XmlNode]
 	deriving Show
 
@@ -313,7 +310,7 @@ toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =
 	IqRoster Nothing
 toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = IqRoster
 	. Just $ Roster (snd <$> find (\((_, v), _) -> v == "ver") as) ns
-toIqBody [] = IqSessionNull
+toIqBody [] = QueryNull
 toIqBody ns = QueryRaw ns
 
 toBind :: XmlNode -> Bind
@@ -434,7 +431,7 @@ fromQuery (IqRoster (Just (Roster mv ns))) = (: []) $
 fromQuery (IqBind r b) = maybe id ((:) . fromRequirement) r $ fromBind b
 fromQuery IqSession = [session]
 fromQuery (IqRoster Nothing) = [roster]
-fromQuery IqSessionNull = []
+fromQuery QueryNull = []
 fromQuery (QueryRaw ns) = ns
 
 roster :: XmlNode
