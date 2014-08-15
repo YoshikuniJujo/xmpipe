@@ -20,6 +20,10 @@ module XmppCommon (
 
 	DiscoTag(..),
 
+	QueryDisco(..),
+	toQueryDisco,
+	fromQueryDisco,
+
 	) where
 
 import Control.Applicative
@@ -57,14 +61,30 @@ data Query
 	| IqSessionNull
 	| IqRoster (Maybe Roster)
 	| QueryRaw [XmlNode]
+	deriving Show
 
+data QueryDisco
+	= IqDiscoInfoNode [(DiscoTag, BS.ByteString)]
+	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] [Identity] [InfoFeature] [XmlNode]
 	| IqCapsQuery BS.ByteString BS.ByteString
 	| IqCapsQuery2 [XmlNode]
-	| IqDiscoInfo
-	| IqDiscoInfoNode [(DiscoTag, BS.ByteString)]
-	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] [Identity] [InfoFeature]
-		[XmlNode]
 	deriving Show
+
+toQueryDisco :: [XmlNode] -> Maybe QueryDisco
+toQueryDisco [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
+	_ as []] = Just . IqDiscoInfoNode $ map (first toDiscoTag) as
+toQueryDisco [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
+	_ as ns] = Just $ IqDiscoInfoFull
+	(map (first toDiscoTag) as)
+	(mapMaybe toIdentity ns)
+	(mapMaybe toInfoFeature ns)
+	(filter (\n -> isNothing (toIdentity n) && isNothing (toInfoFeature n)) ns)
+toQueryDisco _ = Nothing
+
+fromQueryDisco :: QueryDisco -> [XmlNode]
+fromQueryDisco (IqCapsQuery v n) = [capsQuery v n]
+fromQueryDisco (IqCapsQuery2 ns) = ns
+fromQueryDisco _ = error "yet"
 
 data Bind
 	= Resource BS.ByteString
@@ -340,16 +360,6 @@ toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =
 	IqRoster Nothing
 toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = IqRoster
 	. Just $ Roster (snd <$> find (\((_, v), _) -> v == "ver") as) ns
-toIqBody [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
-	_ [] []] = IqDiscoInfo
-toIqBody [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
-	_ as []] = IqDiscoInfoNode $ map (first toDiscoTag) as
-toIqBody [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
-	_ as ns] = IqDiscoInfoFull
-	(map (first toDiscoTag) as)
-	(mapMaybe toIdentity ns)
-	(mapMaybe toInfoFeature ns)
-	(filter (\n -> isNothing (toIdentity n) && isNothing (toInfoFeature n)) ns)
 toIqBody [] = IqSessionNull
 toIqBody ns = QueryRaw ns
 
@@ -362,7 +372,7 @@ toInfoFeature (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"),
 	"feature") _ as []) = Just $ case map (first toInfoFeatureTag) as of
 		[(IFTVar, v)] -> InfoFeature v
 		atts -> InfoFeatureSemiRaw atts
-toInfoFeature _n = Nothing -- InfoFeatureRaw n
+toInfoFeature _n = Nothing
 
 toInfoFeatureTag :: QName -> InfoFeatureTag
 toInfoFeatureTag ((_, Just "http://jabber.org/protocol/disco#info"), "var") = IFTVar
@@ -378,7 +388,7 @@ toIdentityTag n = IDTRaw n
 toIdentity :: XmlNode -> Maybe Identity
 toIdentity (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "identity")
 	_ as []) = Just . Identity $ map (first toIdentityTag) as
-toIdentity _n = Nothing -- IdentityRaw n
+toIdentity _n = Nothing
 
 toBind :: XmlNode -> Bind
 toBind (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "resource") [] []
@@ -455,10 +465,8 @@ fromCommon _ (SRChallenge "") = XmlNode (nullQ "challenge")
 fromCommon _ (SRChallenge c) = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] .
 		(: []) . XmlCharData $ B64.encode c
-fromCommon _ (SRResponse "") = drnToXmlNode -- _ dr) = drToXmlNode $ fromDigestResponse dr
-fromCommon _ (SRResponse s) = drToXmlNode s -- _ dr) = drToXmlNode $ fromDigestResponse dr
--- fromCommon _ (SRChallenge sret) = XmlNode (nullQ "challenge")
---	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] [XmlCharData sret]
+fromCommon _ (SRResponse "") = drnToXmlNode
+fromCommon _ (SRResponse s) = drToXmlNode s
 fromCommon _ (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(catMaybes [
 		Just $ iqTypeToAtt tp,
@@ -500,11 +508,8 @@ fromQuery (IqRoster (Just (Roster mv ns))) = (: []) $
 fromQuery (IqBind r b) = maybe id ((:) . fromRequirement) r $ fromBind b
 fromQuery IqSession = [session]
 fromQuery (IqRoster Nothing) = [roster]
-fromQuery (IqCapsQuery v n) = [capsQuery v n]
-fromQuery (IqCapsQuery2 ns) = ns
 fromQuery IqSessionNull = []
 fromQuery (QueryRaw ns) = ns
-fromQuery _ = error "fromQuery: not implemented yet"
 
 capsQuery :: BS.ByteString -> BS.ByteString -> XmlNode
 capsQuery v n = XmlNode (("", Nothing), "query")

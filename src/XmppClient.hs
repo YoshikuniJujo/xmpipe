@@ -21,6 +21,10 @@ module XmppClient (
 	convert,
 	SHandle(..),
 	Bind(..),
+
+	QueryDisco(..),
+	toQueryDisco,
+	fromQueryDisco,
 	) where
 
 import Control.Monad

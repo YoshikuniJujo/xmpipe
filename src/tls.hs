@@ -112,9 +112,10 @@ process = await >>= \mr -> case mr of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process
 		_ -> process
-	Just (SRIq Get i (Just f) (Just (Jid u d _))
-		(IqDiscoInfoNode [(DTNode, n)]))
-		| (u, d) == let Jid u' d' _ = sender in (u', d') -> do
+	Just (SRIq Get i (Just f) (Just (Jid u d _)) (QueryRaw ns))
+--		(IqDiscoInfoNode [(DTNode, n)]))
+		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
+			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
 			yield . XCMessage Chat "prof_3" Nothing recipient .
 				MBody $ MessageBody message
@@ -134,11 +135,12 @@ binds = [SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
 		capsToXmlCaps profanityCaps "http://www.profanity.im" ]
 
 getCaps :: BS.ByteString -> BS.ByteString -> Common
-getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) $ IqCapsQuery v n
+getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) . QueryRaw .
+	fromQueryDisco $ IqCapsQuery v n
 
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Common
-resultCaps i t n = SRIq Result
-	i Nothing (Just t) (IqCapsQuery2 [capsToQuery profanityCaps n])
+resultCaps i t n = SRIq Result i Nothing (Just t) . QueryRaw . fromQueryDisco
+	$ IqCapsQuery2 [capsToQuery profanityCaps n]
 
 message :: BS.ByteString
 sender, recipient :: Jid
