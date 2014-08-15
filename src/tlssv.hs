@@ -121,9 +121,6 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		makeP
 	_ -> return ()
 
-voidM :: Monad m => m a -> m ()
-voidM = (>> return ())
-
 sender :: Jid
 sender = Jid "yoshio" "otherhost" (Just "profanity")
 

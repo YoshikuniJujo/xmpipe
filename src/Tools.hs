@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, PackageImports #-}
 
 module Tools (
-	SHandle(..), fromHandleLike, hlpDebug) where
+	SHandle(..), St(..), fromHandleLike, hlpDebug, voidM) where
 
 import "monads-tf" Control.Monad.State
 import Data.Pipe
 import Data.HandleLike
+import Network.Sasl
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -29,3 +30,9 @@ instance HandleLike h => HandleLike (SHandle s h) where
 	hlGet (SHandle h) = lift . hlGet h
 	hlClose (SHandle h) = lift $ hlClose h
 	hlDebug (SHandle h) = (lift .) . hlDebug h
+
+voidM :: Monad m => m a -> m ()
+voidM = (>> return ())
+
+data St = St [(BS.ByteString, BS.ByteString)] deriving Show
+instance SaslState St where getSaslState (St ss) = ss; putSaslState ss _ = St ss

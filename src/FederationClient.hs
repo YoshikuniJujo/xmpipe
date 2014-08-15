@@ -11,6 +11,7 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Data.Maybe
 import Data.Pipe
+import Data.Pipe.Basic
 import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
@@ -19,8 +20,6 @@ import Network
 import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
-
-import qualified Data.ByteString as BS
 
 import XmppType
 import SaslClient
@@ -35,12 +34,6 @@ readFiles = (,,)
 	<$> readCertificateStore ["certs/cacert.sample_pem"]
 	<*> readKey "certs/localhost.sample_key"
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
-
-data St = St [(BS.ByteString, BS.ByteString)]
-
-instance SaslState St where
-	getSaslState (St ss) = ss
-	putSaslState ss _ = St ss
 
 connect :: CertificateStore -> CertSecretKey -> CertificateChain -> IO (TChan Xmpp, TChan ())
 connect ca k c = do

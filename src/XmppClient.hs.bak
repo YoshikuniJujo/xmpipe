@@ -1,0 +1,22 @@
+{-# LANGUAGE OverloadedStrings, TypeFamilies, TupleSections,
+	PackageImports, FlexibleContexts #-}
+
+module XmppClient (
+	Xmpp(..),
+	Jid(..), toJid,
+	IqType(..),
+	Tag(..),
+	MessageType(..),
+	MBody(..),
+	Query(..),
+	sasl,
+	Feature(..),
+	convert,
+	SHandle(..),
+	Bind(..),
+	) where
+
+import SaslClient
+
+import XmppType
+import Tools

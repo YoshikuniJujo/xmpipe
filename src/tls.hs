@@ -6,6 +6,7 @@ import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.List
 import Data.Pipe
+import Data.Pipe.Basic
 import Data.HandleLike
 import System.Environment
 import System.IO.Unsafe
@@ -19,7 +20,10 @@ import Text.XML.Pipe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
-import XmppClient
+-- import XmppClient
+import XmppType
+import SaslClient
+import Tools
 import Caps
 import Disco
 import Delay
@@ -38,7 +42,7 @@ main :: IO ()
 main = do
 	h <- connectTo host port
 	void . runPipe $ (yield begin >> yield startTls) =$= output h
-	void . runPipe $ handleP h
+	void . runPipe $ fromHandleLike h
 		=$= xmlEvent
 		=$= convert fromJust
 		=$= (xmlBegin >>= xmlNodeUntil isProceed)
@@ -50,7 +54,7 @@ main = do
 	(`run` g) $ do
 		p <- open' h "localhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 			[(k, c)] ca
-		((), st) <- xmpp (SHandle p) `runStateT` XmppState [
+		((), st) <- xmpp (SHandle p) `runStateT` St [
 				("username", jidToUser sender),
 				("authcid", jidToUser sender),
 				("password", "password"),
@@ -70,10 +74,22 @@ startTls = XCRaw $ XmlNode (("", Nothing), "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 
 xmpp :: (HandleLike h,
-		MonadState (HandleMonad h), XmppState ~ StateType (HandleMonad h),
+		MonadState (HandleMonad h), St ~ StateType (HandleMonad h),
 		MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> HandleMonad h ()
-xmpp h = voidM . runPipe $ input h =$= checkSR h =$= proc =$= output h
+xmpp h = voidM . runPipe $ fromHandleLike h
+	=$= xmlEvent
+	=$= convert fromJust
+	=$= xmlReborn
+	=$= convert toCommon
+	=$= checkSR h
+	=$= proc
+	=$= output h
+
+output :: HandleLike h => h -> Pipe Xmpp () (HandleMonad h) ()
+output h = (await >>=) . maybe (return ()) $ \n -> (>> output h) $ do
+	lift (hlPut h $ xmlString [fromCommon Client n])
+	case n of XCEnd -> lift $ hlClose h; _ -> return ()
 
 checkSR :: HandleLike h => h -> Pipe Xmpp Xmpp (HandleMonad h) ()
 checkSR h = do
@@ -90,7 +106,7 @@ showSR (XCMessage Chat i f t (MBodyRaw ns))
 showSR rs = BSC.pack . (++ "\n") $ show rs
 
 proc :: (Monad m,
-		MonadState m, StateType m ~ XmppState,
+		MonadState m, StateType m ~ St,
 		MonadError m, Error (ErrorType m) ) =>
 	Pipe Xmpp Xmpp m ()
 proc = yield XCDecl
@@ -115,7 +131,7 @@ isFtMechanisms (FtMechanisms _) = True
 isFtMechanisms _ = False
 
 process :: (Monad m,
-		MonadState m, StateType m ~ XmppState,
+		MonadState m, StateType m ~ St,
 		MonadError m, Error (ErrorType m) ) =>
 	Pipe Xmpp Xmpp m ()
 process = await >>= \mr -> case mr of

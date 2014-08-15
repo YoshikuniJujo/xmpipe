@@ -1,12 +1,13 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts, PackageImports #-}
 
-module SaslClient ( SaslState(..), sasl, convert ) where
+module SaslClient (SaslState(..), sasl) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.List
 import Data.Pipe
+import Data.Pipe.Basic
 
 import qualified Data.ByteString as BS
 
@@ -50,6 +51,3 @@ outputScramSha1 ci mn = do
 	then await >>= maybe (return ()) (yield . XCAuth mn . Just)
 	else yield $ XCAuth mn Nothing
 	convert SRResponse
-
-convert :: Monad m => (a -> b) -> Pipe a b m ()
-convert f = await >>= maybe (return ()) ((>> convert f) . yield . f)
