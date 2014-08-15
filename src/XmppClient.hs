@@ -4,21 +4,16 @@
 module XmppClient (
 	Common(..),
 	Jid(..), toJid,
-	capsToQuery, capsToXmlCaps,
-	fromCaps,
 	IqType(..),
 	Tag(..),
-	CapsTag(..),
 	MessageType(..),
 	MBody(..),
-	XmlCaps(..),
 	MessageBody(..),
 	Query(..),
 	input, output,
 	sasl,
 	XmppState(..),
 	DiscoTag(..),
-	toCaps,
 	Feature(..),
 	handleP,
 	voidM,
@@ -42,7 +37,6 @@ import qualified Data.ByteString.Base64 as B64
 import SaslClient
 
 import XmppCommon
-import Caps hiding (Identity)
 
 data SHandle s h = SHandle h
 

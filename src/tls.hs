@@ -20,7 +20,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
 import XmppClient
-import Caps (profanityCaps)
+import Caps
 
 host :: String
 host = case BSC.unpack $ jidToHost sender of
