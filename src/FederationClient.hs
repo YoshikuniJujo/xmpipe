@@ -21,9 +21,9 @@ import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
-import XmppType
-import SaslClient
 import Tools
+-- import XmppType
+import SaslClient
 
 convertMessage :: Xmpp -> Xmpp
 convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb

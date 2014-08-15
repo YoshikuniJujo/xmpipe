@@ -16,13 +16,18 @@ module XmppServer (
 	Tag(..),
 	Feature(..),
 	nextUuid,
-	input, output,
+	input,
 	XmppState(..),
 	initXmppState,
 	runSasl,
-	) where
+	SHandle(..),
+	fromHandleLike,
+	hlpDebug,
+	voidM,
 
-import Control.Concurrent.STM
+	fromCommon,
+	Side(..),
+	) where
 
 import Data.UUID
 
@@ -36,10 +41,9 @@ import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 
+import Tools
 import XmppType
 import SaslServer
-import FederationClient
-import Tools
 
 data XmppState = XmppState {
 	receiver :: Maybe Jid,
@@ -68,34 +72,6 @@ nextUuid = do
 	xs@XmppState { uuidList = u : us } <- get
 	put xs { uuidList = us }
 	return u
-
-output :: (MonadIO (HandleMonad h),
-	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-	HandleLike h) =>
-	TVar [(String, TChan Xmpp)] -> h -> Pipe Xmpp () (HandleMonad h) ()
-output sl h = do
-	mx <- await
-	case mx of
-		Just m@(XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _)
-			-> do	l <- liftIO . atomically $ readTVar sl
-				case lookup "otherhost" l of
-					Just i -> liftIO . atomically
-						. writeTChan i $ convertMessage m
-					_ -> otherhost sl m
-				output sl h
-		Just x -> do
-			lift (hlPut h $ xmlString [fromCommon Client x])
-			output sl h
-		_ -> return ()
-
-otherhost :: MonadIO m =>
-	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp () m ()
-otherhost sl m = liftIO $ do
-	(ca, k, c) <- readFiles
-	(i, e) <- connect ca k c
-	atomically . writeTChan i $ convertMessage m
-	atomically $ readTChan e
-	atomically $ modifyTVar sl (("otherhost", i) :)
 
 input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
 input h = fromHandleLike h

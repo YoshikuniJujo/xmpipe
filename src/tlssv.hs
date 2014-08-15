@@ -27,7 +27,7 @@ import "crypto-random" Crypto.Random
 import qualified Data.ByteString as BS
 
 import XmppServer
-import Tools
+import FederationClient
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
@@ -61,6 +61,34 @@ main = do
 				getNames p >>= liftIO . print
 				(`evalStateT` initXmppState uuids) .
 					xmpp sl $ SHandle p
+
+output :: (MonadIO (HandleMonad h),
+	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
+	HandleLike h) =>
+	TVar [(String, TChan Xmpp)] -> h -> Pipe Xmpp () (HandleMonad h) ()
+output sl h = do
+	mx <- await
+	case mx of
+		Just m@(XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _)
+			-> do	l <- liftIO . atomically $ readTVar sl
+				case lookup "otherhost" l of
+					Just i -> liftIO . atomically
+						. writeTChan i $ convertMessage m
+					_ -> otherhost sl m
+				output sl h
+		Just x -> do
+			lift (hlPut h $ xmlString [fromCommon Client x])
+			output sl h
+		_ -> return ()
+
+otherhost :: MonadIO m =>
+	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp () m ()
+otherhost sl m = liftIO $ do
+	(ca, k, c) <- readFiles
+	(i, e) <- connect ca k c
+	atomically . writeTChan i $ convertMessage m
+	atomically $ readTChan e
+	atomically $ modifyTVar sl (("otherhost", i) :)
 
 myFromJust :: String -> Maybe a -> a
 myFromJust _ (Just x) = x

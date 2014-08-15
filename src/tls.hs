@@ -20,7 +20,6 @@ import Text.XML.Pipe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
--- import XmppClient
 import XmppType
 import SaslClient
 import Tools
@@ -145,7 +144,6 @@ process = await >>= \mr -> case mr of
 			yield (getCaps v n) >> process
 		_ -> process
 	Just (SRIq Get i (Just f) (Just (Jid u d _)) (QueryRaw ns))
---		(IqDiscoInfoNode [(DTNode, n)]))
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
