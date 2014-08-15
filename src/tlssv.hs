@@ -26,8 +26,10 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
-import XmppServer
+import XmppType
+import SaslServer
 import FederationClient
+import Tools
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
@@ -74,6 +76,18 @@ main = do
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
 					hlClose sp
+
+initXmppState :: [UUID] -> XmppState
+initXmppState uuids = XmppState {
+	receiver = Nothing,
+	uuidList = uuids,
+	saslState = [
+		("realm", "localhost"),
+		("nonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
+		("qop", "auth"),
+		("charset", "utf-8"),
+		("algorithm", "md5-sess"),
+		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4") ] }
 
 processTls :: (
 	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
@@ -162,3 +176,34 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 
 sender :: Jid
 sender = Jid "yoshio" "otherhost" (Just "profanity")
+
+setResource :: BS.ByteString -> XmppState -> XmppState
+setResource r xs@XmppState{ receiver = Just (Jid a d _) } =
+	xs { receiver = Just . Jid a d $ Just r }
+setResource _ _ = error "setResource: can't set resource to Nothing"
+
+nextUuid :: (MonadState m, StateType m ~ XmppState) => m UUID
+nextUuid = do
+	xs@XmppState { uuidList = u : us } <- get
+	put xs { uuidList = us }
+	return u
+
+data XmppState = XmppState {
+	receiver :: Maybe Jid,
+	uuidList :: [UUID],
+	saslState :: [(BS.ByteString, BS.ByteString)] }
+
+instance SaslState XmppState where
+	getSaslState xs = case receiver xs of
+		Just (Jid un _ _) -> ("username", un) : ss'
+		_ -> ss'
+		where
+		ss' = let u : _ = uuidList xs in ("uuid", toASCIIBytes u) : ss
+		ss = saslState xs
+	putSaslState ss xs = case lookup "username" ss of
+		Just un -> case receiver xs of
+			Just (Jid _ d r) -> xs' { receiver = Just $ Jid un d r }
+			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
+		_ -> xs'
+		where
+		xs' = xs {uuidList = tail $ uuidList xs, saslState = ss}
