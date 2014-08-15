@@ -176,14 +176,14 @@ sasl :: (
 sasl n i = let Just (b, s) = lookup n saslServers in saslPipe b i s
 
 saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
-	-> (Maybe BS.ByteString)
+	-> Maybe BS.ByteString
 	-> Pipe BS.ByteString (Either Success BS.ByteString) m ()
 	-> Pipe Common Common m ()
 saslPipe True (Just i) s =
 	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
 saslPipe True _ s =
-	(convert (\(SRResponse r) -> r)) =$= s =$= (yield (SRChallenge "") >> outputScram)
-saslPipe False Nothing s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScram
+	convert (\(SRResponse r) -> r) =$= s =$= (yield (SRChallenge "") >> outputScram)
+saslPipe False Nothing s = convert (\(SRResponse r) -> r) =$= s =$= outputScram
 saslPipe _ _ _ = error "saslPipe: no need of initial data"
 
 outputScram :: (MonadState m, SaslState (StateType m)) =>
@@ -198,7 +198,7 @@ instance SaslState XmppState where
 		Just (Jid un _ _) -> ("username", un) : ss'
 		_ -> ss'
 		where
-		ss' = let u : _ = uuidList xs in [("uuid", toASCIIBytes u)] ++ ss
+		ss' = let u : _ = uuidList xs in ("uuid", toASCIIBytes u) : ss
 		ss = saslState xs
 	putSaslState ss xs = case lookup "username" ss of
 		Just un -> case receiver xs of

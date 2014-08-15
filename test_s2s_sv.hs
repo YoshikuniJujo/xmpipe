@@ -134,14 +134,14 @@ sasl :: (
 sasl r i = let (_, (b, s)) = saslServer r in saslPipe b i s
 
 saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
-	-> (Maybe BS.ByteString)
+	-> Maybe BS.ByteString
 	-> Pipe BS.ByteString (Either Success BS.ByteString) m ()
 	-> Pipe Common Common m ()
 saslPipe True (Just i) s =
 	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
 saslPipe True _ s =
-	(convert (\(SRResponse r) -> r)) =$= s =$= (yield (SRChallenge "") >> outputScram)
-saslPipe False Nothing s = (convert (\(SRResponse r) -> r)) =$= s =$= outputScram
+	convert (\(SRResponse r) -> r) =$= s =$= (yield (SRChallenge "") >> outputScram)
+saslPipe False Nothing s = convert (\(SRResponse r) -> r) =$= s =$= outputScram
 saslPipe _ _ _ = error "saslPipe: no need of initial data"
 
 outputScram :: (MonadState m, SaslState (StateType m)) =>

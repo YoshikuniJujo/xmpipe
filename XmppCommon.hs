@@ -461,7 +461,7 @@ fromCommon _ (XCMessage Chat i fr to (MBodyRaw ns)) =
 fromCommon _ (SRChallenge "") = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 fromCommon _ (SRChallenge c) = XmlNode (nullQ "challenge")
-	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $
+	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] .
 		(: []) . XmlCharData $ B64.encode c
 fromCommon _ (SRResponse "") = drnToXmlNode -- _ dr) = drToXmlNode $ fromDigestResponse dr
 fromCommon _ (SRResponse s) = drToXmlNode s -- _ dr) = drToXmlNode $ fromDigestResponse dr
