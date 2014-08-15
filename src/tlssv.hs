@@ -13,10 +13,11 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
-import Data.Maybe
 import Data.Pipe
 import Data.Pipe.Basic
 import Data.HandleLike
+import Data.X509
+import Data.X509.CertificateStore
 import System.IO
 import Text.XML.Pipe
 import Network
@@ -26,10 +27,9 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
-import XmppType
+import Xmpp
 import SaslServer
 import FederationClient
-import Tools
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
@@ -67,13 +67,6 @@ main = do
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
 					hlClose sp
-
-input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
-input h = fromHandleLike h
-	=$= xmlEvent
-	=$= convert fromJust
-	=$= xmlReborn
-	=$= convert toCommon
 
 initXmppState :: [UUID] -> XmppState
 initXmppState uuids = XmppState {
@@ -126,6 +119,12 @@ otherhost sl m = liftIO $ do
 	atomically $ writeTChan i m
 	atomically $ readTChan e
 	atomically $ modifyTVar sl (("otherhost", i) :)
+
+readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
+readFiles = (,,)
+	<$> readCertificateStore ["certs/cacert.sample_pem"]
+	<*> readKey "certs/localhost.sample_key"
+	<*> readCertificateChain ["certs/localhost.sample_crt"]
 
 makeP :: (
 	MonadState m, StateType m ~ XmppState,

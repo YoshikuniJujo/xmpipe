@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, TypeFamilies, FlexibleContexts,
 	PackageImports #-}
 
-module FederationClient (Xmpp, readFiles, connect) where
+module FederationClient (Xmpp, connect) where
 
 import Control.Applicative
 import Control.Monad
@@ -18,17 +18,10 @@ import Data.X509.CertificateStore
 import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Client
-import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
 import Tools
 import SaslClient
-
-readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
-readFiles = (,,)
-	<$> readCertificateStore ["certs/cacert.sample_pem"]
-	<*> readKey "certs/localhost.sample_key"
-	<*> readCertificateChain ["certs/localhost.sample_crt"]
 
 connect :: CertificateStore -> CertSecretKey -> CertificateChain -> IO (TChan Xmpp, TChan ())
 connect ca k c = do
@@ -71,7 +64,10 @@ process :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
 	MonadIO m ) => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
-process i e = yield XCDecl >> yield begin >> proc i e
+process i e = do
+	yield XCDecl
+	yield $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
+	proc i e
 
 proc :: (
 	MonadState m, SaslState (StateType m),
@@ -86,7 +82,8 @@ proc i e = await >>= \mx -> case mx of
 		sasl "EXTERNAL"
 		lift . modify $ putSaslState st
 		yield XCDecl
-		yield begin
+		yield $ XCBegin
+			[(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
 		proc i e
 	Just (XCFeatures []) -> federation
 	Just XCMessage{} -> federation
@@ -102,7 +99,7 @@ proc i e = await >>= \mx -> case mx of
 processTls :: Monad m => Pipe Xmpp Xmpp m ()
 processTls = do
 	yield XCDecl
-	yield begin
+	yield $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
 	procTls
 
 procTls :: Monad m => Pipe Xmpp Xmpp m ()
@@ -114,9 +111,3 @@ procTls = await >>= \mx -> case mx of
 	Just XCProceed -> return ()
 	Just _ -> return ()
 	_ -> return ()
-
-begin :: Xmpp
-begin = XCBegin [
-	(From, "localhost"),
-	(To, "otherhost"),
-	(Version, "1.0") ]

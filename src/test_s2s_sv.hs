@@ -18,10 +18,8 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
+import Xmpp
 import SaslServer
-
-import Tools
-import XmppType
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
@@ -40,11 +38,7 @@ main = do
 		let us = randoms sg :: [UUID]
 		void . forkIO . (`evalStateT` g0) $ do
 			us' <- lift . (`execStateT` XmppState Nothing False us)
-				. runPipe $ fromHandleLike sh
-					=$= xmlEvent
-					=$= convert fromJust
-					=$= xmlReborn
-					=$= convert toCommon
+				. runPipe $ input sh
 					=$= hlpDebug sh
 					=$= processTls
 					=$= output sh
@@ -55,11 +49,7 @@ main = do
 				getNames p >>= liftIO . print
 				let sp = SHandle p
 				void . (`evalStateT` us')
-					. runPipe $ fromHandleLike sp
-						=$= xmlEvent
-						=$= convert fromJust
-						=$= xmlReborn
-						=$= convert toCommon
+					. runPipe $ input sp
 						=$= hlpDebug sp
 						=$= process
 						=$= output sp
