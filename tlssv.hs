@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, TupleSections, FlexibleContexts,
 	PackageImports #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 import Control.Concurrent.STM
 import TestFederationCl
@@ -29,6 +30,7 @@ import XmppServer
 data SHandle s h = SHandle h
 
 instance SaslError Alert where
+	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
 
 instance HandleLike h => HandleLike (SHandle s h) where
 	type HandleMonad (SHandle s h) = StateT s (HandleMonad h)

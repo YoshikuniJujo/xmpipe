@@ -2,7 +2,7 @@
 	PackageImports #-}
 
 module XmppServer (
-	SaslError,
+	SaslError(..),
 	MBody(..),
 	MessageBody(..),
 	Common(..),

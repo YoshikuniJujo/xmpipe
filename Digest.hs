@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
 module Digest (
-	SASL.Success(..), SASL.SaslState(..), Retrieve(..), DM5S.SaslError,
+	SASL.Success(..), SASL.SaslState(..), Retrieve(..), DM5S.SaslError(..),
+	SASL.SaslErrorType(..),
 	saslClients, saslServers, saslServer ) where
 
 import "monads-tf" Control.Monad.State
@@ -29,14 +30,14 @@ saslClients = [DM5C.sasl, SS1C.sasl, PlnC.sasl, ExtC.sasl]
 
 data Retrieve m
 	= RTPlain (BS.ByteString -> BS.ByteString -> BS.ByteString -> m Bool)
-	| RTExternal (BS.ByteString -> m Bool)
+	| RTExternal (BS.ByteString -> m ())
 	| RTDigestMd5 (BS.ByteString -> m BS.ByteString)
 	| RTScramSha1 (BS.ByteString ->
 		m (BS.ByteString, BS.ByteString, BS.ByteString, Int))
 
 saslServer :: (
 	MonadState m, SASL.SaslState (StateType m),
-	MonadError m, Error (ErrorType m)) => Retrieve m -> (
+	MonadError m, SASL.SaslError (ErrorType m)) => Retrieve m -> (
 	BS.ByteString,
 	(Bool, Pipe BS.ByteString (Either SASL.Success BS.ByteString) m ()) )
 saslServer (RTExternal rt) = ExtS.sasl rt
@@ -51,10 +52,11 @@ saslServers = [DM5S.sasl retrieveDM5, SS1S.sasl retrieveSS1, PlnS.sasl retrieveP
 
 retrievePln :: (
 	MonadState m, SASL.SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) =>
-	BS.ByteString -> BS.ByteString -> BS.ByteString -> m Bool
-retrievePln "" "yoshikuni" "password" = return True
-retrievePln _ _ _ = return False
+	MonadError m, SASL.SaslError (ErrorType m) ) =>
+	BS.ByteString -> BS.ByteString -> BS.ByteString -> m ()
+retrievePln "" "yoshikuni" "password" = return ()
+retrievePln _ _ _ = throwError $
+	SASL.fromSaslError SASL.NotAuthorized "incorrect username or password"
 
 retrieveDM5 :: (
 	MonadState m, SASL.SaslState (StateType m),

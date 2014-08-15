@@ -30,6 +30,9 @@ instance HandleLike h => HandleLike (SHandle s h) where
 	hlClose (SHandle h) = lift $ hlClose h
 	hlDebug (SHandle h) = (lift .) . hlDebug h
 
+instance SaslError Alert where
+	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
+
 main :: IO ()
 main = do
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
@@ -71,13 +74,13 @@ authed xs = xs { xsAuthed = True }
 dropUuid :: XmppState -> XmppState
 dropUuid xs = xs { xsUuid = tail $ xsUuid xs }
 
-retrieve :: Monad m => BS.ByteString -> m Bool
-retrieve "" = return True
-retrieve hn = error $ "retrieve: " ++ show hn
+retrieve :: (MonadError m, SaslError (ErrorType m)) => BS.ByteString -> m ()
+retrieve "" = return ()
+retrieve hn = throwError $ fromSaslError NotAuthorized hn
 
 process :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, Error (ErrorType m) ) => Pipe Common Common m ()
+	MonadError m, SaslError (ErrorType m) ) => Pipe Common Common m ()
 process = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> do
 		a <- lift $ gets xsAuthed
@@ -126,7 +129,7 @@ nextUuid = lift $ do
 
 sasl :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) =>
+	MonadError m, SaslError (ErrorType m) ) =>
 	Retrieve m -> Maybe BS.ByteString -> Pipe Common Common m ()
 sasl r i = let (_, (b, s)) = saslServer r in saslPipe b i s
 
