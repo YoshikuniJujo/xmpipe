@@ -20,18 +20,8 @@ import qualified Data.ByteString as BS
 
 import SaslServer
 
-import HandlePipe
+import Tools
 import XmppCommon
-
-data SHandle s h = SHandle h
-
-instance HandleLike h => HandleLike (SHandle s h) where
-	type HandleMonad (SHandle s h) = StateT s (HandleMonad h)
-	type DebugLevel (SHandle s h) = DebugLevel h
-	hlPut (SHandle h) = lift . hlPut h
-	hlGet (SHandle h) = lift . hlGet h
-	hlClose (SHandle h) = lift $ hlClose h
-	hlDebug (SHandle h) = (lift .) . hlDebug h
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em

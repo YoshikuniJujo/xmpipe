@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TupleSections, FlexibleContexts,
+{-# LANGUAGE OverloadedStrings, TupleSections, TypeFamilies, FlexibleContexts,
 	PackageImports #-}
 
 module FederationClient (Common, readFiles, convertMessage, connect) where
@@ -24,7 +24,7 @@ import qualified Data.ByteString as BS
 
 import XmppCommon
 import SaslClient
-import HandlePipe
+import Tools
 
 convertMessage :: Common -> Common
 convertMessage (XCMessage Chat i fr to mb) = XCMessage Chat i fr to mb
@@ -61,23 +61,17 @@ connect ca k c = do
 			p <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 				[(k, c)] ca
 			getNames p >>= liftIO . print
-			void . (`runStateT` St []) . runPipe $ fromHandleLikeT p
+			let sp = SHandle p
+			void . (`runStateT` St []) . runPipe $ fromHandleLike sp
 				=$= xmlEvent
 				=$= convert fromJust
 				=$= xmlReborn
 				=$= convert toCommon
-				=$= hlpDebugT p
+				=$= hlpDebug sp
 				=$= process i e
-				=$= outputT p
+				=$= output sp
 			hlClose p
 	return (i, e)
-
-outputT :: (HandleLike h, MonadTrans t, Monad (t (HandleMonad h))) =>
-	h -> Pipe Common () (t (HandleMonad h)) ()
-outputT h = (await >>=) . maybe (return ()) $ \n -> do
-	lift (lift . hlPut h $ xmlString [fromCommon Server n]) >> case n of
-		XCEnd -> lift . lift $ hlClose h
-		_ -> outputT h
 
 output :: HandleLike h => h -> Pipe Common () (HandleMonad h) ()
 output h = (await >>=) . maybe (return ()) $ \n -> do
