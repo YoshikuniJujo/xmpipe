@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, FlexibleContexts,
 	PackageImports #-}
 
-module TestFederationCl (Common, readFiles, convertMessage, connect) where
+module FederationClient (Common, readFiles, convertMessage, connect) where
 
 import Control.Applicative
 import Control.Monad

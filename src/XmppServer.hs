@@ -41,7 +41,7 @@ import qualified Data.ByteString.Char8 as BSC
 
 import XmppCommon
 import Digest
-import TestFederationCl
+import FederationClient
 
 data SHandle s h = SHandle h
 
