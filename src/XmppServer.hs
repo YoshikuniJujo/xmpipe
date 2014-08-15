@@ -3,28 +3,27 @@
 
 module XmppServer (
 	SaslError(..),
-	MBody(..),
-	MessageBody(..),
-	Common(..),
-	convert,
---	nullQ,
-	handleP,
-	checkP,
-	runSasl,
-	toCommon, fromCommon,
 	Jid(..),
 	MessageType(..),
-	IqType(..),
-	Query(..),
+	Common(..),
+	MBody(..),
+	MessageBody(..),
 	Roster(..),
-	Tag(..),
+	Query(..),
+	IqType(..),
 	Bind(..),
+	setResource,
 	Requirement(..),
+	Tag(..),
 	Feature(..),
-	XmppState(..), initXmppState,
-		setReceiver, setResource, nextUuid,
-	input,
-	output,
+	nextUuid,
+	input, output,
+	handleP,
+	checkP,
+	convert,
+	XmppState(..),
+	initXmppState,
+	runSasl,
 	) where
 
 import Control.Concurrent.STM
@@ -79,9 +78,6 @@ initXmppState uuids = XmppState {
 		("i", "4492")
 		]
 	}
-
-setReceiver :: Jid -> XmppState -> XmppState
-setReceiver j xs = xs { receiver = Just j }
 
 setResource :: BS.ByteString -> XmppState -> XmppState
 setResource r xs@XmppState{ receiver = Just (Jid a d _) } =

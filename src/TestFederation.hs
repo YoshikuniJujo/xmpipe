@@ -1,14 +1,15 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, PackageImports #-}
 
 module TestFederation (
-	input, output, -- nullQ,
-	inputSt, outputSt,
-	Common(..), toCommon, Feature(..), -- Mechanism(..),
+	Common(..),
 	Tag(..),
 	Requirement(..),
-	MessageType(..),
-	Jid(..),
+	Feature(..),
 	MBody(..),
+	Jid(..),
+	input, output,
+	MessageType(..),
+	inputSt, outputSt,
 	) where
 
 import Control.Monad

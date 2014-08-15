@@ -5,25 +5,21 @@ module XmppCommon (
 	Common(..), toCommon, fromCommon,
 	Jid(..), toJid,
 
-	Side(..), jabberQ,
+	Side(..),
+	Feature(..),
 	Tag(..),
 	Requirement(..),
-	Feature(..),
 	MessageType(..),
-	MessageBody(..),
 	MBody(..),
-	MessageDelay(..), DelayTag(..),
-	MessageXDelay(..), XDelayTag(..),
 
+	MessageBody(..),
+	Roster(..),
 	Query(..),
 	IqType(..),
-	Roster(..),
 	Bind(..),
-	Identity(..),
-	IdentityTag(..),
-	InfoFeature(..),
-	InfoFeatureTag(..),
+
 	DiscoTag(..),
+
 	) where
 
 import Control.Applicative
