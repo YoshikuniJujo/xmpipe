@@ -18,12 +18,6 @@ module XmppCommon (
 	IqType(..),
 	Bind(..),
 
-	DiscoTag(..),
-
-	QueryDisco(..),
-	toQueryDisco,
-	fromQueryDisco,
-
 	) where
 
 import Control.Applicative
@@ -63,29 +57,6 @@ data Query
 	| QueryRaw [XmlNode]
 	deriving Show
 
-data QueryDisco
-	= IqDiscoInfoNode [(DiscoTag, BS.ByteString)]
-	| IqDiscoInfoFull [(DiscoTag, BS.ByteString)] [Identity] [InfoFeature] [XmlNode]
-	| IqCapsQuery BS.ByteString BS.ByteString
-	| IqCapsQuery2 [XmlNode]
-	deriving Show
-
-toQueryDisco :: [XmlNode] -> Maybe QueryDisco
-toQueryDisco [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
-	_ as []] = Just . IqDiscoInfoNode $ map (first toDiscoTag) as
-toQueryDisco [XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "query")
-	_ as ns] = Just $ IqDiscoInfoFull
-	(map (first toDiscoTag) as)
-	(mapMaybe toIdentity ns)
-	(mapMaybe toInfoFeature ns)
-	(filter (\n -> isNothing (toIdentity n) && isNothing (toInfoFeature n)) ns)
-toQueryDisco _ = Nothing
-
-fromQueryDisco :: QueryDisco -> [XmlNode]
-fromQueryDisco (IqCapsQuery v n) = [capsQuery v n]
-fromQueryDisco (IqCapsQuery2 ns) = ns
-fromQueryDisco _ = error "yet"
-
 data Bind
 	= Resource BS.ByteString
 	| BJid Jid
@@ -95,24 +66,6 @@ data Bind
 data IqType = Get | Set | Result | ITError deriving (Eq, Show)
 
 data Roster = Roster (Maybe BS.ByteString) [XmlNode] deriving Show
-
-data DiscoTag = DTNode | DTRaw QName deriving (Eq, Show)
-
-data Identity
-	= Identity [(IdentityTag, BS.ByteString)]
-	| IdentityRaw XmlNode
-	deriving Show
-
-data IdentityTag
-	= IDTType | IDTName | IDTCategory | IDTLang | IDTRaw QName deriving (Eq, Show)
-
-data InfoFeature
-	= InfoFeature BS.ByteString
-	| InfoFeatureSemiRaw [(InfoFeatureTag, BS.ByteString)]
-	| InfoFeatureRaw XmlNode
-	deriving Show
-
-data InfoFeatureTag = IFTVar | IFTVarRaw QName deriving (Eq, Show)
 
 data Tag
 	= Id | From | To | Version | Lang | Mechanism | Type
@@ -363,33 +316,6 @@ toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = IqRoster
 toIqBody [] = IqSessionNull
 toIqBody ns = QueryRaw ns
 
-toDiscoTag :: QName -> DiscoTag
-toDiscoTag ((_, Just "http://jabber.org/protocol/disco#info"), "node") = DTNode
-toDiscoTag n = DTRaw n
-
-toInfoFeature :: XmlNode -> Maybe InfoFeature
-toInfoFeature (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"),
-	"feature") _ as []) = Just $ case map (first toInfoFeatureTag) as of
-		[(IFTVar, v)] -> InfoFeature v
-		atts -> InfoFeatureSemiRaw atts
-toInfoFeature _n = Nothing
-
-toInfoFeatureTag :: QName -> InfoFeatureTag
-toInfoFeatureTag ((_, Just "http://jabber.org/protocol/disco#info"), "var") = IFTVar
-toInfoFeatureTag n = IFTVarRaw n
-
-toIdentityTag :: QName -> IdentityTag
-toIdentityTag ((_, Just "http://jabber.org/protocol/disco#info"), "type") = IDTType
-toIdentityTag ((_, Just "http://jabber.org/protocol/disco#info"), "name") = IDTName
-toIdentityTag ((_, Just "http://jabber.org/protocol/disco#info"), "category") =
-	IDTCategory
-toIdentityTag n = IDTRaw n
-
-toIdentity :: XmlNode -> Maybe Identity
-toIdentity (XmlNode ((_, Just "http://jabber.org/protocol/disco#info"), "identity")
-	_ as []) = Just . Identity $ map (first toIdentityTag) as
-toIdentity _n = Nothing
-
 toBind :: XmlNode -> Bind
 toBind (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "resource") [] []
 	[XmlCharData cd]) = Resource cd
@@ -510,11 +436,6 @@ fromQuery IqSession = [session]
 fromQuery (IqRoster Nothing) = [roster]
 fromQuery IqSessionNull = []
 fromQuery (QueryRaw ns) = ns
-
-capsQuery :: BS.ByteString -> BS.ByteString -> XmlNode
-capsQuery v n = XmlNode (("", Nothing), "query")
-	[("", "http://jabber.org/protocol/disco#info")]
-	[((("", Nothing), "node"), n `BS.append` "#" `BS.append` v)] []
 
 roster :: XmlNode
 roster = XmlNode (nullQ "query") [("", "jabber:iq:roster")] [] []

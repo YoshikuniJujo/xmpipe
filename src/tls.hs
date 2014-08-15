@@ -21,6 +21,7 @@ import qualified Data.ByteString.Char8 as BSC
 
 import XmppClient
 import Caps
+import Disco
 
 host :: String
 host = case BSC.unpack $ jidToHost sender of

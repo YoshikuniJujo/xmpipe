@@ -13,7 +13,6 @@ module XmppClient (
 	input, output,
 	sasl,
 	XmppState(..),
-	DiscoTag(..),
 	Feature(..),
 	handleP,
 	voidM,
@@ -21,10 +20,6 @@ module XmppClient (
 	convert,
 	SHandle(..),
 	Bind(..),
-
-	QueryDisco(..),
-	toQueryDisco,
-	fromQueryDisco,
 	) where
 
 import Control.Monad
