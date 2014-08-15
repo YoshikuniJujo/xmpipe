@@ -14,6 +14,7 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Data.Pipe
+import Data.Pipe.Basic
 import Data.Pipe.List
 import Data.HandleLike
 import Text.XML.Pipe
@@ -26,19 +27,10 @@ import "crypto-random" Crypto.Random
 import qualified Data.ByteString as BS
 
 import XmppServer
-
-data SHandle s h = SHandle h
+import Tools
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
-
-instance HandleLike h => HandleLike (SHandle s h) where
-	type HandleMonad (SHandle s h) = StateT s (HandleMonad h)
-	type DebugLevel (SHandle s h) = DebugLevel h
-	hlPut (SHandle h) = lift . hlPut h
-	hlGet (SHandle h) = lift . hlGet h
-	hlClose (SHandle h) = lift $ hlClose h
-	hlDebug (SHandle h) = (lift .) . hlDebug h
 
 main :: IO ()
 main = do
@@ -55,11 +47,11 @@ main = do
 			uuids <- randoms <$> lift getStdGen
 			g <- StateT $ return . cprgFork
 			liftIO . hlPut h . xmlString $ begin ++ tlsFeatures
-			voidM . liftIO . runPipe $ handleP h
+			voidM . liftIO . runPipe $ fromHandleLike h
 				=$= xmlEvent
 				=$= convert (myFromJust "here you are")
 				=$= (xmlBegin >>= xmlNodeUntil isStarttls)
-				=$= checkP h
+				=$= hlpDebug h
 				=$= toList
 			liftIO . hlPut h $ xmlString proceed
 			liftIO . (`run` g) $ do

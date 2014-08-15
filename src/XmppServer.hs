@@ -17,9 +17,6 @@ module XmppServer (
 	Feature(..),
 	nextUuid,
 	input, output,
-	handleP,
-	checkP,
-	convert,
 	XmppState(..),
 	initXmppState,
 	runSasl,
@@ -33,49 +30,33 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.Pipe
+import Data.Pipe.Basic
 import Data.HandleLike
 import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BSC
 
 import XmppType
 import SaslServer
 import FederationClient
-
-data SHandle s h = SHandle h
-
-instance HandleLike h => HandleLike (SHandle s h) where
-	type HandleMonad (SHandle s h) = StateT s (HandleMonad h)
-	type DebugLevel (SHandle s h) = DebugLevel h
-	hlPut (SHandle h) = lift . hlPut h
-	hlGet (SHandle h) = lift . hlGet h
-	hlClose (SHandle h) = lift $ hlClose h
-	hlDebug (SHandle h) = (lift .) . hlDebug h
+import Tools
 
 data XmppState = XmppState {
 	receiver :: Maybe Jid,
 	uuidList :: [UUID],
-	saslState :: [(BS.ByteString, BS.ByteString)]
-	}
+	saslState :: [(BS.ByteString, BS.ByteString)] }
 
 initXmppState :: [UUID] -> XmppState
 initXmppState uuids = XmppState {
 	receiver = Nothing,
 	uuidList = uuids,
 	saslState = [
-		("password", "password"),
 		("realm", "localhost"),
 		("nonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
 		("qop", "auth"),
 		("charset", "utf-8"),
 		("algorithm", "md5-sess"),
-
-		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
-		("salt", "pepper"),
-		("i", "4492")
-		]
-	}
+		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4") ] }
 
 setResource :: BS.ByteString -> XmppState -> XmppState
 setResource r xs@XmppState{ receiver = Just (Jid a d _) } =
@@ -96,14 +77,15 @@ output sl h = do
 	mx <- await
 	case mx of
 		Just m@(XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _)
-			-> do	lift (hlDebug h "critical" "HERE")
-				l <- liftIO . atomically $ readTVar sl
+			-> do	l <- liftIO . atomically $ readTVar sl
 				case lookup "otherhost" l of
-					Just i -> liftIO . atomically . writeTChan i $
-						convertMessage m
+					Just i -> liftIO . atomically
+						. writeTChan i $ convertMessage m
 					_ -> otherhost sl m
 				output sl h
-		Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> output sl h
+		Just x -> do
+			lift (hlPut h $ xmlString [fromCommon Client x])
+			output sl h
 		_ -> return ()
 
 otherhost :: MonadIO m =>
@@ -116,32 +98,12 @@ otherhost sl m = liftIO $ do
 	atomically $ modifyTVar sl (("otherhost", i) :)
 
 input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
-input h = handleP h
+input h = fromHandleLike h
 	=$= xmlEvent
---	=$= checkP h
 	=$= convert fromJust
 	=$= xmlReborn
 	=$= convert toCommon
-	=$= checkP h
-
-handleP :: HandleLike h => h -> Pipe () BS.ByteString (HandleMonad h) ()
-handleP h = do
-	c <- lift $ hlGetContent h
-	yield c
-	handleP h
-
-checkP :: (HandleLike h, Show a) => h -> Pipe a a (HandleMonad h) ()
-checkP h = do
-	mx <- await
-	case mx of
-		Just x -> do
-			lift . hlDebug h "critical" . BSC.pack . (++ "\n") $ show x
-			yield x
-			checkP h
-		_ -> return ()
-
-convert :: Monad m => (a -> b) -> Pipe a b m ()
-convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
+	=$= hlpDebug h
 
 runSasl :: (
 	MonadState m, StateType m ~ XmppState,
@@ -149,39 +111,38 @@ runSasl :: (
 runSasl = do
 	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]]
 	await >>= \a -> case a of
-		Just (XCAuth "EXTERNAL" Nothing) -> external
 		Just (XCAuth m i) -> sasl m i
-		_ -> error $ "digestMd5: " ++ show a
-
-external :: Monad m => Pipe Xmpp Xmpp m ()
-external = do
-	yield $ SRChallenge ""
-	Just (SRResponse "") <- await
-	yield $ XCSaslSuccess Nothing
+		_ -> throwError $ fromSaslError
+			(SaslErrorType "EOF") "unexpected EOF"
 
 sasl :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, SaslError (ErrorType m) ) =>
 	BS.ByteString -> Maybe BS.ByteString -> Pipe Xmpp Xmpp m ()
-sasl n i = let Just (b, s) = lookup n saslServers in saslPipe b i s
+sasl n i = case lookup n saslServers of
+	Just (b, s) -> saslPipe b i s
+	_ -> throwError $ fromSaslError InvalidMechanism "no such mechanisms"
 
-saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
+saslPipe :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, SaslError (ErrorType m) ) => Bool
 	-> Maybe BS.ByteString
 	-> Pipe BS.ByteString (Either Success BS.ByteString) m ()
 	-> Pipe Xmpp Xmpp m ()
 saslPipe True (Just i) s =
-	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
-saslPipe True _ s =
-	convert (\(SRResponse r) -> r) =$= s =$= (yield (SRChallenge "") >> outputScram)
-saslPipe False Nothing s = convert (\(SRResponse r) -> r) =$= s =$= outputScram
-saslPipe _ _ _ = error "saslPipe: no need of initial data"
+	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= saslOutput
+saslPipe True _ s = convert (\(SRResponse r) -> r) =$= s
+		=$= (yield (SRChallenge "") >> saslOutput)
+saslPipe False Nothing s = convert (\(SRResponse r) -> r) =$= s =$= saslOutput
+saslPipe _ _ _ = throwError $
+	fromSaslError MalformedRequest "no need of initial data"
 
-outputScram :: (MonadState m, SaslState (StateType m)) =>
+saslOutput :: (MonadState m, SaslState (StateType m)) =>
 	Pipe (Either Success BS.ByteString) Xmpp m ()
-outputScram = await >>= \mch -> case mch of
-	Just (Right r) -> yield (SRChallenge r) >> outputScram
+saslOutput = await >>= \mch -> case mch of
+	Just (Right r) -> yield (SRChallenge r) >> saslOutput
 	Just (Left (SaslServer.Success r)) -> yield $ XCSaslSuccess r
-	Nothing -> return ()
+	_ -> return ()
 
 instance SaslState XmppState where
 	getSaslState xs = case receiver xs of
@@ -196,7 +157,4 @@ instance SaslState XmppState where
 			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
 		_ -> xs'
 		where
-		xs' = xs {
-			uuidList = tail $ uuidList xs,
-			saslState = ss
-			}
+		xs' = xs {uuidList = tail $ uuidList xs, saslState = ss}
