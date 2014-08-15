@@ -18,7 +18,6 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
--- import TestFederation
 import Digest
 
 import HandlePipe
@@ -50,8 +49,8 @@ main = do
 		sg <- newStdGen
 		let us = randoms sg :: [UUID]
 		void . forkIO . (`evalStateT` g0) $ do
-			us' <- lift . (`execStateT` XmppState False us) . runPipe $
-				fromHandleLike sh
+			us' <- lift . (`execStateT` XmppState Nothing False us)
+				. runPipe $ fromHandleLike sh
 					=$= xmlEvent
 					=$= convert fromJust
 					=$= xmlReborn
@@ -83,6 +82,7 @@ output h = (await >>=) . maybe (return ()) $ \n -> do
 		_ -> output h
 
 data XmppState = XmppState {
+	xsDomainName :: Maybe BS.ByteString,
 	xsAuthed :: Bool,
 	xsUuid :: [UUID] }
 	deriving Show
@@ -105,7 +105,8 @@ process :: (
 	MonadState m, StateType m ~ XmppState,
 	MonadError m, SaslError (ErrorType m) ) => Pipe Common Common m ()
 process = await >>= \mx -> case mx of
-	Just (XCBegin _as) -> do
+	Just (XCBegin as) -> do
+		modify $ \st -> st { xsDomainName = lookup From as }
 		a <- lift $ gets xsAuthed
 		yield XCDecl
 		nextUuid >>= yield . begin
