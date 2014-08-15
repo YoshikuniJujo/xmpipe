@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module XmppCommon (
-	Common(..), toCommon, fromCommon,
+	Xmpp(..), toCommon, fromCommon,
 
 	Jid(..), toJid,
 	Side(..),
@@ -24,7 +24,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64 as B64
 
-data Common
+data Xmpp
 	= XCDecl
 	| XCBegin [(Tag, BS.ByteString)]
 	| XCEnd
@@ -193,7 +193,7 @@ toBody [XmlNode ((_, Just q), "body") _ [] [XmlCharData b]]
 	| q `elem` ["jabber:client", "jabber:server"] = MBody b
 toBody ns = MBodyRaw ns
 
-toCommon :: XmlNode -> Common
+toCommon :: XmlNode -> Xmpp
 toCommon (XmlDecl (1, 0)) = XCDecl
 toCommon (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
 	XCBegin $ map (first toTag) as
@@ -306,7 +306,7 @@ jabberQ :: Side -> BS.ByteString
 jabberQ Client = "jabber:client"
 jabberQ Server = "jabber:server"
 
-fromCommon :: Side -> Common -> XmlNode
+fromCommon :: Side -> Xmpp -> XmlNode
 fromCommon _ (XCDecl) = XmlDecl (1, 0)
 fromCommon s (XCBegin ts) = XmlStart (("stream", Nothing), "stream")
 	[	("", jabberQ s),

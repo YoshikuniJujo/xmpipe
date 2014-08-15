@@ -65,7 +65,7 @@ pipe = await >>= maybe (return ()) yield
 awaitAll :: Monad m => Pipe a () m ()
 awaitAll = await >>= maybe (return ()) (const awaitAll)
 
-startTls :: Common
+startTls :: Xmpp
 startTls = XCRaw $ XmlNode (("", Nothing), "starttls")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 
@@ -75,7 +75,7 @@ xmpp :: (HandleLike h,
 	h -> HandleMonad h ()
 xmpp h = voidM . runPipe $ input h =$= checkSR h =$= proc =$= output h
 
-checkSR :: HandleLike h => h -> Pipe Common Common (HandleMonad h) ()
+checkSR :: HandleLike h => h -> Pipe Xmpp Xmpp (HandleMonad h) ()
 checkSR h = do
 	mr <- await
 	case mr of
@@ -83,7 +83,7 @@ checkSR h = do
 			showSR r) >> yield r >> checkSR h
 		_ -> return ()
 
-showSR :: Common -> BS.ByteString
+showSR :: Xmpp -> BS.ByteString
 showSR (XCMessage Chat i f t (MBodyRaw ns))
 	| Just dm <- toDelayedMessage ns =
 		BSC.pack . (++ "\n") $ show ("CHAT" :: String, i, f, t, dm)
@@ -92,7 +92,7 @@ showSR rs = BSC.pack . (++ "\n") $ show rs
 proc :: (Monad m,
 		MonadState m, StateType m ~ XmppState,
 		MonadError m, Error (ErrorType m) ) =>
-	Pipe Common Common m ()
+	Pipe Xmpp Xmpp m ()
 proc = yield XCDecl
 	>> yield (XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
@@ -117,7 +117,7 @@ isFtMechanisms _ = False
 process :: (Monad m,
 		MonadState m, StateType m ~ XmppState,
 		MonadError m, Error (ErrorType m) ) =>
-	Pipe Common Common m ()
+	Pipe Xmpp Xmpp m ()
 process = await >>= \mr -> case mr of
 	Just (XCFeatures fts)
 		| Just (FtMechanisms ms) <- find isFtMechanisms fts,
@@ -139,10 +139,10 @@ process = await >>= \mr -> case mr of
 	Just _ -> process
 	_ -> return ()
 
-begin :: Common
+begin :: Xmpp
 begin = XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")]
 
-binds :: [Common]
+binds :: [Xmpp]
 binds = [SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
 		Resource "profanity",
 	SRIq Set "_xmpp_session1" Nothing Nothing IqSession,
@@ -150,11 +150,11 @@ binds = [SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
 	SRPresence [(Id, "prof_presence_1")] . fromCaps $
 		capsToXmlCaps profanityCaps "http://www.profanity.im" ]
 
-getCaps :: BS.ByteString -> BS.ByteString -> Common
+getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
 getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) . QueryRaw .
 	fromQueryDisco $ IqCapsQuery v n
 
-resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Common
+resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
 resultCaps i t n = SRIq Result i Nothing (Just t) . QueryRaw . fromQueryDisco
 	$ IqCapsQuery2 [capsToQuery profanityCaps n]
 

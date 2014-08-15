@@ -2,7 +2,7 @@
 	PackageImports, FlexibleContexts #-}
 
 module XmppClient (
-	Common(..),
+	Xmpp(..),
 	Jid(..), toJid,
 	IqType(..),
 	Tag(..),
@@ -51,7 +51,7 @@ instance SaslState XmppState where
 	getSaslState (XmppState ss) = ss
 	putSaslState ss _ = XmppState ss
 
-input :: HandleLike h => h -> Pipe () Common (HandleMonad h) ()
+input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
 input h = handleP h
 	=$= xmlEvent
 	=$= convert fromJust
@@ -76,7 +76,7 @@ checkP h = do
 voidM :: Monad m => m a -> m ()
 voidM = (>> return ())
 
-output :: HandleLike h => h -> Pipe Common () (HandleMonad h) ()
+output :: HandleLike h => h -> Pipe Xmpp () (HandleMonad h) ()
 output h = do
 	mn <- await
 	case mn of
@@ -97,7 +97,7 @@ handleP h = do
 showBS :: Show a => a -> BS.ByteString
 showBS rs = BSC.pack . (++ "\n") $ show rs
 
-external :: Monad m => Pipe Common Common m ()
+external :: Monad m => Pipe Xmpp Xmpp m ()
 external = do
 	yield $ XCAuth "EXTERNAL" Nothing
 	mr <- await

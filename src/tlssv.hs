@@ -78,7 +78,7 @@ xmpp :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 	MonadError (HandleMonad h), SaslError (ErrorType (HandleMonad h)),
 	HandleLike h) =>
-	TVar [(String, TChan Common)] -> h -> HandleMonad h ()
+	TVar [(String, TChan Xmpp)] -> h -> HandleMonad h ()
 xmpp sl h = do
 	voidM . runPipe $ input h =$= makeP =$= output sl h
 	hlPut h $ xmlString [XmlEnd (("stream", Nothing), "stream")]
@@ -86,7 +86,7 @@ xmpp sl h = do
 
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m)) => Pipe Common Common m ()
+	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
 		yield XCDecl

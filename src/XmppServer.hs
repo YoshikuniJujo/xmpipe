@@ -5,7 +5,7 @@ module XmppServer (
 	SaslError(..),
 	Jid(..),
 	MessageType(..),
-	Common(..),
+	Xmpp(..),
 	MBody(..),
 	Roster(..),
 	Query(..),
@@ -91,7 +91,7 @@ nextUuid = do
 output :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 	HandleLike h) =>
-	TVar [(String, TChan Common)] -> h -> Pipe Common () (HandleMonad h) ()
+	TVar [(String, TChan Xmpp)] -> h -> Pipe Xmpp () (HandleMonad h) ()
 output sl h = do
 	mx <- await
 	case mx of
@@ -107,7 +107,7 @@ output sl h = do
 		_ -> return ()
 
 otherhost :: MonadIO m =>
-	TVar [(String, TChan Common)] -> Common -> Pipe Common () m ()
+	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp () m ()
 otherhost sl m = liftIO $ do
 	(ca, k, c) <- readFiles
 	(i, e) <- connect ca k c
@@ -115,7 +115,7 @@ otherhost sl m = liftIO $ do
 	atomically $ readTChan e
 	atomically $ modifyTVar sl (("otherhost", i) :)
 
-input :: HandleLike h => h -> Pipe () Common (HandleMonad h) ()
+input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
 input h = handleP h
 	=$= xmlEvent
 --	=$= checkP h
@@ -145,7 +145,7 @@ convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
 runSasl :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m) ) => Pipe Common Common m ()
+	MonadError m, SaslError (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 runSasl = do
 	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]]
 	await >>= \a -> case a of
@@ -153,7 +153,7 @@ runSasl = do
 		Just (XCAuth m i) -> sasl m i
 		_ -> error $ "digestMd5: " ++ show a
 
-external :: Monad m => Pipe Common Common m ()
+external :: Monad m => Pipe Xmpp Xmpp m ()
 external = do
 	yield $ SRChallenge ""
 	Just (SRResponse "") <- await
@@ -162,13 +162,13 @@ external = do
 sasl :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, SaslError (ErrorType m) ) =>
-	BS.ByteString -> Maybe BS.ByteString -> Pipe Common Common m ()
+	BS.ByteString -> Maybe BS.ByteString -> Pipe Xmpp Xmpp m ()
 sasl n i = let Just (b, s) = lookup n saslServers in saslPipe b i s
 
 saslPipe :: (MonadState m, SaslState (StateType m)) => Bool
 	-> Maybe BS.ByteString
 	-> Pipe BS.ByteString (Either Success BS.ByteString) m ()
-	-> Pipe Common Common m ()
+	-> Pipe Xmpp Xmpp m ()
 saslPipe True (Just i) s =
 	(yield i >> convert (\(SRResponse r) -> r)) =$= s =$= outputScram
 saslPipe True _ s =
@@ -177,7 +177,7 @@ saslPipe False Nothing s = convert (\(SRResponse r) -> r) =$= s =$= outputScram
 saslPipe _ _ _ = error "saslPipe: no need of initial data"
 
 outputScram :: (MonadState m, SaslState (StateType m)) =>
-	Pipe (Either Success BS.ByteString) Common m ()
+	Pipe (Either Success BS.ByteString) Xmpp m ()
 outputScram = await >>= \mch -> case mch of
 	Just (Right r) -> yield (SRChallenge r) >> outputScram
 	Just (Left (SaslServer.Success r)) -> yield $ XCSaslSuccess r
