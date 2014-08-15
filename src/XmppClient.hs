@@ -33,7 +33,7 @@ import qualified Data.ByteString.Base64 as B64
 
 import SaslClient
 
-import XmppCommon
+import XmppType
 
 data SHandle s h = SHandle h
 

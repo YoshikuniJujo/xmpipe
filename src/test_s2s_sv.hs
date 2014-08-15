@@ -21,7 +21,7 @@ import qualified Data.ByteString as BS
 import SaslServer
 
 import Tools
-import XmppCommon
+import XmppType
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em

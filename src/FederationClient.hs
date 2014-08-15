@@ -22,7 +22,7 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
-import XmppCommon
+import XmppType
 import SaslClient
 import Tools
 

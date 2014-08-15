@@ -39,7 +39,7 @@ import Text.XML.Pipe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
-import XmppCommon
+import XmppType
 import SaslServer
 import FederationClient
 

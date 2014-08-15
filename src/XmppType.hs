@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
-module XmppCommon (
+module XmppType (
 	Xmpp(..), toCommon, fromCommon,
 
 	Jid(..), toJid,

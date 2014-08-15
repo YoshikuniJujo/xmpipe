@@ -15,7 +15,7 @@ import qualified Network.Sasl.Plain.Client as Pln
 import qualified Network.Sasl.External.Client as Ext
 import qualified Network.Sasl.DigestMd5.Client as DM5
 import qualified Network.Sasl.ScramSha1.Client as SS1
-import XmppCommon
+import XmppType
 
 saslClients :: (
 	MonadState m, SaslState (StateType m),
