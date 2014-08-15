@@ -48,11 +48,7 @@ main = do
 		voidM . forkIO . (`evalStateT` g0) $ do
 			uuids <- randoms <$> lift getStdGen
 			g <- StateT $ return . cprgFork
-			voidM . liftIO . runPipe $ fromHandleLike h
-				=$= xmlEvent
-				=$= convert (myFromJust "here you are")
-				=$= xmlReborn
-				=$= convert toCommon
+			voidM . liftIO . runPipe $ input h
 				=$= hlpDebug h
 				=$= processTls
 				=$= convert (xmlString . (: []) . fromCommon Client)
@@ -63,19 +59,21 @@ main = do
 --					[(k, c)] (Just ca)
 				getNames p >>= liftIO . print
 				(`evalStateT` initXmppState uuids) $ do
---					xmpp sl $ SHandle p
 					let sp = SHandle p
-					voidM . runPipe $ fromHandleLike sp
-						=$= xmlEvent
-						=$= convert fromJust
-						=$= xmlReborn
-						=$= convert toCommon
+					voidM . runPipe $ input sp
 						=$= hlpDebug sp
 						=$= makeP
 						=$= output sl sp
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
 					hlClose sp
+
+input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
+input h = fromHandleLike h
+	=$= xmlEvent
+	=$= convert fromJust
+	=$= xmlReborn
+	=$= convert toCommon
 
 initXmppState :: [UUID] -> XmppState
 initXmppState uuids = XmppState {
