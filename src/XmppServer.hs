@@ -40,7 +40,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
 import XmppCommon
-import Digest
+import SaslServer
 import FederationClient
 
 data SHandle s h = SHandle h
@@ -180,7 +180,7 @@ outputScram :: (MonadState m, SaslState (StateType m)) =>
 	Pipe (Either Success BS.ByteString) Common m ()
 outputScram = await >>= \mch -> case mch of
 	Just (Right r) -> yield (SRChallenge r) >> outputScram
-	Just (Left (Digest.Success r)) -> yield $ XCSaslSuccess r
+	Just (Left (SaslServer.Success r)) -> yield $ XCSaslSuccess r
 	Nothing -> return ()
 
 instance SaslState XmppState where

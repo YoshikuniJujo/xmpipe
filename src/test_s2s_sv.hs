@@ -18,7 +18,7 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
-import Digest
+import SaslServer
 
 import HandlePipe
 import XmppCommon
@@ -174,7 +174,7 @@ outputScram :: (MonadState m, SaslState (StateType m)) =>
 	Pipe (Either Success BS.ByteString) Common m ()
 outputScram = await >>= \mch -> case mch of
 	Just (Right r) -> yield (SRChallenge r) >> outputScram
-	Just (Left (Digest.Success r)) -> yield $ XCSaslSuccess r
+	Just (Left (SaslServer.Success r)) -> yield $ XCSaslSuccess r
 	Nothing -> return ()
 
 convert :: Monad m => (a -> b) -> Pipe a b m ()

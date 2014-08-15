@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
-module Digest (
-	Success(..), SaslState(..), DM5.SaslError(..), SaslErrorType(..),
+module SaslServer (
+	Success(..), SaslState(..), SaslError(..), SaslErrorType(..),
 	saslServers ) where
 
 import "monads-tf" Control.Monad.State
@@ -26,7 +26,7 @@ data Retrieve m
 
 saslServers :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, DM5.SaslError (ErrorType m)) => [(
+	MonadError m, SaslError (ErrorType m)) => [(
 	BS.ByteString,
 	(Bool, Pipe BS.ByteString (Either Success BS.ByteString) m ()) )]
 saslServers = mkSaslServers [
@@ -35,7 +35,7 @@ saslServers = mkSaslServers [
 
 mkSaslServers :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, DM5.SaslError (ErrorType m)) => [Retrieve m] -> [(
+	MonadError m, SaslError (ErrorType m)) => [Retrieve m] -> [(
 	BS.ByteString,
 	(Bool, Pipe BS.ByteString (Either Success BS.ByteString) m ()) )]
 mkSaslServers = map $ \rts -> case rts of
