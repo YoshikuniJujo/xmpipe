@@ -2,6 +2,7 @@
 	PackageImports #-}
 
 module XmppServer (
+	SaslError,
 	MBody(..),
 	MessageBody(..),
 	Common(..),
@@ -154,7 +155,7 @@ convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
 
 runSasl :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, Error (ErrorType m) ) => Pipe Common Common m ()
+	MonadError m, SaslError (ErrorType m) ) => Pipe Common Common m ()
 runSasl = do
 	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]]
 	await >>= \a -> case a of
@@ -170,7 +171,7 @@ external = do
 
 sasl :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) =>
+	MonadError m, SaslError (ErrorType m) ) =>
 	BS.ByteString -> Maybe BS.ByteString -> Pipe Common Common m ()
 sasl n i = let Just (b, s) = lookup n saslServers in saslPipe b i s
 

@@ -28,6 +28,8 @@ import XmppServer
 
 data SHandle s h = SHandle h
 
+instance SaslError Alert where
+
 instance HandleLike h => HandleLike (SHandle s h) where
 	type HandleMonad (SHandle s h) = StateT s (HandleMonad h)
 	type DebugLevel (SHandle s h) = DebugLevel h
@@ -72,7 +74,7 @@ myFromJust msg _ = error msg
 
 xmpp :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)),
+	MonadError (HandleMonad h), SaslError (ErrorType (HandleMonad h)),
 	HandleLike h) =>
 	TVar [(String, TChan Common)] -> h -> HandleMonad h ()
 xmpp sl h = do
@@ -82,7 +84,7 @@ xmpp sl h = do
 
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, Error (ErrorType m)) => Pipe Common Common m ()
+	MonadError m, SaslError (ErrorType m)) => Pipe Common Common m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
 		yield XCDecl

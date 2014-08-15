@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
 module Digest (
-	SASL.Success(..), SASL.SaslState(..), Retrieve(..),
+	SASL.Success(..), SASL.SaslState(..), Retrieve(..), DM5S.SaslError,
 	saslClients, saslServers, saslServer ) where
 
 import "monads-tf" Control.Monad.State
