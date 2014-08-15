@@ -7,7 +7,7 @@ module XmppServer (
 	MessageBody(..),
 	Common(..),
 	convert,
-	nullQ,
+--	nullQ,
 	handleP,
 	checkP,
 	runSasl,
@@ -28,7 +28,6 @@ module XmppServer (
 	) where
 
 import Control.Concurrent.STM
-import TestFederationCl
 
 import Data.UUID
 
@@ -43,9 +42,9 @@ import Text.XML.Pipe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
-import Digest
-
 import XmppCommon
+import Digest
+import TestFederationCl
 
 data SHandle s h = SHandle h
 

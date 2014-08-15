@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 import Control.Concurrent.STM
-import TestFederationCl
 
 import Data.UUID
 import System.Environment
@@ -14,7 +13,6 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
--- import Data.Maybe
 import Data.Pipe
 import Data.Pipe.List
 import Data.HandleLike
@@ -24,6 +22,8 @@ import Network.PeyoTLS.Server
 import Network.PeyoTLS.ReadFile
 
 import "crypto-random" Crypto.Random
+
+import qualified Data.ByteString as BS
 
 import XmppServer
 
@@ -170,3 +170,6 @@ starttls = XmlNode (nullQ "starttls")
 proceed :: [XmlNode]
 proceed = (: []) $ XmlNode (nullQ "proceed")
 	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
+
+nullQ :: BS.ByteString -> QName
+nullQ = (("", Nothing) ,)

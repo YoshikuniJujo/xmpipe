@@ -7,7 +7,6 @@ module XmppClient (
 	fromCaps,
 	toCaps,
 	XmlNode(..),
-	nullQ,
 	toJid,
 	MBody(..),
 	capsToXmlCaps,

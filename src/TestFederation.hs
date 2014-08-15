@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, PackageImports #-}
 
 module TestFederation (
-	input, output, nullQ,
+	input, output, -- nullQ,
 	inputSt, outputSt,
 	Common(..), toCommon, Feature(..), -- Mechanism(..),
 	Tag(..),
