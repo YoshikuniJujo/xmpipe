@@ -117,11 +117,10 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			. IqRoster . Just $ Roster (Just "1") []
 		makeP
 	(Just (SRPresence _ _), Just rcv) ->
-		yield (XCMessage Chat "hoge" (Just sender) rcv .
-			MBody $ MessageBody "Hi, TLS!") >> makeP
+		yield (XCMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!")
+			>> makeP
 	(Just (XCMessage Chat i _fr to bd), Just rcv) -> do
-		yield . XCMessage Chat "hoge" (Just sender) rcv .
-			MBody $ MessageBody "Hi, TLS!"
+		yield . XCMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
 		yield $ XCMessage Chat i
 			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
 		yield $ XCMessage Chat i

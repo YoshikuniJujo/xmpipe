@@ -16,6 +16,7 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import Data.Maybe
 import Data.Pipe
+import Data.Pipe.Basic
 import Data.HandleLike
 import Text.XML.Pipe
 
@@ -85,7 +86,8 @@ output h = do
 			output h
 		_ -> return ()
 
-handleSt :: HandleLike h => h -> Pipe () BS.ByteString (StateT s (HandleMonad h)) ()
+handleSt :: (HandleLike h, MonadTrans t, Monad (t (HandleMonad h))) =>
+	h -> Pipe () BS.ByteString (t (HandleMonad h)) ()
 handleSt h = do
 	c <- lift . lift $ hlGetContent h
 	yield c
@@ -97,10 +99,5 @@ handleP h = do
 	yield c
 	handleP h
 
-convert :: Monad m => (a -> b) -> Pipe a b m ()
-convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)
-
 xmlPipe :: Monad m => Pipe XmlEvent XmlNode m ()
-xmlPipe = do
-	c <- xmlBegin >>= xmlNode
-	when c xmlPipe
+xmlPipe = xmlBegin >>= xmlNode >>= flip when xmlPipe

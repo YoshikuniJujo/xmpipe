@@ -7,7 +7,6 @@ module XmppServer (
 	MessageType(..),
 	Common(..),
 	MBody(..),
-	MessageBody(..),
 	Roster(..),
 	Query(..),
 	IqType(..),
