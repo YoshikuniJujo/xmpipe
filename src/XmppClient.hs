@@ -21,7 +21,6 @@ module XmppClient (
 	Bind(..),
 	) where
 
-import Control.Monad
 import "monads-tf" Control.Monad.State
 import Data.Maybe
 import Data.Pipe
@@ -56,7 +55,7 @@ input :: HandleLike h => h -> Pipe () Common (HandleMonad h) ()
 input h = handleP h
 	=$= xmlEvent
 	=$= convert fromJust
-	=$= xmlPipe
+	=$= xmlReborn
 	=$= checkP h
 	=$= convert toCommon
 
@@ -76,11 +75,6 @@ checkP h = do
 
 voidM :: Monad m => m a -> m ()
 voidM = (>> return ())
-
-xmlPipe :: Monad m => Pipe XmlEvent XmlNode m ()
-xmlPipe = do
-	c <- xmlBegin >>= xmlNode
-	when c xmlPipe
 
 output :: HandleLike h => h -> Pipe Common () (HandleMonad h) ()
 output h = do

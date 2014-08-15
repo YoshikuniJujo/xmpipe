@@ -29,7 +29,6 @@ import Control.Concurrent.STM
 
 import Data.UUID
 
-import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Maybe
@@ -121,12 +120,9 @@ input h = handleP h
 	=$= xmlEvent
 --	=$= checkP h
 	=$= convert fromJust
-	=$= xmlPipe
+	=$= xmlReborn
 	=$= convert toCommon
 	=$= checkP h
-
-xmlPipe :: Monad m => Pipe XmlEvent XmlNode m ()
-xmlPipe = xmlBegin >>= xmlNode >>= flip when xmlPipe
 
 handleP :: HandleLike h => h -> Pipe () BS.ByteString (HandleMonad h) ()
 handleP h = do

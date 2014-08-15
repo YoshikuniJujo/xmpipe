@@ -7,12 +7,11 @@ module TestFederation (
 	Feature(..),
 	MBody(..),
 	Jid(..),
-	input, output,
 	MessageType(..),
+	input, output,
 	inputSt, outputSt,
 	) where
 
-import Control.Monad
 import "monads-tf" Control.Monad.State
 import Data.Maybe
 import Data.Pipe
@@ -27,22 +26,17 @@ import XmppCommon
 
 inputSt :: HandleLike h => h -> Pipe () Common (StateT s (HandleMonad h)) ()
 inputSt h = handleSt h
---	=$= debugSt h
 	=$= xmlEvent
 	=$= convert (myFromJust "here")
-	=$= xmlPipe
+	=$= xmlReborn
 	=$= convert toCommon
 	=$= debugSt h
-
-myFromJust :: String -> Maybe a -> a
-myFromJust _ (Just x) = x
-myFromJust msg _ = error msg
 
 input :: HandleLike h => h -> Pipe () Common (HandleMonad h) ()
 input h = handleP h
 	=$= xmlEvent
 	=$= convert fromJust
-	=$= xmlPipe
+	=$= xmlReborn
 	=$= convert toCommon
 	=$= debugP h
 
@@ -88,16 +82,11 @@ output h = do
 
 handleSt :: (HandleLike h, MonadTrans t, Monad (t (HandleMonad h))) =>
 	h -> Pipe () BS.ByteString (t (HandleMonad h)) ()
-handleSt h = do
-	c <- lift . lift $ hlGetContent h
-	yield c
-	handleSt h
+handleSt h = lift (lift $ hlGetContent h) >>= ((>> handleSt h) . yield)
 
 handleP :: HandleLike h => h -> Pipe () BS.ByteString (HandleMonad h) ()
-handleP h = do
-	c <- lift $ hlGetContent h
-	yield c
-	handleP h
+handleP h = lift (hlGetContent h) >>= ((>> handleP h) . yield)
 
-xmlPipe :: Monad m => Pipe XmlEvent XmlNode m ()
-xmlPipe = xmlBegin >>= xmlNode >>= flip when xmlPipe
+myFromJust :: String -> Maybe a -> a
+myFromJust _ (Just x) = x
+myFromJust msg _ = error msg
