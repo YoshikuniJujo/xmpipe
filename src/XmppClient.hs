@@ -60,7 +60,6 @@ input h = handleP h
 	=$= xmlPipe
 	=$= checkP h
 	=$= convert toCommon
-	=$= checkSR h
 
 checkP :: HandleLike h => h -> Pipe XmlNode XmlNode (HandleMonad h) ()
 checkP h = do
@@ -74,14 +73,6 @@ checkP h = do
 					(\(Right s) -> s) $ B64.decode cd) >>
 				yield n >> checkP h
 		Just n -> yield n >> checkP h
-		_ -> return ()
-
-checkSR :: HandleLike h => h -> Pipe Common Common (HandleMonad h) ()
-checkSR h = do
-	mr <- await
-	case mr of
-		Just r -> lift (hlDebug h "critical" . (`BS.append` "\n") $
-			showSR r) >> yield r >> checkSR h
 		_ -> return ()
 
 voidM :: Monad m => m a -> m ()
@@ -109,12 +100,6 @@ handleP h = do
 	c <- lift $ hlGetContent h
 	yield c
 	handleP h
-
-showSR :: Common -> BS.ByteString
-showSR (XCMessage Chat i f t (MBodyRaw ns))
-	| Just dm <- toDelayedMessage ns =
-		BSC.pack . (++ "\n") $ show ("CHAT" :: String, i, f, t, dm)
-showSR rs = BSC.pack . (++ "\n") $ show rs
 
 showBS :: Show a => a -> BS.ByteString
 showBS rs = BSC.pack . (++ "\n") $ show rs

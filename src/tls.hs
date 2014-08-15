@@ -22,6 +22,7 @@ import qualified Data.ByteString.Char8 as BSC
 import XmppClient
 import Caps
 import Disco
+import Delay
 
 host :: String
 host = case BSC.unpack $ jidToHost sender of
@@ -72,7 +73,21 @@ xmpp :: (HandleLike h,
 		MonadState (HandleMonad h), XmppState ~ StateType (HandleMonad h),
 		MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> HandleMonad h ()
-xmpp h = voidM . runPipe $ input h =$= proc =$= output h
+xmpp h = voidM . runPipe $ input h =$= checkSR h =$= proc =$= output h
+
+checkSR :: HandleLike h => h -> Pipe Common Common (HandleMonad h) ()
+checkSR h = do
+	mr <- await
+	case mr of
+		Just r -> lift (hlDebug h "critical" . (`BS.append` "\n") $
+			showSR r) >> yield r >> checkSR h
+		_ -> return ()
+
+showSR :: Common -> BS.ByteString
+showSR (XCMessage Chat i f t (MBodyRaw ns))
+	| Just dm <- toDelayedMessage ns =
+		BSC.pack . (++ "\n") $ show ("CHAT" :: String, i, f, t, dm)
+showSR rs = BSC.pack . (++ "\n") $ show rs
 
 proc :: (Monad m,
 		MonadState m, StateType m ~ XmppState,
