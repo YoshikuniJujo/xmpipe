@@ -1,15 +1,20 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module XmppClient (
 	Jid(..), toJid,
 	Xmpp(..), Feature(..),
 	MessageType(..), MBody(..), IqType(..), Query(..), Bind(..),
 	Tag(..),
+	SASL.SaslState(..),
 
-	input, output, SASL.sasl, begin, starttls,
+	input, output, begin, starttls, sasl,
 	) where
 
 import Control.Monad
+import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
+import Data.Maybe
+import Data.List
 import Data.Pipe
 
 import qualified Data.ByteString as BS
@@ -31,3 +36,15 @@ starttls = do
 	Just XCProceed <- await
 	return ()
 	where isSt (FtStarttls _) = True; isSt _ = False
+
+sasl :: (Monad m, MonadState m, SASL.SaslState (StateType m), MonadError m, Error (ErrorType m) ) =>
+	[BS.ByteString] -> Pipe Xmpp Xmpp m ()
+sasl sl = do
+	Just (XCBegin _as) <- await
+	Just (XCFeatures fs) <- await
+	let	Just (FtMechanisms ms) = find isFtMechanisms fs
+		Just n = listToMaybe $ sl `intersect` ms
+	SASL.sasl n
+	where
+	isFtMechanisms (FtMechanisms _) = True
+	isFtMechanisms _ = False
