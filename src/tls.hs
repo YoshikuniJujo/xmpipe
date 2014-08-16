@@ -55,20 +55,45 @@ main = do
 			("password", "password"),
 			("cnonce", "00DEADBEEF00") ]
 		liftIO $ print st
-		voidM $ xmpp (SHandle p) `runStateT` St []
+--		voidM $ xmpp (SHandle p) `runStateT` St []
 
 xmpp :: (HandleLike h,
 		MonadState (HandleMonad h), St ~ StateType (HandleMonad h),
 		MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> HandleMonad h ()
-xmpp h = voidM . runPipe $
-	input h =$= convert readDelay =$= hlpDebug h =$= proc =$= output h
+xmpp h = do
+	voidM . runPipe $
+		input h =$= convert readDelay =$= hlpDebug h =$= procSasl =$= output h
+	voidM . runPipe $
+		input h =$= convert readDelay =$= hlpDebug h =$= proc =$= output h
 
 readDelay :: Xmpp ->
 	Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)
 readDelay (XCMessage Chat i f t (MBodyRaw ns))
 	| Just dm <- toDelayedMessage ns = Right ("CHAT", i, f, t, dm)
 readDelay x = Left x
+
+procSasl :: (Monad m,
+	MonadState m, StateType m ~ St, MonadError m, Error (ErrorType m) ) =>
+	Pipe (Either Xmpp (BS.ByteString, BS.ByteString,
+		Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
+procSasl = (convert (\(Left x) -> x) =$= begin host "en") >> processSasl
+
+processSasl :: (Monad m,
+		MonadState m, StateType m ~ St,
+		MonadError m, Error (ErrorType m) ) =>
+	Pipe (Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
+processSasl = await >>= \mr -> case mr of
+	Just (Left (XCBegin _as)) -> processSasl
+	Just (Left (XCFeatures fts))
+		| Just (FtMechanisms ms) <- find isFtMechanisms fts,
+			Just n <- listToMaybe $ saslList `intersect` ms -> do
+			convert (\(Left x) -> x) =$= sasl n
+	_ -> return ()
+	where
+	saslList = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
+	isFtMechanisms (FtMechanisms _) = True
+	isFtMechanisms _ = False
 
 proc :: (Monad m,
 	MonadState m, StateType m ~ St, MonadError m, Error (ErrorType m) ) =>
@@ -81,10 +106,6 @@ process :: (Monad m,
 		MonadError m, Error (ErrorType m) ) =>
 	Pipe (Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
 process = await >>= \mr -> case mr of
-	Just (Left (XCFeatures fts))
-		| Just (FtMechanisms ms) <- find isFtMechanisms fts,
-			Just n <- listToMaybe $ saslList `intersect` ms -> do
-			convert (\(Left x) -> x) =$= sasl n
 	Just (Left (XCFeatures _fs)) -> mapM_ yield binds >> process
 	Just (Left (SRPresence _ ns)) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
@@ -99,10 +120,6 @@ process = await >>= \mr -> case mr of
 			yield XCEnd
 	Just _ -> process
 	_ -> return ()
-	where
-	saslList = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
-	isFtMechanisms (FtMechanisms _) = True
-	isFtMechanisms _ = False
 
 binds :: [Xmpp]
 binds = [

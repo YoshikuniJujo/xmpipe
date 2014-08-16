@@ -5,7 +5,8 @@ module XmppClient (
 	Xmpp(..), Feature(..),
 	MessageType(..), MBody(..), IqType(..), Query(..), Bind(..),
 	Tag(..),
-	input, output, sasl, begin, starttls,
+
+	input, output, SASL.sasl, begin, starttls,
 	) where
 
 import Control.Monad
@@ -14,7 +15,7 @@ import Data.Pipe
 import qualified Data.ByteString as BS
 
 import Xmpp
-import SaslClient
+import qualified SaslClient as SASL
 
 begin :: Monad m => BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
 begin h l = do

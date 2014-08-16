@@ -1,10 +1,6 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts, PackageImports #-}
 
-module SaslClient (
-	SaslState(..), sasl,
-	Xmpp(..), Tag(..), Feature(..), MessageType(..), Side(..),
-	toCommon, fromCommon,
-	) where
+module SaslClient (SaslState(..), sasl) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
