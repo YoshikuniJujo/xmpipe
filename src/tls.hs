@@ -63,13 +63,12 @@ xmpp h = do
 		hlpDebug h =$= (begin host "en" >> sasl mechanisms) =$= output h
 	voidM . runPipe $ input h
 		=$= convert readDelay
+		=$= procDelayed (hlDebug h "critical" . BSC.pack . (++ "\n") . show)
 		=$= hlpDebug h
-		=$= procDelayed
 		=$= proc
 		=$= output h
 
-readDelay :: Xmpp ->
-	Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)
+readDelay :: Xmpp -> Either Xmpp Delayed
 readDelay (XCMessage Chat i f t (MBodyRaw ns))
 	| Just dm <- toDelayedMessage ns = Right ("CHAT", i, f, t, dm)
 readDelay x = Left x
@@ -82,14 +81,15 @@ proc :: (Monad m,
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 proc = begin host "en" >> process
 
+type Delayed = (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)
+
 procDelayed :: (Monad m,
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) =>
-	Pipe (Either a (BS.ByteString, BS.ByteString,
-		Maybe Jid, Jid, DelayedMessage)) a m ()
-procDelayed = await >>= \ed -> case ed of
-	Just (Left x) -> yield x >> procDelayed
-	Just (Right _d) -> procDelayed
+	(Delayed -> m ()) -> Pipe (Either a Delayed) a m ()
+procDelayed p = await >>= \ed -> case ed of
+	Just (Left x) -> yield x >> procDelayed p
+	Just (Right d) -> lift (p d) >> procDelayed p
 	_ -> return ()
 
 process :: (Monad m,
