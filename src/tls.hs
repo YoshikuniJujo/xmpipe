@@ -20,7 +20,7 @@ import Text.XML.Pipe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
-import XmppType
+import Xmpp
 import SaslClient
 import Tools
 import Caps
@@ -40,12 +40,10 @@ port = PortNumber $ case jidToHost sender of
 main :: IO ()
 main = do
 	h <- connectTo host port
-	void . runPipe $ (yield begin >> yield startTls) =$= output h
-	void . runPipe $ fromHandleLike h
-		=$= xmlEvent
-		=$= convert fromJust
-		=$= (xmlBegin >>= xmlNodeUntil isProceed)
-		=$= awaitAll
+	void . runPipe $ input h
+		=$= hlpDebug h
+		=$= processTls
+		=$= output h
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/xmpp_client.sample_key"
 	c <- readCertificateChain ["certs/xmpp_client.sample_cert"]
@@ -62,11 +60,18 @@ main = do
 				]
 		liftIO $ print st
 
+processTls :: Monad m => Pipe Xmpp Xmpp m ()
+processTls = yield begin >> procTls
+
+procTls :: Monad m => Pipe Xmpp Xmpp m ()
+procTls = await >>= \mx -> case mx of
+	Just (XCBegin _as) -> procTls
+	Just (XCFeatures _fs) -> yield startTls >> procTls
+	Just XCProceed -> return ()
+	_ -> return ()
+
 pipe :: Monad m => Pipe a a m ()
 pipe = await >>= maybe (return ()) yield
-
-awaitAll :: Monad m => Pipe a () m ()
-awaitAll = await >>= maybe (return ()) (const awaitAll)
 
 startTls :: Xmpp
 startTls = XCRaw $ XmlNode (("", Nothing), "starttls")
@@ -76,12 +81,9 @@ xmpp :: (HandleLike h,
 		MonadState (HandleMonad h), St ~ StateType (HandleMonad h),
 		MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> HandleMonad h ()
-xmpp h = voidM . runPipe $ fromHandleLike h
-	=$= xmlEvent
-	=$= convert fromJust
-	=$= xmlReborn
-	=$= convert toCommon
-	=$= checkSR h
+xmpp h = voidM . runPipe $ input h
+	=$= convert readDelay
+	=$= hlpDebug h
 	=$= proc
 	=$= output h
 
@@ -90,24 +92,16 @@ output h = (await >>=) . maybe (return ()) $ \n -> (>> output h) $ do
 	lift (hlPut h $ xmlString [fromCommon Client n])
 	case n of XCEnd -> lift $ hlClose h; _ -> return ()
 
-checkSR :: HandleLike h => h -> Pipe Xmpp Xmpp (HandleMonad h) ()
-checkSR h = do
-	mr <- await
-	case mr of
-		Just r -> lift (hlDebug h "critical" . (`BS.append` "\n") $
-			showSR r) >> yield r >> checkSR h
-		_ -> return ()
-
-showSR :: Xmpp -> BS.ByteString
-showSR (XCMessage Chat i f t (MBodyRaw ns))
-	| Just dm <- toDelayedMessage ns =
-		BSC.pack . (++ "\n") $ show ("CHAT" :: String, i, f, t, dm)
-showSR rs = BSC.pack . (++ "\n") $ show rs
+readDelay :: Xmpp ->
+	(Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage))
+readDelay (XCMessage Chat i f t (MBodyRaw ns))
+	| Just dm <- toDelayedMessage ns = Right ("CHAT", i, f, t, dm)
+readDelay x = Left x
 
 proc :: (Monad m,
 		MonadState m, StateType m ~ St,
 		MonadError m, Error (ErrorType m) ) =>
-	Pipe Xmpp Xmpp m ()
+	Pipe (Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
 proc = yield XCDecl
 	>> yield (XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
 	>> process
@@ -132,18 +126,20 @@ isFtMechanisms _ = False
 process :: (Monad m,
 		MonadState m, StateType m ~ St,
 		MonadError m, Error (ErrorType m) ) =>
-	Pipe Xmpp Xmpp m ()
+	Pipe (Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
 process = await >>= \mr -> case mr of
-	Just (XCFeatures fts)
+	Just (Left (XCFeatures fts))
 		| Just (FtMechanisms ms) <- find isFtMechanisms fts,
-			Just n <- getMatched saslList ms ->
-			sasl n >> mapM_ yield [XCDecl, begin] >> process
-	Just (XCFeatures _fs) -> mapM_ yield binds >> process
-	Just (SRPresence _ ns) -> case toCaps ns of
+			Just n <- getMatched saslList ms -> do
+			convert (\(Left x) -> x) =$= sasl n
+			mapM_ yield [XCDecl, begin]
+			process
+	Just (Left (XCFeatures _fs)) -> mapM_ yield binds >> process
+	Just (Left (SRPresence _ ns)) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process
 		_ -> process
-	Just (SRIq Get i (Just f) (Just (Jid u d _)) (QueryRaw ns))
+	Just (Left (SRIq Get i (Just f) (Just (Jid u d _)) (QueryRaw ns)))
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n

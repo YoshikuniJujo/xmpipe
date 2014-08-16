@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Delay (toDelayedMessage) where
+module Delay (DelayedMessage, toDelayedMessage) where
 
 import Control.Arrow
 import Text.XML.Pipe

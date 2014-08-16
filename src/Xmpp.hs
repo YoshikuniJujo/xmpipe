@@ -1,7 +1,7 @@
 module Xmpp (
 	input,
 
-	Xmpp(..), fromCommon, Jid(..), Side(..),
+	Xmpp(..), fromCommon, Jid(..), toJid, Side(..),
 	Feature(..), Tag(..),
 	MessageType(..), IqType(..), Query(..), Roster(..),
 	MBody(..),
