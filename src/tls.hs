@@ -19,8 +19,7 @@ import "crypto-random" Crypto.Random
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
-import Xmpp
-import SaslClient
+import XmppClient
 import Tools
 import Caps
 import Disco
@@ -48,8 +47,7 @@ main = do
 	h <- connectTo (BSC.unpack host) port
 	void . runPipe $ input h
 		=$= hlpDebug h
-		=$= (yield (XCBegin [(To, host), (Version, "1.0"), (Lang, "en")])
-			>> procTls)
+		=$= (begin host "en" >> starttls)
 		=$= output h
 	(`run` g) $ do
 		p <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca
@@ -60,13 +58,6 @@ main = do
 				("cnonce", "00DEADBEEF00") ]
 		liftIO $ print st
 		voidM $ xmpp (SHandle p) `runStateT` St []
-
-procTls :: Monad m => Pipe Xmpp Xmpp m ()
-procTls = await >>= \mx -> case mx of
-	Just (XCBegin _as) -> procTls
-	Just (XCFeatures _fs) -> yield XCStarttls >> procTls
-	Just XCProceed -> return ()
-	_ -> error "procTls: bad"
 
 xmpp :: (HandleLike h,
 		MonadState (HandleMonad h), St ~ StateType (HandleMonad h),
@@ -88,9 +79,7 @@ proc :: (Monad m,
 	MonadState m, StateType m ~ St, MonadError m, Error (ErrorType m) ) =>
 	Pipe (Either Xmpp (BS.ByteString, BS.ByteString,
 		Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
-proc = yield XCDecl
-	>> yield (XCBegin [(To, host), (Version, "1.0"), (Lang, "en")])
-	>> process
+proc = yield XCDecl >> (convert (\(Left x) -> x) =$= begin host "en") >> process
 
 process :: (Monad m,
 		MonadState m, StateType m ~ St,
