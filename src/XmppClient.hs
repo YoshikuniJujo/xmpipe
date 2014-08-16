@@ -17,7 +17,9 @@ import Xmpp
 import SaslClient
 
 begin :: Monad m => BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
-begin h l = yield $ XCBegin [(To, h), (Version, "1.0"), (Lang, l)]
+begin h l = do
+	yield XCDecl
+	yield $ XCBegin [(To, h), (Version, "1.0"), (Lang, l)]
 
 starttls :: Monad m => Pipe Xmpp Xmpp m ()
 starttls = do

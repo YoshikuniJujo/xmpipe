@@ -45,17 +45,15 @@ main = do
 	c <- readCertificateChain ["certs/xmpp_client.sample_cert"]
 	(g :: SystemRNG) <- cprgCreate <$> createEntropyPool
 	h <- connectTo (BSC.unpack host) port
-	void . runPipe $ input h
-		=$= hlpDebug h
-		=$= (begin host "en" >> starttls)
-		=$= output h
+	void . runPipe $ input h =$=
+		hlpDebug h =$= (begin host "en" >> starttls) =$= output h
 	(`run` g) $ do
 		p <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca
 		((), st) <- xmpp (SHandle p) `runStateT` St [
-				("username", (\(Jid u _ _) -> u) sender),
-				("authcid", (\(Jid u _ _) -> u) sender),
-				("password", "password"),
-				("cnonce", "00DEADBEEF00") ]
+			("username", (\(Jid u _ _) -> u) sender),
+			("authcid", (\(Jid u _ _) -> u) sender),
+			("password", "password"),
+			("cnonce", "00DEADBEEF00") ]
 		liftIO $ print st
 		voidM $ xmpp (SHandle p) `runStateT` St []
 
@@ -63,11 +61,8 @@ xmpp :: (HandleLike h,
 		MonadState (HandleMonad h), St ~ StateType (HandleMonad h),
 		MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> HandleMonad h ()
-xmpp h = voidM . runPipe $ input h
-	=$= convert readDelay
-	=$= hlpDebug h
-	=$= proc
-	=$= output h
+xmpp h = voidM . runPipe $
+	input h =$= convert readDelay =$= hlpDebug h =$= proc =$= output h
 
 readDelay :: Xmpp ->
 	Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)
@@ -79,7 +74,7 @@ proc :: (Monad m,
 	MonadState m, StateType m ~ St, MonadError m, Error (ErrorType m) ) =>
 	Pipe (Either Xmpp (BS.ByteString, BS.ByteString,
 		Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
-proc = yield XCDecl >> (convert (\(Left x) -> x) =$= begin host "en") >> process
+proc = (convert (\(Left x) -> x) =$= begin host "en") >> process
 
 process :: (Monad m,
 		MonadState m, StateType m ~ St,
