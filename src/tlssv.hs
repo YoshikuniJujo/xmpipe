@@ -14,11 +14,9 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Data.Pipe
-import Data.Pipe.Basic
 import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
-import System.IO
 import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Server
@@ -51,8 +49,7 @@ main = do
 			voidM . liftIO . runPipe $ input h
 				=$= hlpDebug h
 				=$= processTls
-				=$= convert (xmlString . (: []) . fromCommon Client)
-				=$= outputTls h
+				=$= output h
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing
@@ -63,7 +60,11 @@ main = do
 					voidM . runPipe $ input sp
 						=$= hlpDebug sp
 						=$= makeP
-						=$= output sl sp
+						=$= output sp
+					voidM . runPipe $ input sp
+						=$= hlpDebug sp
+						=$= makeP
+						=$= outputSel sl sp
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
 					hlClose sp
@@ -95,20 +96,17 @@ processTls = await >>= \mx -> case mx of
 	Just _ -> error "processTls: bad"
 	_ -> return ()
 
-outputTls :: Handle -> Pipe BS.ByteString () IO ()
-outputTls h = await >>= maybe (return ()) ((>> outputTls h) . lift . BS.hPut h)
-
-output :: (MonadIO (HandleMonad h),
+outputSel :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 	HandleLike h) =>
 	TVar [(String, TChan Xmpp)] -> h -> Pipe Xmpp () (HandleMonad h) ()
-output sl h = await >>= \mx -> case mx of
+outputSel sl h = await >>= \mx -> case mx of
 	Just m@(XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _) -> do
 		l <- liftIO (atomically $ readTVar sl)
 		maybe (otherhost sl m) (liftIO . atomically . flip writeTChan m)
 			$ lookup "otherhost" l
-		output sl h
-	Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> output sl h
+		outputSel sl h
+	Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> outputSel sl h
 	_ -> return ()
 
 otherhost :: MonadIO m =>
@@ -136,7 +134,6 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
 		runSasl
-		makeP
 	(Just (XCBegin _), _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [

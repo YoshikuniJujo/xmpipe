@@ -9,19 +9,17 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
-import Data.Maybe
 import Data.Pipe
-import Data.Pipe.Basic
 import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
-import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Client
 import "crypto-random" Crypto.Random
 
 import Tools
 import SaslClient
+import Xmpp
 
 connect :: CertificateStore -> CertSecretKey -> CertificateChain -> IO (TChan Xmpp, TChan ())
 connect ca k c = do
@@ -29,11 +27,7 @@ connect ca k c = do
 	e <- atomically newTChan
 	_ <- forkIO $ do
 		h <- connectTo "localhost" $ PortNumber 55269
-		void . runPipe $ fromHandleLike h
-			=$= xmlEvent
-			=$= convert fromJust
-			=$= xmlReborn
-			=$= convert toCommon
+		void . runPipe $ input h
 			=$= hlpDebug h
 			=$= processTls
 			=$= output h
@@ -43,22 +37,16 @@ connect ca k c = do
 				[(k, c)] ca
 			getNames p >>= liftIO . print
 			let sp = SHandle p
-			void . (`runStateT` St []) . runPipe $ fromHandleLike sp
-				=$= xmlEvent
-				=$= convert fromJust
-				=$= xmlReborn
-				=$= convert toCommon
+			void . (`runStateT` St []) . runPipe $ input sp
+				=$= hlpDebug sp
+				=$= process i e
+				=$= output sp
+			void . (`runStateT` St []) . runPipe $ input sp
 				=$= hlpDebug sp
 				=$= process i e
 				=$= output sp
 			hlClose p
 	return (i, e)
-
-output :: HandleLike h => h -> Pipe Xmpp () (HandleMonad h) ()
-output h = (await >>=) . maybe (return ()) $ \n -> do
-	lift (hlPut h $ xmlString [fromCommon Server n]) >> case n of
-		XCEnd -> lift $ hlClose h
-		_ -> output h
 
 process :: (
 	MonadState m, SaslState (StateType m),
@@ -81,10 +69,6 @@ proc i e = await >>= \mx -> case mx of
 		lift . modify . putSaslState $ ("username", "") : st
 		sasl "EXTERNAL"
 		lift . modify $ putSaslState st
-		yield XCDecl
-		yield $ XCBegin
-			[(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
-		proc i e
 	Just (XCFeatures []) -> federation
 	Just XCMessage{} -> federation
 	Just XCEnd -> yield XCEnd

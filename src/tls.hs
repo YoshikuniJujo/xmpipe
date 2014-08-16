@@ -87,13 +87,8 @@ xmpp h = voidM . runPipe $ input h
 	=$= proc
 	=$= output h
 
-output :: HandleLike h => h -> Pipe Xmpp () (HandleMonad h) ()
-output h = (await >>=) . maybe (return ()) $ \n -> (>> output h) $ do
-	lift (hlPut h $ xmlString [fromCommon Client n])
-	case n of XCEnd -> lift $ hlClose h; _ -> return ()
-
 readDelay :: Xmpp ->
-	(Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage))
+	Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)
 readDelay (XCMessage Chat i f t (MBodyRaw ns))
 	| Just dm <- toDelayedMessage ns = Right ("CHAT", i, f, t, dm)
 readDelay x = Left x

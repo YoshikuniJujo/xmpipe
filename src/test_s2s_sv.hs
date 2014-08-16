@@ -7,7 +7,6 @@ import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Data.Maybe
 import Data.Pipe
-import Data.HandleLike
 import Data.UUID
 import System.Random
 import Text.XML.Pipe
@@ -53,13 +52,6 @@ main = do
 						=$= hlpDebug sp
 						=$= process
 						=$= output sp
---				hlClose p
-
-output :: HandleLike h => h -> Pipe Xmpp () (HandleMonad h) ()
-output h = (await >>=) . maybe (return ()) $ \n -> do
-	lift (hlPut h $ xmlString [fromCommon Server n]) >> case n of
-		XCEnd -> lift $ hlClose h
-		_ -> output h
 
 data XmppState = XmppState {
 	xsDomainName :: Maybe BS.ByteString,

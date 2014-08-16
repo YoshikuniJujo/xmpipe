@@ -1,5 +1,7 @@
+{-# LANGUAGE PackageImports #-}
+
 module Xmpp (
-	input,
+	input, output,
 
 	Xmpp(..), fromCommon, Jid(..), toJid, Side(..),
 	Feature(..), Tag(..),
@@ -10,6 +12,7 @@ module Xmpp (
 	voidM, hlpDebug, SHandle(..),
 	) where
 
+import "monads-tf" Control.Monad.Trans
 import Data.Maybe
 import Data.Pipe
 import Data.Pipe.Basic
@@ -25,3 +28,8 @@ input h = fromHandleLike h
 	=$= convert fromJust
 	=$= xmlReborn
 	=$= convert toCommon
+
+output :: HandleLike h => h -> Pipe Xmpp () (HandleMonad h) ()
+output h = (await >>=) . maybe (return ()) $ \n -> (>> output h) $ do
+	lift (hlPut h $ xmlString [fromCommon Client n])
+	case n of XCEnd -> lift $ hlClose h; _ -> return ()
