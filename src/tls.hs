@@ -61,8 +61,12 @@ xmpp :: (HandleLike h,
 xmpp h = do
 	voidM . runPipe $ input h =$=
 		hlpDebug h =$= (begin host "en" >> sasl mechanisms) =$= output h
-	voidM . runPipe $
-		input h =$= convert readDelay =$= hlpDebug h =$= proc =$= output h
+	voidM . runPipe $ input h
+		=$= convert readDelay
+		=$= hlpDebug h
+		=$= procDelayed
+		=$= proc
+		=$= output h
 
 readDelay :: Xmpp ->
 	Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)
@@ -75,23 +79,29 @@ mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
 proc :: (Monad m,
 	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
+proc = begin host "en" >> process
+
+procDelayed :: (Monad m,
+	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) =>
-	Pipe (Either Xmpp (BS.ByteString, BS.ByteString,
-		Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
-proc = (convert (\(Left x) -> x) =$= begin host "en") >> process
+	Pipe (Either a (BS.ByteString, BS.ByteString,
+		Maybe Jid, Jid, DelayedMessage)) a m ()
+procDelayed = await >>= \ed -> case ed of
+	Just (Left x) -> yield x >> procDelayed
+	Just (Right _d) -> procDelayed
+	_ -> return ()
 
 process :: (Monad m,
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) =>
-	Pipe (Either Xmpp (BS.ByteString, BS.ByteString,
-		Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 process = await >>= \mr -> case mr of
-	Just (Left (XCFeatures _fs)) -> mapM_ yield binds >> process
-	Just (Left (SRPresence _ ns)) -> case toCaps ns of
+	Just (XCFeatures _fs) -> mapM_ yield binds >> process
+	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process
 		_ -> process
-	Just (Left (SRIq Get i (Just f) (Just (Jid u d _)) (QueryRaw ns)))
+	Just (SRIq Get i (Just f) (Just (Jid u d _)) (QueryRaw ns))
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
