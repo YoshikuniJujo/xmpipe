@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, TypeFamilies, PackageImports, FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables,
+	TypeFamilies, FlexibleContexts, PackageImports #-}
 
 import Control.Applicative
 import "monads-tf" Control.Monad.State
@@ -15,8 +16,6 @@ import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
-import Text.XML.Pipe
-
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
@@ -27,45 +26,47 @@ import Caps
 import Disco
 import Delay
 
-host :: String
-host = case BSC.unpack $ jidToHost sender of
+host :: BS.ByteString
+host = case (\(Jid _ d _) -> d) sender of
 	"otherhost" -> "localhost"
 	h -> h
 
 port :: PortID
-port = PortNumber $ case jidToHost sender of
+port = PortNumber $ case (\(Jid _ d _) -> d) sender of
 	"otherhost" -> 55222
 	_ -> 5222
 
+cipherSuites :: [CipherSuite]
+cipherSuites = ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+
 main :: IO ()
 main = do
-	h <- connectTo host port
-	void . runPipe $ input h =$= hlpDebug h =$= processTls =$= output h
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/xmpp_client.sample_key"
 	c <- readCertificateChain ["certs/xmpp_client.sample_cert"]
-	g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
+	(g :: SystemRNG) <- cprgCreate <$> createEntropyPool
+	h <- connectTo (BSC.unpack host) port
+	void . runPipe $ input h
+		=$= hlpDebug h
+		=$= (yield (XCBegin [(To, host), (Version, "1.0"), (Lang, "en")])
+			>> procTls)
+		=$= output h
 	(`run` g) $ do
-		p <- open' h "localhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
-			[(k, c)] ca
+		p <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca
 		((), st) <- xmpp (SHandle p) `runStateT` St [
-				("username", jidToUser sender),
-				("authcid", jidToUser sender),
+				("username", (\(Jid u _ _) -> u) sender),
+				("authcid", (\(Jid u _ _) -> u) sender),
 				("password", "password"),
-				("rspauth", ""),
-				("cnonce", "00DEADBEEF00")
-				]
+				("cnonce", "00DEADBEEF00") ]
 		liftIO $ print st
-
-processTls :: Monad m => Pipe Xmpp Xmpp m ()
-processTls = yield begin >> procTls
+		voidM $ xmpp (SHandle p) `runStateT` St []
 
 procTls :: Monad m => Pipe Xmpp Xmpp m ()
 procTls = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> procTls
 	Just (XCFeatures _fs) -> yield XCStarttls >> procTls
 	Just XCProceed -> return ()
-	_ -> return ()
+	_ -> error "procTls: bad"
 
 xmpp :: (HandleLike h,
 		MonadState (HandleMonad h), St ~ StateType (HandleMonad h),
@@ -84,29 +85,12 @@ readDelay (XCMessage Chat i f t (MBodyRaw ns))
 readDelay x = Left x
 
 proc :: (Monad m,
-		MonadState m, StateType m ~ St,
-		MonadError m, Error (ErrorType m) ) =>
-	Pipe (Either Xmpp (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
+	MonadState m, StateType m ~ St, MonadError m, Error (ErrorType m) ) =>
+	Pipe (Either Xmpp (BS.ByteString, BS.ByteString,
+		Maybe Jid, Jid, DelayedMessage)) Xmpp m ()
 proc = yield XCDecl
-	>> yield (XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")])
+	>> yield (XCBegin [(To, host), (Version, "1.0"), (Lang, "en")])
 	>> process
-
-jidToHost :: Jid -> BS.ByteString
-jidToHost (Jid _ d _) = d
-
-jidToUser :: Jid -> BS.ByteString
-jidToUser (Jid u _ _) = u
-
-saslList :: [BS.ByteString]
--- saslList = ["PLAIN", "SCRAM-SHA-1", "DIGEST-MD5"]
-saslList = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
-
-getMatched :: [BS.ByteString] -> [BS.ByteString] -> Maybe BS.ByteString
-getMatched xs ys = listToMaybe $ xs `intersect` ys
-
-isFtMechanisms :: Feature -> Bool
-isFtMechanisms (FtMechanisms _) = True
-isFtMechanisms _ = False
 
 process :: (Monad m,
 		MonadState m, StateType m ~ St,
@@ -115,10 +99,8 @@ process :: (Monad m,
 process = await >>= \mr -> case mr of
 	Just (Left (XCFeatures fts))
 		| Just (FtMechanisms ms) <- find isFtMechanisms fts,
-			Just n <- getMatched saslList ms -> do
+			Just n <- listToMaybe $ saslList `intersect` ms -> do
 			convert (\(Left x) -> x) =$= sasl n
-			mapM_ yield [XCDecl, begin]
-			process
 	Just (Left (XCFeatures _fs)) -> mapM_ yield binds >> process
 	Just (Left (SRPresence _ ns)) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
@@ -133,12 +115,14 @@ process = await >>= \mr -> case mr of
 			yield XCEnd
 	Just _ -> process
 	_ -> return ()
-
-begin :: Xmpp
-begin = XCBegin [(To, "localhost"), (Version, "1.0"), (Lang, "en")]
+	where
+	saslList = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
+	isFtMechanisms (FtMechanisms _) = True
+	isFtMechanisms _ = False
 
 binds :: [Xmpp]
-binds = [SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
+binds = [
+	SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
 		Resource "profanity",
 	SRIq Set "_xmpp_session1" Nothing Nothing IqSession,
 	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing,
@@ -158,8 +142,3 @@ sender, recipient :: Jid
 (sender, recipient, message) = unsafePerformIO $ do
 	[s, r, m] <- getArgs
 	return (toJid $ BSC.pack s, toJid $ BSC.pack r, BSC.pack m)
-
-isProceed :: XmlNode -> Bool
-isProceed (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed") _ [] [])
-	= True
-isProceed _ = False
