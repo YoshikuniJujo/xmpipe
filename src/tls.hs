@@ -40,10 +40,7 @@ port = PortNumber $ case jidToHost sender of
 main :: IO ()
 main = do
 	h <- connectTo host port
-	void . runPipe $ input h
-		=$= hlpDebug h
-		=$= processTls
-		=$= output h
+	void . runPipe $ input h =$= hlpDebug h =$= processTls =$= output h
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/xmpp_client.sample_key"
 	c <- readCertificateChain ["certs/xmpp_client.sample_cert"]
@@ -66,16 +63,9 @@ processTls = yield begin >> procTls
 procTls :: Monad m => Pipe Xmpp Xmpp m ()
 procTls = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> procTls
-	Just (XCFeatures _fs) -> yield startTls >> procTls
+	Just (XCFeatures _fs) -> yield XCStarttls >> procTls
 	Just XCProceed -> return ()
 	_ -> return ()
-
-pipe :: Monad m => Pipe a a m ()
-pipe = await >>= maybe (return ()) yield
-
-startTls :: Xmpp
-startTls = XCRaw $ XmlNode (("", Nothing), "starttls")
-	[("", "urn:ietf:params:xml:ns:xmpp-tls")] [] []
 
 xmpp :: (HandleLike h,
 		MonadState (HandleMonad h), St ~ StateType (HandleMonad h),
