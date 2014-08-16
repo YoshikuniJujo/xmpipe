@@ -5,7 +5,6 @@ import Control.Applicative
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Pipe
-import Data.Pipe.Basic
 import Data.HandleLike
 import System.Environment
 import System.IO.Unsafe
@@ -62,16 +61,11 @@ xmpp h = do
 	voidM . runPipe $ input h =$=
 		hlpDebug h =$= (begin host "en" >> sasl mechanisms) =$= output h
 	voidM . runPipe $ input h
-		=$= convert readDelay
-		=$= procDelayed (hlDebug h "critical" . BSC.pack . (++ "\n") . show)
+		=$= processDelayed
+			(hlDebug h "critical" . BSC.pack . (++ "\n") . show)
 		=$= hlpDebug h
 		=$= proc
 		=$= output h
-
-readDelay :: Xmpp -> Either Xmpp Delayed
-readDelay (XCMessage Chat i f t (MBodyRaw ns))
-	| Just dm <- toDelayedMessage ns = Right ("CHAT", i, f, t, dm)
-readDelay x = Left x
 
 mechanisms :: [BS.ByteString]
 mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
@@ -80,17 +74,6 @@ proc :: (Monad m,
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 proc = begin host "en" >> process
-
-type Delayed = (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)
-
-procDelayed :: (Monad m,
-	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) =>
-	(Delayed -> m ()) -> Pipe (Either a Delayed) a m ()
-procDelayed p = await >>= \ed -> case ed of
-	Just (Left x) -> yield x >> procDelayed p
-	Just (Right d) -> lift (p d) >> procDelayed p
-	_ -> return ()
 
 process :: (Monad m,
 	MonadState m, SaslState (StateType m),

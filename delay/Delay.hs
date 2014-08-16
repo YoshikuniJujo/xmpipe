@@ -1,11 +1,38 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module Delay (DelayedMessage, toDelayedMessage) where
+module Delay (processDelayed, DelayedMessage, toDelayedMessage) where
 
 import Control.Arrow
+import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
+import Data.Pipe
+import Data.Pipe.Basic
 import Text.XML.Pipe
+import XmppType
 
 import qualified Data.ByteString as BS
+
+type Delayed = (BS.ByteString, BS.ByteString, Maybe Jid, Jid, DelayedMessage)
+
+processDelayed :: (Monad m,
+--	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) =>
+	(Delayed -> m ()) -> Pipe Xmpp Xmpp m ()
+processDelayed p = convert readDelay =$= procDelayed p
+
+procDelayed :: (Monad m,
+--	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) =>
+	(Delayed -> m ()) -> Pipe (Either a Delayed) a m ()
+procDelayed p = await >>= \ed -> case ed of
+	Just (Left x) -> yield x >> procDelayed p
+	Just (Right d) -> lift (p d) >> procDelayed p
+	_ -> return ()
+
+readDelay :: Xmpp -> Either Xmpp Delayed
+readDelay (XCMessage Chat i f t (MBodyRaw ns))
+	| Just dm <- toDelayedMessage ns = Right ("CHAT", i, f, t, dm)
+readDelay x = Left x
 
 data DelayedMessage
 	= MBodyDelay MessageBody MessageDelay MessageXDelay
