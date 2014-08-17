@@ -45,7 +45,6 @@ data Xmpp
 
 data Query
 	= IqBind (Maybe Requirement) Bind
-	| IqSession
 	| IqRoster (Maybe Roster)
 	| QueryNull
 	| QueryRaw [XmlNode]
@@ -259,8 +258,6 @@ toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
 	[n]] = IqBind Nothing $ toBind n
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
 	[n, n']] | r <- toRequirement [n] = IqBind (Just r) $ toBind n'
-toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-session"), "session")
-	_ [] []] = IqSession
 toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =
 	IqRoster Nothing
 toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = IqRoster
@@ -384,14 +381,9 @@ fromQuery (IqRoster (Just (Roster mv ns))) = (: []) $
 		Just v -> [(nullQ "ver", v)]
 		_ -> []
 fromQuery (IqBind r b) = maybe id ((:) . fromRequirement) r $ fromBind b
-fromQuery IqSession = [session]
 fromQuery (IqRoster Nothing) = [roster]
 fromQuery QueryNull = []
 fromQuery (QueryRaw ns) = ns
 
 roster :: XmlNode
 roster = XmlNode (nullQ "query") [("", "jabber:iq:roster")] [] []
-
-session :: XmlNode
-session = XmlNode (nullQ "session")
-	[("", "urn:ietf:params:xml:ns:xmpp-session")] [] []

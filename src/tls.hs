@@ -98,14 +98,13 @@ binds :: [Xmpp]
 binds = [
 	SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
 		Resource "profanity",
-	SRIq Set "_xmpp_session1" Nothing Nothing IqSession,
 	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing,
 	SRPresence [(Id, "prof_presence_1")] . fromCaps $
 		capsToXmlCaps profanityCaps "http://www.profanity.im" ]
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
-getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) . QueryRaw .
-	fromQueryDisco $ IqCapsQuery v n
+getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) . QueryRaw
+	. fromQueryDisco $ IqCapsQuery v n
 
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
 resultCaps i t n = SRIq Result i Nothing (Just t) . QueryRaw . fromQueryDisco

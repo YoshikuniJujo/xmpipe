@@ -139,8 +139,7 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		yield $ XCFeatures
-			[FtRosterver Optional, FtBind Required, FtSession Optional]
+		yield $ XCFeatures [FtRosterver Optional, FtBind Required]
 		makeP
 	(Just (SRIq Set i Nothing Nothing
 		(IqBind (Just Required) (Resource n))), _) -> do
@@ -149,8 +148,6 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		yield . SRIq Result i Nothing Nothing
 			. IqBind Nothing $ BJid j
 		makeP
-	(Just (SRIq Set i Nothing Nothing IqSession), mrcv) ->
-		yield (SRIq Result i Nothing mrcv QueryNull) >> makeP
 	(Just (SRIq Get i Nothing Nothing (IqRoster Nothing)), mrcv) -> do
 		yield . SRIq Result i Nothing mrcv
 			. IqRoster . Just $ Roster (Just "1") []
