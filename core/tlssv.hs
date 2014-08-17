@@ -150,10 +150,6 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		yield . SRIq Result i Nothing Nothing
 			. IqBind Nothing $ BJid j
 		makeP
-	(Just (SRIq Get i Nothing Nothing (IqRoster Nothing)), mrcv) -> do
-		yield . SRIq Result i Nothing mrcv
-			. IqRoster . Just $ Roster (Just "1") []
-		makeP
 	(Just (SRPresence _ _), Just rcv) ->
 		yield (XCMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!")
 			>> makeP
@@ -165,7 +161,21 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
 			to bd
 		makeP
+	(Just (SRIq Get i Nothing Nothing (IqRoster Nothing)), mrcv) -> do
+		yield . SRIq Result i Nothing mrcv
+			. IqRoster . Just $ Roster (Just "1") []
+		makeP
+	(Just (SRIq Get i Nothing Nothing (QueryRaw ns)), mrcv)
+		| Just (IRRoster Nothing) <- readIRRoster ns -> do
+			yield . SRIq Result i Nothing mrcv
+				. IqRoster . Just $ Roster (Just "1") []
+			makeP
 	_ -> return ()
+
+data IRRoster = IRRoster (Maybe ())
+
+readIRRoster :: [XmlNode] -> Maybe IRRoster
+readIRRoster _ = Nothing
 
 sender :: Jid
 sender = Jid "yoshio" "otherhost" (Just "profanity")
