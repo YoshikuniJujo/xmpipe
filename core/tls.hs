@@ -83,7 +83,8 @@ process :: (Monad m,
 process = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
 		mapM_ yield . catMaybes . map responseToFeature $ sort fs
-		mapM_ yield binds
+		yield $ SRPresence [(Id, "prof_presence_1")] . fromCaps $
+			capsToXmlCaps profanityCaps "http://www.profanity.im"
 		process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
@@ -105,11 +106,6 @@ responseToFeature (FtRosterver _) = Just .
 responseToFeature (FtBind _) = Just . SRIq Set "_xmpp_bind1" Nothing Nothing
 	. IqBind Nothing $ Resource "profanity"
 responseToFeature _ = Nothing
-
-binds :: [Xmpp]
-binds = [
-	SRPresence [(Id, "prof_presence_1")] . fromCaps $
-		capsToXmlCaps profanityCaps "http://www.profanity.im" ]
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
 getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) . QueryRaw
