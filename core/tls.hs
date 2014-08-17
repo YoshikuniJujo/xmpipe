@@ -10,6 +10,7 @@ import Data.Pipe
 import Data.HandleLike
 import System.Environment
 import System.IO.Unsafe
+-- import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
@@ -19,6 +20,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
 import XmppClient
+import Im
 import Tools
 import Caps
 import Disco
@@ -82,7 +84,8 @@ process :: (Monad m,
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 process = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
-		mapM_ yield . catMaybes . map responseToFeature $ sort fs
+		mapM_ yield . catMaybes
+			. map (responseToFeature . featureToFeatureR) $ sort fs
 		yield $ SRPresence [(Id, "prof_presence_1")] . fromCaps $
 			capsToXmlCaps profanityCaps "http://www.profanity.im"
 		process
@@ -100,11 +103,13 @@ process = await >>= \mr -> case mr of
 	Just _ -> process
 	_ -> return ()
 
-responseToFeature :: Feature -> Maybe Xmpp
-responseToFeature (FtRosterver _) = Just .
-	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing
-responseToFeature (FtBind _) = Just . SRIq Set "_xmpp_bind1" Nothing Nothing
+responseToFeature :: FeatureR -> Maybe Xmpp
+responseToFeature (Ft (FtBind _)) = Just . SRIq Set "_xmpp_bind1" Nothing Nothing
 	. IqBind Nothing $ Resource "profanity"
+responseToFeature (Ft (FtRosterver _)) = Just .
+	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing
+responseToFeature (FRRosterver _) = Just .
+	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing
 responseToFeature _ = Nothing
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp

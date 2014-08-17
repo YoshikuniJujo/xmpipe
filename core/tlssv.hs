@@ -26,6 +26,7 @@ import "crypto-random" Crypto.Random
 import qualified Data.ByteString as BS
 
 import Xmpp
+import Im
 import SaslServer
 import FederationClient
 
@@ -139,7 +140,8 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		yield $ XCFeatures [FtRosterver Optional, FtBind Required]
+		yield . XCFeatures $ map featureRToFeature
+			[FRRosterver Optional, Ft $ FtBind Required]
 		makeP
 	(Just (SRIq Set i Nothing Nothing
 		(IqBind (Just Required) (Resource n))), _) -> do

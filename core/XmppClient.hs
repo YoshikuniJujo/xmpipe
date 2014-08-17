@@ -7,6 +7,8 @@ module XmppClient (
 	Tag(..),
 	SASL.SaslState(..),
 
+	Requirement(..), toRequirement,
+
 	input, output, begin, starttls, sasl,
 	) where
 

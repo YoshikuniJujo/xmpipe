@@ -7,9 +7,11 @@ module Xmpp (
 	Feature(..), Tag(..),
 	MessageType(..), IqType(..), Query(..), Roster(..),
 	MBody(..),
-	Bind(..), Requirement(..),
+	Bind(..), Requirement(..), toRequirement, fromRequirement,
 
 	voidM, hlpDebug, SHandle(..),
+
+	nullQ,
 	) where
 
 import "monads-tf" Control.Monad.Trans

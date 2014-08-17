@@ -6,7 +6,7 @@ module XmppType (
 	Jid(..), toJid,
 	Side(..),
 	Feature(..),
-	Tag(..), Requirement(..),
+	Tag(..), Requirement(..), toRequirement, fromRequirement,
 
 	Bind(..), Roster(..),
 
@@ -111,7 +111,6 @@ data Feature
 	| FtStarttls Requirement
 	| FtBind Requirement
 	| FtSession Requirement
-	| FtRosterver Requirement
 	| FtRaw XmlNode
 	deriving (Eq, Ord, Show)
 
@@ -120,8 +119,6 @@ toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")
 	_ [] r) = FtStarttls $ toRequirement r
 toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanisms")
 	_ [] ns) = FtMechanisms $ map toMechanism ns
-toFeature (XmlNode ((_, Just "urn:xmpp:features:rosterver"), "ver") _ [] r) =
-	FtRosterver $ toRequirement r
 toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ [] r) =
 	FtBind $ toRequirement r
 toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-session"), "session")
@@ -134,8 +131,6 @@ fromFeature (FtStarttls r) = XmlNode (nullQ "starttls")
 fromFeature (FtMechanisms ms) = XmlNode (nullQ "mechanisms")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] $
 	map fromMechanism ms
-fromFeature (FtRosterver r) = XmlNode (nullQ "ver")
-	[("", "urn:xmpp:features:rosterver")] [] [fromRequirement r]
 fromFeature (FtBind r) = XmlNode (nullQ "bind")
 	[("", "urn:ietf:params:xml:ns:xmpp-bind")] [] [fromRequirement r]
 fromFeature (FtSession r) = XmlNode (nullQ "session")
