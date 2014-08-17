@@ -94,7 +94,7 @@ nullQ :: BS.ByteString -> QName
 nullQ = (("", Nothing) ,)
 
 data Requirement = Optional | Required | NoRequirement [XmlNode]
-	deriving (Eq, Show)
+	deriving (Eq, Ord, Show)
 
 toRequirement :: [XmlNode] -> Requirement
 toRequirement [XmlNode (_, "optional") _ [] []] = Optional
@@ -109,11 +109,11 @@ fromRequirement (NoRequirement _) = undefined
 data Feature
 	= FtMechanisms [BS.ByteString]
 	| FtStarttls Requirement
-	| FtRosterver Requirement
 	| FtBind Requirement
 	| FtSession Requirement
+	| FtRosterver Requirement
 	| FtRaw XmlNode
-	deriving Show
+	deriving (Eq, Ord, Show)
 
 toFeature :: XmlNode -> Feature
 toFeature (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "starttls")

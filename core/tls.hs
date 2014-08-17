@@ -4,6 +4,8 @@
 import Control.Applicative
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
+import Data.Maybe
+import Data.List
 import Data.Pipe
 import Data.HandleLike
 import System.Environment
@@ -79,7 +81,10 @@ process :: (Monad m,
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 process = await >>= \mr -> case mr of
-	Just (XCFeatures _fs) -> mapM_ yield binds >> process
+	Just (XCFeatures fs) -> do
+		mapM_ yield . catMaybes . map responseToFeature $ sort fs
+		mapM_ yield binds
+		process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process
@@ -94,11 +99,15 @@ process = await >>= \mr -> case mr of
 	Just _ -> process
 	_ -> return ()
 
+responseToFeature :: Feature -> Maybe Xmpp
+responseToFeature (FtRosterver _) = Just .
+	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing
+responseToFeature (FtBind _) = Just . SRIq Set "_xmpp_bind1" Nothing Nothing
+	. IqBind Nothing $ Resource "profanity"
+responseToFeature _ = Nothing
+
 binds :: [Xmpp]
 binds = [
-	SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing $
-		Resource "profanity",
-	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing,
 	SRPresence [(Id, "prof_presence_1")] . fromCaps $
 		capsToXmlCaps profanityCaps "http://www.profanity.im" ]
 
