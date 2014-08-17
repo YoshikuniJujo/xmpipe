@@ -106,8 +106,6 @@ process = await >>= \mr -> case mr of
 responseToFeature :: FeatureR -> Maybe Xmpp
 responseToFeature (Ft (FtBind _)) = Just . SRIq Set "_xmpp_bind1" Nothing Nothing
 	. IqBind Nothing $ Resource "profanity"
-responseToFeature (Ft (FtRosterver _)) = Just .
-	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing
 responseToFeature (FRRosterver _) = Just .
 	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing
 responseToFeature _ = Nothing
