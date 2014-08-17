@@ -13,6 +13,7 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
+import Data.List
 import Data.Pipe
 import Data.HandleLike
 import Data.X509
@@ -172,9 +173,13 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			makeP
 	_ -> return ()
 
-data IRRoster = IRRoster (Maybe ())
+data IRRoster = IRRoster (Maybe Roster)
 
 readIRRoster :: [XmlNode] -> Maybe IRRoster
+readIRRoster [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =
+	Just $ IRRoster Nothing
+readIRRoster [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = Just .
+	IRRoster . Just $ Roster (snd <$> find (\((_, v), _) -> v == "ver") as) ns
 readIRRoster _ = Nothing
 
 sender :: Jid
