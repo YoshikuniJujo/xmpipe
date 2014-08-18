@@ -7,7 +7,6 @@ import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.List
 import Data.Pipe
-import Data.Pipe.Basic
 
 import qualified Data.ByteString as BS
 

@@ -6,7 +6,6 @@ import Control.Arrow
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Pipe
-import Data.Pipe.Basic
 import Text.XML.Pipe
 import XmppType
 

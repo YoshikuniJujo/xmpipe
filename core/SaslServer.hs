@@ -8,7 +8,6 @@ module SaslServer (
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Pipe
-import Data.Pipe.Basic
 import Network.Sasl
 
 import qualified Data.ByteString as BS

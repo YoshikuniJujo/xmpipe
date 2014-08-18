@@ -148,6 +148,3 @@ outputScram = await >>= \mch -> case mch of
 	Just (Right r) -> yield (SRChallenge r) >> outputScram
 	Just (Left (SaslServer.Success r)) -> yield $ XCSaslSuccess r
 	Nothing -> return ()
-
-convert :: Monad m => (a -> b) -> Pipe a b m ()
-convert f = await >>= maybe (return ()) (\x -> yield (f x) >> convert f)

@@ -17,7 +17,6 @@ module Xmpp (
 import "monads-tf" Control.Monad.Trans
 import Data.Maybe
 import Data.Pipe
-import Data.Pipe.Basic
 import Data.HandleLike
 import Text.XML.Pipe
 
