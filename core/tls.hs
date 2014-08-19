@@ -67,7 +67,7 @@ xmpp h = do
 		=$= convert readDelay
 		=$= (hlpDebug h ++++ hlpDebug h)
 		=$= (doNothing |||| proc)
-		=$= (outputRoster h |||| output h)
+		=$= (outputIm h |||| output h)
 
 doNothing :: Monad m => Pipe a b m ()
 doNothing = await >>= maybe (return ()) (const $ doNothing)
@@ -77,14 +77,12 @@ mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
 proc :: (Monad m,
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp
-		(Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp) m ()
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp (Either Im Xmpp) m ()
 proc = (begin host "en" =$= convert Right) >> process
 
 process :: (Monad m,
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp
-		(Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp) m ()
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp (Either Im Xmpp) m ()
 process = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
 		mapM_ yield . catMaybes
@@ -106,13 +104,12 @@ process = await >>= \mr -> case mr of
 	Just _ -> process
 	_ -> return ()
 
-responseToFeature :: FeatureR -> Maybe
-	(Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp)
+responseToFeature :: FeatureR -> Maybe (Either Im Xmpp)
 responseToFeature (Ft (FtBind _)) = Just . Right
 	. SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing
 	$ Resource "profanity"
 responseToFeature (FRRosterver _) = Just
-	$ Left ("GET", "_xmpp_roster1", IRRoster Nothing)
+	$ Left (ImRoster "GET" "_xmpp_roster1" $ IRRoster Nothing)
 responseToFeature _ = Nothing
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
