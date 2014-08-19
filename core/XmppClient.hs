@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module XmppClient (
-	Jid(..), toJid,
+	Jid(..), toJid, fromJid,
 	Xmpp(..), Feature(..),
-	MessageType(..), MBody(..), IqType(..), Query(..), Bind(..),
+	MessageType(..), MBody(..), Query(..), Bind(..),
 	Tag(..),
 	SASL.SaslState(..),
 

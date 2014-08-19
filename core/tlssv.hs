@@ -102,12 +102,14 @@ outputSel :: (MonadIO (HandleMonad h),
 	HandleLike h) => TVar [(String, TChan Xmpp)]
 		-> h -> Pipe Xmpp () (HandleMonad h) ()
 outputSel sl h = await >>= \mx -> case mx of
-	Just m@(SRMessage Chat _i _f (Jid "yoshio" "otherhost" Nothing) _b) -> do
-		l <- liftIO (atomically $ readTVar sl)
-		maybe (otherhost sl m)
-			(liftIO . atomically . flip writeTChan m)
-			$ lookup "otherhost" l
-		outputSel sl h
+	Just m@(SRMessage as _b)
+		| Just (Jid "yoshio" "otherhost" Nothing) <-
+			toJid <$> lookup To as -> do
+			l <- liftIO (atomically $ readTVar sl)
+			maybe (otherhost sl m)
+				(liftIO . atomically . flip writeTChan m)
+				$ lookup "otherhost" l
+			outputSel sl h
 	Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> outputSel sl h
 	_ -> return ()
 
@@ -144,29 +146,42 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		yield . XCFeatures $ map featureRToFeature
 			[FRRosterver Optional, Ft $ FtBind Required]
 		makeP
-	(Just (SRMessage Chat i _fr to bd), Just rcv) -> do
-		yield . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
-		yield $ SRMessage Chat i
-			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
-		yield $ SRMessage Chat i
-			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
-			to bd
+	(Just (SRMessage _ bd), Just rcv) -> do
+		let	ts1 = [	(Type, "chat"),
+				(From, fromJid sender),
+				(To, fromJid rcv) ]
+			ts2 = [	(Type, "chat"),
+				(From, fromJid $ Jid "yoshio" "otherhost" Nothing),
+				(To, fromJid rcv) ]
+			ts3 = [	(Type, "chat"),
+				(From, fromJid . Jid "yoshikuni" "localhost" $
+					Just "profanity"),
+				(To, fromJid $ Jid "yoshio" "otherhost" Nothing) ]
+		yield . SRMessage ts1 $ MBody "Hi, TLS!"
+		yield $ SRMessage ts2 bd
+		yield $ SRMessage ts3 bd
 		makeP
-	(Just (SRIq Get i Nothing Nothing (QueryRaw ns)), _)
-		| Just (IRRoster Nothing) <- toIRRoster ns -> do
-			yield . SRIq Result i Nothing Nothing $ QueryRaw
+	(Just (SRIq ts (QueryRaw ns)), _)
+		| Just (IRRoster Nothing) <- toIRRoster ns,
+			Just "get" <- lookup Type ts,
+			Just i <- lookup Id ts -> do
+			yield . SRIq [(Type, "result"), (Id, i)] $ QueryRaw
 				[fromIRRoster . IRRoster . Just
 					$ Roster (Just "1") []]
 			makeP
-	(Just (SRIq Set i Nothing Nothing
-		(IqBind (Just Required) (Resource n))), _) -> do
-		lift $ modify (setResource n)
-		Just j <- lift $ gets receiver
-		yield . SRIq Result i Nothing Nothing
-			. IqBind Nothing $ BJid j
-		makeP
+	(Just (SRIq ts (IqBind (Just Required) (Resource n))), _)
+		| Just "set" <- lookup Type ts,
+			Just i <- lookup Id ts -> do
+			lift $ modify (setResource n)
+			Just j <- lift $ gets receiver
+			yield . SRIq [(Type, "result"), (Id, i)]
+				. IqBind Nothing $ BJid j
+			makeP
 	(Just (SRPresence _ _), Just rcv) -> do
-		yield . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		let	ts1 = [	(Type, "chat"),
+				(From, fromJid sender),
+				(To, fromJid rcv) ]
+		yield . SRMessage ts1 $ MBody "Hi, TLS!"
 		makeP
 	_ -> return ()
 

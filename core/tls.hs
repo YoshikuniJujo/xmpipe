@@ -95,32 +95,40 @@ process = await >>= \mr -> case mr of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process
 		_ -> process
-	Just (SRIq Get i (Just f) (Just (Jid u d _)) (QueryRaw ns))
+	Just (SRIq ts (QueryRaw ns))
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
+			Just "get" <- lookup Type ts,
+			Just i <- lookup Id ts,
+			Just f <- toJid <$> lookup From ts,
+			Just (Jid u d _) <- toJid <$> lookup To ts,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
-			yield . SRMessage Chat "prof_3" Nothing recipient $
-				MBody message
+			yield . SRMessage [
+				(Type, "chat"),
+				(Id, "prof_3"),
+				(To, fromJid recipient) ] $ MBody message
+--			yield . SRMessage Chat "prof_3" Nothing recipient $
+--				MBody message
 			yield XCEnd
 	Just _ -> process
 	_ -> return ()
 
 responseToFeature :: FeatureR -> Maybe Xmpp
 responseToFeature (Ft (FtBind _)) = Just
-	. SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing
+	. SRIq [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
 	$ Resource "profanity"
 responseToFeature (FRRosterver _) = Just
-	. SRIq Get "_xmpp_roster1" Nothing Nothing
+	. SRIq [(Type, "get"), (Id, "_xmpp-roster1")]
 	$ QueryRaw [fromIRRoster $ IRRoster Nothing]
 responseToFeature _ = Nothing
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
-getCaps v n = SRIq Get "prof_caps_2" Nothing (Just sender) . QueryRaw
-	. fromQueryDisco $ IqCapsQuery v n
+getCaps v n = SRIq [(Type, "get"), (Id, "prof_caps_2"), (To, fromJid sender)]
+	. QueryRaw . fromQueryDisco $ IqCapsQuery v n
 
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
-resultCaps i t n = SRIq Result i Nothing (Just t) . QueryRaw . fromQueryDisco
-	$ IqCapsQuery2 [capsToQuery profanityCaps n]
+resultCaps i t n = SRIq [(Type, "result"), (Id, i), (To, fromJid t)]
+	. QueryRaw . fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]
 
 message :: BS.ByteString
 sender, recipient :: Jid

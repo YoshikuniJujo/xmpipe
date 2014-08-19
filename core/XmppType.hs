@@ -10,16 +10,14 @@ module XmppType (
 
 	Bind(..), Roster(..),
 
-	IqType(..), Query(..),
+	Query(..),
 	MessageType(..), MBody(..),
 
 	toBody, toTag, toMessageType, fromTag, fromJid,
 	messageTypeToAtt,
 	) where
 
-import Control.Applicative
 import Control.Arrow
-import Data.Maybe
 import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
@@ -40,9 +38,9 @@ data Xmpp
 	| SRResponse BS.ByteString
 	| XCSaslSuccess (Maybe BS.ByteString)
 
-	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
-	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
+	| SRMessage [(Tag, BS.ByteString)] MBody
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
+	| SRIq [(Tag, BS.ByteString)] Query
 	deriving Show
 
 data Query
@@ -56,8 +54,6 @@ data Bind
 	| BJid Jid
 	| BindRaw XmlNode
 	deriving Show
-
-data IqType = Get | Set | Result | ITError deriving (Eq, Show)
 
 data Roster = Roster (Maybe BS.ByteString) [XmlNode] deriving Show
 
@@ -224,23 +220,11 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 
 toCommon (XmlNode ((_, Just q), "message") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
-		SRMessage tp i fr to $ toBody ns
-	where
-	ts = map (first toTag) as
-	tp = toMessageType . fromJust $ lookup Type ts
-	i = fromJust $ lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid . fromJust $ lookup To ts
-	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
+		SRMessage (map (first toTag) as) $ toBody ns
 toCommon (XmlNode ((_, Just q), "iq") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
-		SRIq tp i fr to $ toIqBody ns
-	where
-	ts = map (first toTag) as
-	tp = toIqType . fromJust $ lookup Type ts
-	Just i = lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid <$> lookup To ts
+		SRIq ts $ toIqBody ns
+	where ts = map (first toTag) as
 toCommon (XmlNode ((_, Just "jabber:client"), "presence") _ as ns) =
 	SRPresence (map (first toTag) as) ns
 toCommon (XmlNode ((_, Just "jabber:server"), "presence") _ as ns) =
@@ -271,22 +255,6 @@ fromBind (BindRaw n) = [n]
 
 resource :: BS.ByteString -> XmlNode
 resource r = XmlNode (nullQ "resource") [] [] [XmlCharData r]
-
-fromIqType :: IqType -> BS.ByteString
-fromIqType Get = "get"
-fromIqType Set = "set"
-fromIqType Result = "result"
-fromIqType ITError = "error"
-
-toIqType :: BS.ByteString -> IqType
-toIqType "get" = Get
-toIqType "set" = Set
-toIqType "result" = Result
-toIqType "error" = ITError
-toIqType t = error $ "toIqType: unknown iq type " ++ show t
-
-iqTypeToAtt :: IqType -> (QName, BS.ByteString)
-iqTypeToAtt = (nullQ "type" ,) . fromIqType
 
 data Side = Client | Server deriving Show
 
@@ -326,26 +294,12 @@ fromCommon _ (SRChallenge c) = XmlNode (nullQ "challenge")
 		(: []) . XmlCharData $ B64.encode c
 fromCommon _ (SRResponse "") = drnToXmlNode
 fromCommon _ (SRResponse s) = drToXmlNode s
-fromCommon _ (SRMessage tp i fr to (MBodyRaw ns)) =
-	XmlNode (nullQ "message") [] (catMaybes [
-		Just $ messageTypeToAtt tp,
-		Just (fromTag Id, i),
-		(fromTag From ,) . fromJid <$> fr,
-		Just (fromTag To, fromJid to) ]) ns
-fromCommon _ (SRMessage tp i fr to (MBody m)) =
-	XmlNode (nullQ "message") []
-		(catMaybes [
-			Just $ messageTypeToAtt tp,
-			Just (fromTag Id, i),
-			(fromTag From ,) . fromJid <$> fr,
-			Just (fromTag To, fromJid to) ])
+fromCommon _ (SRMessage ts (MBodyRaw ns)) =
+	XmlNode (nullQ "message") [] (map (first fromTag) ts) ns
+fromCommon _ (SRMessage ts (MBody m)) =
+	XmlNode (nullQ "message") [] (map (first fromTag) ts)
 		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
-fromCommon _ (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
-	(catMaybes [
-		Just $ iqTypeToAtt tp,
-		Just (nullQ "id", i),
-		(nullQ "from" ,) . fromJid <$> fr,
-		(nullQ "to" ,) . fromJid <$> to ])
+fromCommon _ (SRIq ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts)
 	(fromQuery q)
 fromCommon _ (SRPresence ts c) =
 	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
