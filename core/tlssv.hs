@@ -64,9 +64,11 @@ main = do
 						=$= makeP
 						=$= output sp
 					voidM . runPipe $ input sp
-						=$= hlpDebug sp
-						=$= makeP
-						=$= outputSel sl sp
+						=$= convert readRoster
+						=$= (hlpDebug sp ++++ hlpDebug sp)
+						=$= (roster ++++ makeP)
+						=$= (outputRoster sp ||||
+							outputSel sl sp)
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
 					hlClose sp
@@ -162,18 +164,43 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
 			to bd
 		makeP
-	(Just (SRIq Get i Nothing Nothing (IqRoster Nothing)), mrcv) -> do
-		yield . SRIq Result i Nothing mrcv
-			. IqRoster . Just $ Roster (Just "1") []
-		makeP
-	(Just (SRIq Get i Nothing Nothing (QueryRaw ns)), mrcv)
-		| Just (IRRoster Nothing) <- readIRRoster ns -> do
-			yield . SRIq Result i Nothing mrcv
-				. IqRoster . Just $ Roster (Just "1") []
-			makeP
 	_ -> return ()
 
-data IRRoster = IRRoster (Maybe Roster)
+roster :: (
+	MonadState m, StateType m ~ XmppState,
+	MonadError m, SaslError (ErrorType m)) => Pipe
+		(BS.ByteString, BS.ByteString, IRRoster) 
+		(BS.ByteString, BS.ByteString, IRRoster) m ()
+roster = await >>= \mr -> case mr of
+	Just ("GET", i, (IRRoster Nothing)) -> do
+		yield ("RESULT", i, IRRoster . Just $ Roster (Just "1") [])
+		roster
+	_ -> return ()
+
+data IRRoster = IRRoster (Maybe Roster) deriving Show
+
+readRoster :: Xmpp -> Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp
+readRoster (SRIq Get i Nothing Nothing (QueryRaw ns))
+	| Just ir <- readIRRoster ns = Left ("GET", i, ir)
+readRoster x = Right x
+
+fromRoster :: (BS.ByteString, BS.ByteString, IRRoster) -> XmlNode
+fromRoster ("RESULT", i, ir) = XmlNode (nullQ "iq") []
+	[(nullQ "type", "result"), (nullQ "id", i)] [fromRoster_ ir]
+fromRoster _ = error "bad"
+
+fromRoster_ :: IRRoster -> XmlNode
+fromRoster_ (IRRoster Nothing) =
+	XmlNode (nullQ "query") [("", "jabber:iq:roster")] [] []
+fromRoster_ (IRRoster (Just (Roster mv ns))) =
+	XmlNode (nullQ "query") [("", "jabber:iq:roster")] as ns
+	where as = case mv of
+		Just v -> [(nullQ "ver", v)]
+		_ -> []
+
+outputRoster :: HandleLike h => h -> Pipe (BS.ByteString, BS.ByteString, IRRoster) () (HandleMonad h) ()
+outputRoster h = (await >>=) . maybe (return ()) $ \n -> (>> outputRoster h) $ do
+	lift (hlPut h $ xmlString [fromRoster n])
 
 readIRRoster :: [XmlNode] -> Maybe IRRoster
 readIRRoster [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =

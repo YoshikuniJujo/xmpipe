@@ -17,7 +17,6 @@ module XmppType (
 import Control.Applicative
 import Control.Arrow
 import Data.Maybe
-import Data.List
 import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
@@ -253,10 +252,10 @@ toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
 	[n]] = IqBind Nothing $ toBind n
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
 	[n, n']] | r <- toRequirement [n] = IqBind (Just r) $ toBind n'
-toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =
-	IqRoster Nothing
-toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = IqRoster
-	. Just $ Roster (snd <$> find (\((_, v), _) -> v == "ver") as) ns
+-- toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =
+--	IqRoster Nothing
+-- toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = IqRoster
+--	. Just $ Roster (snd <$> find (\((_, v), _) -> v == "ver") as) ns
 toIqBody [] = QueryNull
 toIqBody ns = QueryRaw ns
 
