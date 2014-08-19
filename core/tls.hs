@@ -65,11 +65,13 @@ xmpp h = do
 	voidM . runPipe $ input h =$=
 		hlpDebug h =$= (begin host "en" >> sasl mechanisms) =$= output h
 	voidM . runPipe $ input h
-		=$= processDelayed
-			(hlDebug h "critical" . BSC.pack . (++ "\n") . show)
-		=$= hlpDebug h
-		=$= proc
+		=$= convert readDelay
+		=$= (hlpDebug h ++++ hlpDebug h)
+		=$= (doNothing |||| proc)
 		=$= output h
+
+doNothing :: Monad m => Pipe a b m ()
+doNothing = await >>= maybe (return ()) (const $ doNothing)
 
 mechanisms :: [BS.ByteString]
 mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
