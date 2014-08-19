@@ -3,7 +3,7 @@
 module Im (
 	FeatureR(..), featureToFeatureR, featureRToFeature,
 	Im(..), readIm, outputIm,
-	IRRoster(..), readRoster, outputRoster,
+	IRRoster(..),
 	) where
 
 import Control.Applicative
@@ -64,11 +64,6 @@ readIm (XCRaw (XmlNode ((_, Just q), "message") _ as ns))
 	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
 readIm x = Right x
 
-readRoster :: Xmpp -> Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp
-readRoster (SRIq Get i Nothing Nothing (QueryRaw ns))
-	| Just ir <- readIRRoster ns = Left ("GET", i, ir)
-readRoster x = Right x
-
 fromIm :: Im -> XmlNode
 fromIm (ImRoster "RESULT" i ir) = XmlNode (nullQ "iq") []
 	[(nullQ "type", "result"), (nullQ "id", i)] [fromRoster_ ir]
@@ -90,13 +85,6 @@ fromIm (ImMessage tp i fr to (MBody m)) =
 		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
 fromIm _ = error "bad"
 
-fromRoster :: (BS.ByteString, BS.ByteString, IRRoster) -> XmlNode
-fromRoster ("RESULT", i, ir) = XmlNode (nullQ "iq") []
-	[(nullQ "type", "result"), (nullQ "id", i)] [fromRoster_ ir]
-fromRoster ("GET", i, ir) = XmlNode (nullQ "iq") []
-	[(nullQ "type", "get"), (nullQ "id", i)] [fromRoster_ ir]
-fromRoster _ = error "bad"
-
 fromRoster_ :: IRRoster -> XmlNode
 fromRoster_ (IRRoster Nothing) =
 	XmlNode (nullQ "query") [("", "jabber:iq:roster")] [] []
@@ -109,10 +97,6 @@ fromRoster_ (IRRoster (Just (Roster mv ns))) =
 outputIm :: HandleLike h => h -> Pipe Im () (HandleMonad h) ()
 outputIm h = (await >>=) . maybe (return ()) $ \n -> (>> outputIm h) $ do
 	lift (hlPut h $ xmlString [fromIm n])
-
-outputRoster :: HandleLike h => h -> Pipe (BS.ByteString, BS.ByteString, IRRoster) () (HandleMonad h) ()
-outputRoster h = (await >>=) . maybe (return ()) $ \n -> (>> outputRoster h) $ do
-	lift (hlPut h $ xmlString [fromRoster n])
 
 readIRRoster :: [XmlNode] -> Maybe IRRoster
 readIRRoster [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =

@@ -63,10 +63,10 @@ main = do
 						=$= makeP
 						=$= output sp
 					voidM . runPipe $ input sp
-						=$= convert readRoster
+						=$= convert readIm
 						=$= (hlpDebug sp ++++ hlpDebug sp)
 						=$= (roster ++++ makeP)
-						=$= (outputRoster sp ||||
+						=$= (outputIm sp ||||
 							outputSel sl sp)
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
@@ -167,12 +167,12 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 
 roster :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m)) => Pipe
-		(BS.ByteString, BS.ByteString, IRRoster) 
-		(BS.ByteString, BS.ByteString, IRRoster) m ()
+	MonadError m, SaslError (ErrorType m)) => Pipe Im Im m ()
+--		(BS.ByteString, BS.ByteString, IRRoster) 
+--		(BS.ByteString, BS.ByteString, IRRoster) m ()
 roster = await >>= \mr -> case mr of
-	Just ("GET", i, (IRRoster Nothing)) -> do
-		yield ("RESULT", i, IRRoster . Just $ Roster (Just "1") [])
+	Just (ImRoster "GET" i (IRRoster Nothing)) -> do
+		yield . ImRoster "RESULT" i . IRRoster . Just $ Roster (Just "1") []
 		roster
 	_ -> return ()
 
