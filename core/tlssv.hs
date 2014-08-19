@@ -13,7 +13,6 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
-import Data.List
 import Data.Pipe
 import Data.HandleLike
 import Data.X509
@@ -176,38 +175,6 @@ roster = await >>= \mr -> case mr of
 		yield ("RESULT", i, IRRoster . Just $ Roster (Just "1") [])
 		roster
 	_ -> return ()
-
-data IRRoster = IRRoster (Maybe Roster) deriving Show
-
-readRoster :: Xmpp -> Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp
-readRoster (SRIq Get i Nothing Nothing (QueryRaw ns))
-	| Just ir <- readIRRoster ns = Left ("GET", i, ir)
-readRoster x = Right x
-
-fromRoster :: (BS.ByteString, BS.ByteString, IRRoster) -> XmlNode
-fromRoster ("RESULT", i, ir) = XmlNode (nullQ "iq") []
-	[(nullQ "type", "result"), (nullQ "id", i)] [fromRoster_ ir]
-fromRoster _ = error "bad"
-
-fromRoster_ :: IRRoster -> XmlNode
-fromRoster_ (IRRoster Nothing) =
-	XmlNode (nullQ "query") [("", "jabber:iq:roster")] [] []
-fromRoster_ (IRRoster (Just (Roster mv ns))) =
-	XmlNode (nullQ "query") [("", "jabber:iq:roster")] as ns
-	where as = case mv of
-		Just v -> [(nullQ "ver", v)]
-		_ -> []
-
-outputRoster :: HandleLike h => h -> Pipe (BS.ByteString, BS.ByteString, IRRoster) () (HandleMonad h) ()
-outputRoster h = (await >>=) . maybe (return ()) $ \n -> (>> outputRoster h) $ do
-	lift (hlPut h $ xmlString [fromRoster n])
-
-readIRRoster :: [XmlNode] -> Maybe IRRoster
-readIRRoster [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =
-	Just $ IRRoster Nothing
-readIRRoster [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = Just .
-	IRRoster . Just $ Roster (snd <$> find (\((_, v), _) -> v == "ver") as) ns
-readIRRoster _ = Nothing
 
 sender :: Jid
 sender = Jid "yoshio" "otherhost" (Just "profanity")
