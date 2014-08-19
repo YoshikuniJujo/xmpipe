@@ -11,9 +11,9 @@ module XmppType (
 	Bind(..), Roster(..),
 
 	Query(..),
-	MessageType(..), MBody(..),
+	MessageType(..),
 
-	toBody, toTag, toMessageType, fromTag, fromJid,
+	toTag, toMessageType, fromTag, fromJid,
 	messageTypeToAtt,
 	) where
 
@@ -175,18 +175,6 @@ toJid j = case rst of
 	(a, rst) = BSC.span (/= '@') j
 	(d, r) = BSC.span (/= '/') $ BS.tail rst
 
-data MBody
---	= MBody BS.ByteString
-	= MBodyRaw [XmlNode]
-	deriving Show
-
-toBody :: [XmlNode] -> MBody
-{-
-toBody [XmlNode ((_, Just q), "body") _ [] [XmlCharData b]]
-	| q `elem` ["jabber:client", "jabber:server"] = MBody b
-	-}
-toBody ns = MBodyRaw ns
-
 toCommon :: XmlNode -> Xmpp
 toCommon (XmlDecl (1, 0)) = XCDecl
 toCommon (XmlStart ((_, Just "http://etherx.jabber.org/streams"), "stream") _ as) =
@@ -299,11 +287,6 @@ fromCommon _ (SRResponse "") = drnToXmlNode
 fromCommon _ (SRResponse s) = drToXmlNode s
 fromCommon _ (SRMessage ts ns) =
 	XmlNode (nullQ "message") [] (map (first fromTag) ts) ns
-	{-
-fromCommon _ (SRMessage ts (MBody m)) =
-	XmlNode (nullQ "message") [] (map (first fromTag) ts)
-		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
-		-}
 fromCommon _ (SRIq ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts)
 	(fromQuery q)
 fromCommon _ (SRPresence ts c) =

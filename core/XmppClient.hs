@@ -3,7 +3,7 @@
 module XmppClient (
 	Jid(..), toJid, fromJid,
 	Xmpp(..), Feature(..),
-	MessageType(..), MBody(..), Query(..), Bind(..),
+	MessageType(..), Query(..), Bind(..),
 	Tag(..),
 	SASL.SaslState(..),
 

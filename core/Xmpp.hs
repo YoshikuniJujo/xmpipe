@@ -6,7 +6,6 @@ module Xmpp (
 	Xmpp(..), fromCommon, Jid(..), toJid, fromJid, Side(..),
 	Feature(..), Tag(..),
 	MessageType(..), Query(..), Roster(..),
-	MBody(..),
 	Bind(..), Requirement(..), toRequirement, fromRequirement,
 
 	voidM, hlpDebug, SHandle(..),
