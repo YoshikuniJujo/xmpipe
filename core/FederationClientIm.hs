@@ -73,6 +73,7 @@ proc ic e = await >>= \mx -> case mx of
 		sasl "EXTERNAL" =$= convert Right
 		lift . modify $ putSaslState st
 	Just (XCFeatures []) -> federation
+	Just (SRMessage{}) -> federation
 	Just XCEnd -> yield $ Right XCEnd
 	_ -> return ()
 	where

@@ -33,7 +33,6 @@ data Xmpp
 	| XCFeatures [Feature]
 	| XCStarttls
 	| XCProceed
---	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| XCRaw XmlNode
 
 	| XCAuth BS.ByteString (Maybe BS.ByteString)
@@ -41,6 +40,7 @@ data Xmpp
 	| SRResponse BS.ByteString
 	| XCSaslSuccess (Maybe BS.ByteString)
 
+	| SRMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| SRIq IqType BS.ByteString (Maybe Jid) (Maybe Jid) Query
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
 	deriving Show
@@ -222,6 +222,16 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 	_ [] []) = SRResponse ""
 
+toCommon (XmlNode ((_, Just q), "message") _ as ns)
+	| q `elem` ["jabber:client", "jabber:server"] =
+		SRMessage tp i fr to $ toBody ns
+	where
+	ts = map (first toTag) as
+	tp = toMessageType . fromJust $ lookup Type ts
+	i = fromJust $ lookup Id ts
+	fr = toJid <$> lookup From ts
+	to = toJid . fromJust $ lookup To ts
+	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
 toCommon (XmlNode ((_, Just q), "iq") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
 		SRIq tp i fr to $ toIqBody ns
@@ -316,6 +326,20 @@ fromCommon _ (SRChallenge c) = XmlNode (nullQ "challenge")
 		(: []) . XmlCharData $ B64.encode c
 fromCommon _ (SRResponse "") = drnToXmlNode
 fromCommon _ (SRResponse s) = drToXmlNode s
+fromCommon _ (SRMessage tp i fr to (MBodyRaw ns)) =
+	XmlNode (nullQ "message") [] (catMaybes [
+		Just $ messageTypeToAtt tp,
+		Just (fromTag Id, i),
+		(fromTag From ,) . fromJid <$> fr,
+		Just (fromTag To, fromJid to) ]) ns
+fromCommon _ (SRMessage tp i fr to (MBody m)) =
+	XmlNode (nullQ "message") []
+		(catMaybes [
+			Just $ messageTypeToAtt tp,
+			Just (fromTag Id, i),
+			(fromTag From ,) . fromJid <$> fr,
+			Just (fromTag To, fromJid to) ])
+		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
 fromCommon _ (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(catMaybes [
 		Just $ iqTypeToAtt tp,

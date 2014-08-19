@@ -105,6 +105,7 @@ outputSelIm :: (MonadIO (HandleMonad h),
 	HandleLike h) => TVar [(String, TChan (Either Im Xmpp))]
 		-> h -> Pipe Im () (HandleMonad h) ()
 outputSelIm sl h = await >>= \mx -> case mx of
+{-
 	Just m@(ImMessage Chat i f (Jid "yoshio" "otherhost" Nothing) b) -> do
 		l <- liftIO (atomically $ readTVar sl)
 		let m' = ImMessage Chat i f (Jid "yoshio" "otherhost" Nothing) b
@@ -112,6 +113,7 @@ outputSelIm sl h = await >>= \mx -> case mx of
 			(liftIO . atomically . flip writeTChan (Left m))
 			$ lookup "otherhost" l
 		outputSelIm sl h
+		-}
 	Just x -> lift (hlPut h $ xmlString [fromIm x]) >> outputSelIm sl h
 	_ -> return ()
 
@@ -120,15 +122,22 @@ outputSel :: (MonadIO (HandleMonad h),
 	HandleLike h) => TVar [(String, TChan (Either Im Xmpp))]
 		-> h -> Pipe Xmpp () (HandleMonad h) ()
 outputSel sl h = await >>= \mx -> case mx of
+	Just m@(SRMessage Chat _i _f (Jid "yoshio" "otherhost" Nothing) _b) -> do
+		l <- liftIO (atomically $ readTVar sl)
+--		let m' = ImMessage Chat i f (Jid "yoshio" "otherhost" Nothing) b
+		maybe (otherhost sl m)
+			(liftIO . atomically . flip writeTChan (Right m))
+			$ lookup "otherhost" l
+		outputSel sl h
 	Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> outputSel sl h
 	_ -> return ()
 
 otherhost :: MonadIO m =>
-	TVar [(String, TChan (Either Im Xmpp))] -> Im -> Pipe Xmpp () m ()
+	TVar [(String, TChan (Either Im Xmpp))] -> Xmpp -> Pipe Xmpp () m ()
 otherhost sl m = liftIO $ do
 	(ca, k, c) <- readFiles
 	(ip, e) <- connect ca k c
-	atomically . writeTChan ip $ Left m
+	atomically . writeTChan ip $ Right m
 	atomically $ readTChan e
 	atomically $ modifyTVar sl (("otherhost", ip) :)
 
@@ -165,6 +174,14 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		yield . Right . XCFeatures $ map featureRToFeature
 			[FRRosterver Optional, Ft $ FtBind Required]
 		makeP
+	(Just (SRMessage Chat i _fr to bd), Just rcv) -> do
+		yield . Right . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		yield . Right $ SRMessage Chat i
+			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
+		yield . Right $ SRMessage Chat i
+			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
+			to bd
+		makeP
 	(Just (SRIq Set i Nothing Nothing
 		(IqBind (Just Required) (Resource n))), _) -> do
 		lift $ modify (setResource n)
@@ -173,7 +190,7 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			. IqBind Nothing $ BJid j
 		makeP
 	(Just (SRPresence _ _), Just rcv) -> do
-		yield . Left . ImMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		yield . Right . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
 		makeP
 	_ -> return ()
 
@@ -184,14 +201,16 @@ roster = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (ImRoster "GET" i (IRRoster Nothing)), _) -> do
 		yield . Left . ImRoster "RESULT" i . IRRoster . Just $ Roster (Just "1") []
 		roster
+		{-
 	(Just (ImMessage Chat i _fr to bd), Just rcv) -> do
-		yield . Left . ImMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
-		yield . Left $ ImMessage Chat i
+		yield . Right . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		yield . Right $ SRMessage Chat i
 			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
-		yield . Left $ ImMessage Chat i
+		yield . Right $ SRMessage Chat i
 			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
 			to bd
 		roster
+		-}
 	_ -> return ()
 
 sender :: Jid
