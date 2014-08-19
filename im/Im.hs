@@ -2,18 +2,12 @@
 
 module Im (
 	FeatureR(..), featureToFeatureR, featureRToFeature,
-	Im(..), readIm, outputIm, fromIm,
 	IRRoster(..), toIRRoster, fromIRRoster,
 	) where
 
 import Control.Applicative
-import "monads-tf" Control.Monad.Trans
 import Data.List
-import Data.HandleLike
-import Data.Pipe
 import Text.XML.Pipe
-
-import qualified Data.ByteString as BS
 
 import Xmpp
 
@@ -40,9 +34,6 @@ fromFtRosterver :: Requirement -> XmlNode
 fromFtRosterver r = XmlNode (nullQ "ver")
 	[("", "urn:xmpp:features:rosterver")] [] [fromRequirement r]
 
-data Im	= ImRoster BS.ByteString BS.ByteString IRRoster
-	deriving Show
-
 data IRRoster = IRRoster (Maybe Roster) deriving Show
 
 toIRRoster :: [XmlNode] -> Maybe IRRoster
@@ -60,19 +51,3 @@ fromIRRoster (IRRoster (Just (Roster mv ns))) =
 	where as = case mv of
 		Just v -> [(nullQ "ver", v)]
 		_ -> []
-
-readIm :: Xmpp -> Either Im Xmpp
-readIm (SRIq Get i Nothing Nothing (QueryRaw ns))
-	| Just ir <- toIRRoster ns = Left $ ImRoster "GET" i ir
-readIm x = Right x
-
-fromIm :: Im -> XmlNode
-fromIm (ImRoster "RESULT" i ir) = XmlNode (nullQ "iq") []
-	[(nullQ "type", "result"), (nullQ "id", i)] [fromIRRoster ir]
-fromIm (ImRoster "GET" i ir) = XmlNode (nullQ "iq") []
-	[(nullQ "type", "get"), (nullQ "id", i)] [fromIRRoster ir]
-fromIm _ = error "bad"
-
-outputIm :: HandleLike h => h -> Pipe Im () (HandleMonad h) ()
-outputIm h = (await >>=) . maybe (return ()) $ \n -> (>> outputIm h) $ do
-	lift (hlPut h $ xmlString [fromIm n])

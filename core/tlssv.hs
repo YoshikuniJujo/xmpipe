@@ -61,14 +61,11 @@ main = do
 					voidM . runPipe $ input sp
 						=$= hlpDebug sp
 						=$= makeP
-						=$= convert (\(Right x) -> x)
 						=$= output sp
 					voidM . runPipe $ input sp
-						=$= convert readIm
-						=$= (hlpDebug sp ++++ hlpDebug sp)
-						=$= (roster |||| makeP)
-						=$= (outputSelIm sl sp ||||
-							outputSel sl sp)
+						=$= hlpDebug sp
+						=$= makeP
+						=$= outputSel sl sp
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
 					hlClose sp
@@ -100,53 +97,26 @@ processTls = await >>= \mx -> case mx of
 	Just _ -> error "processTls: bad"
 	_ -> return ()
 
-outputSelIm :: (MonadIO (HandleMonad h),
-	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-	HandleLike h) => TVar [(String, TChan (Either Im Xmpp))]
-		-> h -> Pipe Im () (HandleMonad h) ()
-outputSelIm sl h = await >>= \mx -> case mx of
-{-
-	Just m@(ImMessage Chat i f (Jid "yoshio" "otherhost" Nothing) b) -> do
-		l <- liftIO (atomically $ readTVar sl)
-		let m' = ImMessage Chat i f (Jid "yoshio" "otherhost" Nothing) b
-		maybe (otherhostIm sl m')
-			(liftIO . atomically . flip writeTChan (Left m))
-			$ lookup "otherhost" l
-		outputSelIm sl h
-		-}
-	Just x -> lift (hlPut h $ xmlString [fromIm x]) >> outputSelIm sl h
-	_ -> return ()
-
 outputSel :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-	HandleLike h) => TVar [(String, TChan (Either Im Xmpp))]
+	HandleLike h) => TVar [(String, TChan Xmpp)]
 		-> h -> Pipe Xmpp () (HandleMonad h) ()
 outputSel sl h = await >>= \mx -> case mx of
 	Just m@(SRMessage Chat _i _f (Jid "yoshio" "otherhost" Nothing) _b) -> do
 		l <- liftIO (atomically $ readTVar sl)
---		let m' = ImMessage Chat i f (Jid "yoshio" "otherhost" Nothing) b
 		maybe (otherhost sl m)
-			(liftIO . atomically . flip writeTChan (Right m))
+			(liftIO . atomically . flip writeTChan m)
 			$ lookup "otherhost" l
 		outputSel sl h
 	Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> outputSel sl h
 	_ -> return ()
 
 otherhost :: MonadIO m =>
-	TVar [(String, TChan (Either Im Xmpp))] -> Xmpp -> Pipe Xmpp () m ()
+	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp () m ()
 otherhost sl m = liftIO $ do
 	(ca, k, c) <- readFiles
 	(ip, e) <- connect ca k c
-	atomically . writeTChan ip $ Right m
-	atomically $ readTChan e
-	atomically $ modifyTVar sl (("otherhost", ip) :)
-
-otherhostIm :: MonadIO m =>
-	TVar [(String, TChan (Either Im Xmpp))] -> Im -> Pipe Im () m ()
-otherhostIm sl m = liftIO $ do
-	(ca, k, c) <- readFiles
-	(ip, e) <- connect ca k c
-	atomically . writeTChan ip $ Left m
+	atomically $ writeTChan ip m
 	atomically $ readTChan e
 	atomically $ modifyTVar sl (("otherhost", ip) :)
 
@@ -158,59 +128,46 @@ readFiles = (,,)
 
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp (Either Im Xmpp) m ()
+	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
-		yield $ Right XCDecl
-		lift nextUuid >>= \u -> yield . Right $ XCBegin [
+		yield XCDecl
+		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		runSasl =$= convert Right
+		runSasl
 	(Just (XCBegin _), _) -> do
-		yield $ Right XCDecl
-		lift nextUuid >>= \u -> yield . Right $ XCBegin [
+		yield XCDecl
+		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		yield . Right . XCFeatures $ map featureRToFeature
+		yield . XCFeatures $ map featureRToFeature
 			[FRRosterver Optional, Ft $ FtBind Required]
 		makeP
 	(Just (SRMessage Chat i _fr to bd), Just rcv) -> do
-		yield . Right . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
-		yield . Right $ SRMessage Chat i
+		yield . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		yield $ SRMessage Chat i
 			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
-		yield . Right $ SRMessage Chat i
+		yield $ SRMessage Chat i
 			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
 			to bd
 		makeP
+	(Just (SRIq Get i Nothing Nothing (QueryRaw ns)), _)
+		| Just (IRRoster Nothing) <- toIRRoster ns -> do
+			yield . SRIq Result i Nothing Nothing $ QueryRaw
+				[fromIRRoster . IRRoster . Just
+					$ Roster (Just "1") []]
+			makeP
 	(Just (SRIq Set i Nothing Nothing
 		(IqBind (Just Required) (Resource n))), _) -> do
 		lift $ modify (setResource n)
 		Just j <- lift $ gets receiver
-		yield . Right . SRIq Result i Nothing Nothing
+		yield . SRIq Result i Nothing Nothing
 			. IqBind Nothing $ BJid j
 		makeP
 	(Just (SRPresence _ _), Just rcv) -> do
-		yield . Right . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		yield . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
 		makeP
-	_ -> return ()
-
-roster :: (
-	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m)) => Pipe Im (Either Im Xmpp) m ()
-roster = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
-	(Just (ImRoster "GET" i (IRRoster Nothing)), _) -> do
-		yield . Left . ImRoster "RESULT" i . IRRoster . Just $ Roster (Just "1") []
-		roster
-		{-
-	(Just (ImMessage Chat i _fr to bd), Just rcv) -> do
-		yield . Right . SRMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
-		yield . Right $ SRMessage Chat i
-			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
-		yield . Right $ SRMessage Chat i
-			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
-			to bd
-		roster
-		-}
 	_ -> return ()
 
 sender :: Jid

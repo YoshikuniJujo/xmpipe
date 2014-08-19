@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, TypeFamilies, FlexibleContexts,
 	PackageImports #-}
 
-module FederationClientIm (Im, connect) where
+module FederationClientIm (connect) where
 
 import Control.Applicative
 import Control.Monad
@@ -20,10 +20,9 @@ import "crypto-random" Crypto.Random
 import Tools
 import SaslClient
 import Xmpp
-import Im
 
 connect :: CertificateStore -> CertSecretKey -> CertificateChain ->
-	IO (TChan (Either Im Xmpp), TChan ())
+	IO (TChan Xmpp, TChan ())
 connect ca k c = do
 	i <- atomically newTChan
 	e <- atomically newTChan
@@ -42,39 +41,38 @@ connect ca k c = do
 			void . (`runStateT` St []) . runPipe $ input sp
 				=$= hlpDebug sp
 				=$= process i e
-				=$= (outputIm sp |||| output sp)
+				=$= output sp
 			void . (`runStateT` St []) . runPipe $ input sp
 				=$= hlpDebug sp
 				=$= process i e
-				=$= (outputIm sp |||| output sp)
+				=$= output sp
 			hlClose p
 	return (i, e)
 
 process :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
-	MonadIO m ) => TChan (Either Im Xmpp) -> TChan ()
-		-> Pipe Xmpp (Either Im Xmpp) m ()
+	MonadIO m ) => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 process i e = do
-	yield $ Right XCDecl
-	yield . Right $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
+	yield XCDecl
+	yield $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
 	proc i e
 
 proc :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
 	MonadIO m) =>
-	TChan (Either Im Xmpp) -> TChan () -> Pipe Xmpp (Either Im Xmpp) m ()
+	TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 proc ic e = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> proc ic e
 	Just (XCFeatures [FtMechanisms ["EXTERNAL"]]) -> do
 		st <- lift $ gets getSaslState
 		lift . modify . putSaslState $ ("username", "") : st
-		sasl "EXTERNAL" =$= convert Right
+		sasl "EXTERNAL"
 		lift . modify $ putSaslState st
 	Just (XCFeatures []) -> federation
 	Just (SRMessage{}) -> federation
-	Just XCEnd -> yield $ Right XCEnd
+	Just XCEnd -> yield XCEnd
 	_ -> return ()
 	where
 	federation = do
