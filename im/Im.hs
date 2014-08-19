@@ -49,6 +49,8 @@ readRoster x = Right x
 fromRoster :: (BS.ByteString, BS.ByteString, IRRoster) -> XmlNode
 fromRoster ("RESULT", i, ir) = XmlNode (nullQ "iq") []
 	[(nullQ "type", "result"), (nullQ "id", i)] [fromRoster_ ir]
+fromRoster ("GET", i, ir) = XmlNode (nullQ "iq") []
+	[(nullQ "type", "get"), (nullQ "id", i)] [fromRoster_ ir]
 fromRoster _ = error "bad"
 
 fromRoster_ :: IRRoster -> XmlNode

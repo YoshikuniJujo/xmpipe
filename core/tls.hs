@@ -10,7 +10,6 @@ import Data.Pipe
 import Data.HandleLike
 import System.Environment
 import System.IO.Unsafe
--- import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
@@ -68,7 +67,7 @@ xmpp h = do
 		=$= convert readDelay
 		=$= (hlpDebug h ++++ hlpDebug h)
 		=$= (doNothing |||| proc)
-		=$= output h
+		=$= (outputRoster h |||| output h)
 
 doNothing :: Monad m => Pipe a b m ()
 doNothing = await >>= maybe (return ()) (const $ doNothing)
@@ -78,38 +77,42 @@ mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
 proc :: (Monad m,
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-proc = begin host "en" >> process
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp
+		(Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp) m ()
+proc = (begin host "en" =$= convert Right) >> process
 
 process :: (Monad m,
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp
+		(Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp) m ()
 process = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
 		mapM_ yield . catMaybes
 			. map (responseToFeature . featureToFeatureR) $ sort fs
-		yield $ SRPresence [(Id, "prof_presence_1")] . fromCaps $
+		yield . Right $ SRPresence [(Id, "prof_presence_1")] . fromCaps $
 			capsToXmlCaps profanityCaps "http://www.profanity.im"
 		process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
-			yield (getCaps v n) >> process
+			yield (Right $ getCaps v n) >> process
 		_ -> process
 	Just (SRIq Get i (Just f) (Just (Jid u d _)) (QueryRaw ns))
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
-			yield $ resultCaps i f n
-			yield . XCMessage Chat "prof_3" Nothing recipient $
+			yield . Right $ resultCaps i f n
+			yield . Right . XCMessage Chat "prof_3" Nothing recipient $
 				MBody message
-			yield XCEnd
+			yield $ Right XCEnd
 	Just _ -> process
 	_ -> return ()
 
-responseToFeature :: FeatureR -> Maybe Xmpp
-responseToFeature (Ft (FtBind _)) = Just . SRIq Set "_xmpp_bind1" Nothing Nothing
-	. IqBind Nothing $ Resource "profanity"
-responseToFeature (FRRosterver _) = Just .
-	SRIq Get "_xmpp_roster1" Nothing Nothing $ IqRoster Nothing
+responseToFeature :: FeatureR -> Maybe
+	(Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp)
+responseToFeature (Ft (FtBind _)) = Just . Right
+	. SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing
+	$ Resource "profanity"
+responseToFeature (FRRosterver _) = Just
+	$ Left ("GET", "_xmpp_roster1", IRRoster Nothing)
 responseToFeature _ = Nothing
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp

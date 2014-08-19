@@ -44,7 +44,6 @@ data Xmpp
 
 data Query
 	= IqBind (Maybe Requirement) Bind
-	| IqRoster (Maybe Roster)
 	| QueryNull
 	| QueryRaw [XmlNode]
 	deriving Show
@@ -252,10 +251,6 @@ toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
 	[n]] = IqBind Nothing $ toBind n
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
 	[n, n']] | r <- toRequirement [n] = IqBind (Just r) $ toBind n'
--- toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =
---	IqRoster Nothing
--- toIqBody [XmlNode ((_, Just "jabber:iq:roster"), "query") _ as ns] = IqRoster
---	. Just $ Roster (snd <$> find (\((_, v), _) -> v == "ver") as) ns
 toIqBody [] = QueryNull
 toIqBody ns = QueryRaw ns
 
@@ -369,15 +364,6 @@ drnToXmlNode = XmlNode (nullQ "response")
 fromQuery :: Query -> [XmlNode]
 fromQuery (IqBind Nothing (BJid j)) =
 	[XmlNode (nullQ "jid") [] [] [XmlCharData $ fromJid j]]
-fromQuery (IqRoster (Just (Roster mv ns))) = (: []) $
-	XmlNode (nullQ "query") [("", "jabber:iq:roster")] as ns
-	where as = case mv of
-		Just v -> [(nullQ "ver", v)]
-		_ -> []
 fromQuery (IqBind r b) = maybe id ((:) . fromRequirement) r $ fromBind b
-fromQuery (IqRoster Nothing) = [roster]
 fromQuery QueryNull = []
 fromQuery (QueryRaw ns) = ns
-
-roster :: XmlNode
-roster = XmlNode (nullQ "query") [("", "jabber:iq:roster")] [] []
