@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, TupleSections, PackageImports #-}
 
 module Im (
 	FeatureR(..), featureToFeatureR, featureRToFeature,
@@ -7,7 +7,9 @@ module Im (
 	) where
 
 import Control.Applicative
+import Control.Arrow
 import "monads-tf" Control.Monad.Trans
+import Data.Maybe
 import Data.List
 import Data.HandleLike
 import Data.Pipe
@@ -16,6 +18,7 @@ import Text.XML.Pipe
 import qualified Data.ByteString as BS
 
 import Xmpp
+import XmppType
 
 data FeatureR
 	= Ft Feature
@@ -49,6 +52,16 @@ data IRRoster = IRRoster (Maybe Roster) deriving Show
 readIm :: Xmpp -> Either Im Xmpp
 readIm (SRIq Get i Nothing Nothing (QueryRaw ns))
 	| Just ir <- readIRRoster ns = Left $ ImRoster "GET" i ir
+readIm (XCRaw (XmlNode ((_, Just q), "message") _ as ns))
+	| q `elem` ["jabber:client", "jabber:server"] =
+		Left $ ImMessage tp i fr to $ toBody ns
+	where
+	ts = map (first toTag) as
+	tp = toMessageType . fromJust $ lookup Type ts
+	i = fromJust $ lookup Id ts
+	fr = toJid <$> lookup From ts
+	to = toJid . fromJust $ lookup To ts
+	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
 readIm x = Right x
 
 readRoster :: Xmpp -> Either (BS.ByteString, BS.ByteString, IRRoster) Xmpp
@@ -61,6 +74,20 @@ fromIm (ImRoster "RESULT" i ir) = XmlNode (nullQ "iq") []
 	[(nullQ "type", "result"), (nullQ "id", i)] [fromRoster_ ir]
 fromIm (ImRoster "GET" i ir) = XmlNode (nullQ "iq") []
 	[(nullQ "type", "get"), (nullQ "id", i)] [fromRoster_ ir]
+fromIm (ImMessage Chat i fr to (MBodyRaw ns)) =
+	XmlNode (nullQ "message") [] (catMaybes [
+		Just (fromTag Type, "chat"),
+		Just (fromTag Id, i),
+		(fromTag From ,) . fromJid <$> fr,
+		Just (fromTag To, fromJid to) ]) ns
+fromIm (ImMessage tp i fr to (MBody m)) =
+	XmlNode (nullQ "message") []
+		(catMaybes [
+			Just $ messageTypeToAtt tp,
+			Just (nullQ "id", i),
+			(nullQ "from" ,) . fromJid <$> fr,
+			Just (nullQ "to", fromJid to) ])
+		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
 fromIm _ = error "bad"
 
 fromRoster :: (BS.ByteString, BS.ByteString, IRRoster) -> XmlNode

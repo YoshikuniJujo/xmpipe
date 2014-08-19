@@ -12,6 +12,9 @@ module XmppType (
 
 	IqType(..), Query(..),
 	MessageType(..), MBody(..),
+
+	toBody, toTag, toMessageType, fromTag, fromJid,
+	messageTypeToAtt,
 	) where
 
 import Control.Applicative

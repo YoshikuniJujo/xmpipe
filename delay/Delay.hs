@@ -25,7 +25,7 @@ toDelayedMessage [b, d, xd]
 		XmlNode ((_, Just "urn:xmpp:delay"), "delay") _ _ [] <- d,
 		XmlNode ((_, Just "jabber:x:delay"), "x") _ _ [] <- xd,
 		q `elem` ["jabber:client", "jabber:server"] = Just $
-		MBodyDelay (toBody b) (toDelay d) (toXDelay xd)
+		MBodyDelay (toB b) (toDelay d) (toXDelay xd)
 toDelayedMessage _ = Nothing
 
 data MessageDelay
@@ -67,9 +67,9 @@ data MessageBody
 	| MBRaw XmlNode
 	deriving Show
 
-toBody :: XmlNode -> MessageBody
-toBody (XmlNode ((_, Just "jabber:client"), "body") _ [] [XmlCharData b]) =
+toB :: XmlNode -> MessageBody
+toB (XmlNode ((_, Just "jabber:client"), "body") _ [] [XmlCharData b]) =
 	MessageBody b
-toBody (XmlNode ((_, Just "jabber:server"), "body") _ [] [XmlCharData b]) =
+toB (XmlNode ((_, Just "jabber:server"), "body") _ [] [XmlCharData b]) =
 	MessageBody b
-toBody n = MBRaw n
+toB n = MBRaw n
