@@ -157,7 +157,8 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 				(From, fromJid . Jid "yoshikuni" "localhost" $
 					Just "profanity"),
 				(To, fromJid $ Jid "yoshio" "otherhost" Nothing) ]
-		yield . SRMessage ts1 $ MBody "Hi, TLS!"
+		yield $ SRMessage ts1
+			[XmlNode (nullQ "body") [] [] [XmlCharData "Hi, TLS!"]]
 		yield $ SRMessage ts2 bd
 		yield $ SRMessage ts3 bd
 		makeP
@@ -181,7 +182,8 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		let	ts1 = [	(Type, "chat"),
 				(From, fromJid sender),
 				(To, fromJid rcv) ]
-		yield . SRMessage ts1 $ MBody "Hi, TLS!"
+		yield $ SRMessage ts1
+			[XmlNode (nullQ "body") [] [] [XmlCharData "Hi, TLS!"]]
 		makeP
 	_ -> return ()
 

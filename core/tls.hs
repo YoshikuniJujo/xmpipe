@@ -10,6 +10,7 @@ import Data.Pipe
 import Data.HandleLike
 import System.Environment
 import System.IO.Unsafe
+import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
@@ -103,10 +104,12 @@ process = await >>= \mr -> case mr of
 			Just (Jid u d _) <- toJid <$> lookup To ts,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
-			yield . SRMessage [
-				(Type, "chat"),
-				(Id, "prof_3"),
-				(To, fromJid recipient) ] $ MBody message
+			yield $ SRMessage
+				[	(Type, "chat"),
+					(Id, "prof_3"),
+					(To, fromJid recipient) ]
+				[XmlNode (nullQ "body") [] []
+					[XmlCharData message]]
 --			yield . SRMessage Chat "prof_3" Nothing recipient $
 --				MBody message
 			yield XCEnd
