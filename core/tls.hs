@@ -110,7 +110,8 @@ responseToFeature (Ft (FtBind _)) = Just . Right
 	. SRIq Set "_xmpp_bind1" Nothing Nothing . IqBind Nothing
 	$ Resource "profanity"
 responseToFeature (FRRosterver _) = Just
-	$ Left (ImRoster "GET" "_xmpp_roster1" $ IRRoster Nothing)
+	. Right . SRIq Get "_xmpp_roster1" Nothing Nothing
+	$ QueryRaw [fromIRRoster $ IRRoster Nothing]
 responseToFeature _ = Nothing
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
