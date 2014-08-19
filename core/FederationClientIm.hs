@@ -42,46 +42,42 @@ connect ca k c = do
 			void . (`runStateT` St []) . runPipe $ input sp
 				=$= hlpDebug sp
 				=$= process i e
-				=$= output sp
+				=$= (outputIm sp |||| output sp)
 			void . (`runStateT` St []) . runPipe $ input sp
 				=$= hlpDebug sp
 				=$= process i e
-				=$= output sp
+				=$= (outputIm sp |||| output sp)
 			hlClose p
 	return (i, e)
 
 process :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
-	MonadIO m ) => TChan (Either Im Xmpp) -> TChan () -> Pipe Xmpp Xmpp m ()
+	MonadIO m ) => TChan (Either Im Xmpp) -> TChan ()
+		-> Pipe Xmpp (Either Im Xmpp) m ()
 process i e = do
-	yield XCDecl
-	yield $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
+	yield $ Right XCDecl
+	yield . Right $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
 	proc i e
 
 proc :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
 	MonadIO m) =>
-	TChan (Either Im Xmpp) -> TChan () -> Pipe Xmpp Xmpp m ()
+	TChan (Either Im Xmpp) -> TChan () -> Pipe Xmpp (Either Im Xmpp) m ()
 proc ic e = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> proc ic e
 	Just (XCFeatures [FtMechanisms ["EXTERNAL"]]) -> do
 		st <- lift $ gets getSaslState
 		lift . modify . putSaslState $ ("username", "") : st
-		sasl "EXTERNAL"
+		sasl "EXTERNAL" =$= convert Right
 		lift . modify $ putSaslState st
 	Just (XCFeatures []) -> federation
-	Just XCMessage{} -> federation
-	Just XCEnd -> yield XCEnd
+	Just XCEnd -> yield $ Right XCEnd
 	_ -> return ()
 	where
 	federation = do
-		em <- liftIO .atomically $ readTChan ic
-		yield $ case em of
-			Right x -> x
-			Left (ImMessage tp i f t b) -> XCMessage tp i f t b
-			_ -> error "bad"
+		liftIO (atomically $ readTChan ic) >>= yield
 		liftIO . atomically $ writeTChan e ()
 		proc ic e
 

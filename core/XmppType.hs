@@ -33,7 +33,7 @@ data Xmpp
 	| XCFeatures [Feature]
 	| XCStarttls
 	| XCProceed
-	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
+--	| XCMessage MessageType BS.ByteString (Maybe Jid) Jid MBody
 	| XCRaw XmlNode
 
 	| XCAuth BS.ByteString (Maybe BS.ByteString)
@@ -309,13 +309,6 @@ fromCommon _ (XCSaslSuccess Nothing) =
 fromCommon _ (XCSaslSuccess (Just d)) =
 	XmlNode (nullQ "success") [("", "urn:ietf:params:xml:ns:xmpp-sasl")] []
 	[XmlCharData $ B64.encode d]
-fromCommon _ (XCMessage Chat i fr to (MBodyRaw ns)) =
-	XmlNode (nullQ "message") [] (catMaybes [
-		Just (fromTag Type, "chat"),
-		Just (fromTag Id, i),
-		(fromTag From ,) . fromJid <$> fr,
-		Just (fromTag To, fromJid to) ]) ns
-
 fromCommon _ (SRChallenge "") = XmlNode (nullQ "challenge")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 fromCommon _ (SRChallenge c) = XmlNode (nullQ "challenge")
@@ -332,17 +325,7 @@ fromCommon _ (SRIq tp i fr to q) = XmlNode (nullQ "iq") []
 	(fromQuery q)
 fromCommon _ (SRPresence ts c) =
 	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
-fromCommon _ (XCMessage tp i fr to (MBody m)) =
-	XmlNode (nullQ "message") []
-		(catMaybes [
-			Just $ messageTypeToAtt tp,
-			Just (nullQ "id", i),
-			(nullQ "from" ,) . fromJid <$> fr,
-			Just (nullQ "to", fromJid to) ])
-		[XmlNode (nullQ "body") [] [] [XmlCharData m]]
-
 fromCommon _ (XCRaw n) = n
-fromCommon _ c = error $ "fromCommon: not implemented yet: " ++ show c
 
 drToXmlNode :: BS.ByteString -> XmlNode
 drToXmlNode dr = XmlNode (nullQ "response")

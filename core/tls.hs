@@ -63,6 +63,7 @@ xmpp :: (HandleLike h,
 xmpp h = do
 	voidM . runPipe $ input h =$=
 		hlpDebug h =$= (begin host "en" >> sasl mechanisms) =$= output h
+	hlDebug h "critical" "HERE\n"
 	voidM . runPipe $ input h
 		=$= convert readDelay
 		=$= (hlpDebug h ++++ hlpDebug h)

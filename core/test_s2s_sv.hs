@@ -9,7 +9,6 @@ import Data.Maybe
 import Data.Pipe
 import Data.UUID
 import System.Random
-import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Server
 import Network.PeyoTLS.ReadFile
@@ -87,17 +86,7 @@ process = await >>= \mx -> case mx of
 	Just (XCAuth "EXTERNAL" i) -> do
 		lift $ modify authed
 		sasl (fromJust $ lookup "EXTERNAL" saslServers) i
---		sasl (RTExternal retrieve) i
---		yield $ XCSaslSuccess Nothing
 		process
-	Just XCMessage{} -> do
-		yield . XCMessage Chat "hoge"
-			(Just $ Jid "yoshio" "otherhost" Nothing)
-			(Jid "yoshikuni" "localhost" Nothing) $
-			MBodyRaw [XmlCharData "HOGETA"]
-		process
---		yield XEnd
---		process
 	_ -> return ()
 
 processTls :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
