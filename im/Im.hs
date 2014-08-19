@@ -2,12 +2,14 @@
 
 module Im (
 	FeatureR(..), featureToFeatureR, featureRToFeature,
-	IRRoster(..), toIRRoster, fromIRRoster,
+	IRRoster(..), Roster(..), toIRRoster, fromIRRoster,
 	) where
 
 import Control.Applicative
 import Data.List
 import Text.XML.Pipe
+
+import qualified Data.ByteString as BS
 
 import Xmpp
 
@@ -35,6 +37,8 @@ fromFtRosterver r = XmlNode (nullQ "ver")
 	[("", "urn:xmpp:features:rosterver")] [] [fromRequirement r]
 
 data IRRoster = IRRoster (Maybe Roster) deriving Show
+
+data Roster = Roster (Maybe BS.ByteString) [XmlNode] deriving Show
 
 toIRRoster :: [XmlNode] -> Maybe IRRoster
 toIRRoster [XmlNode ((_, Just "jabber:iq:roster"), "query") _ [] []] =

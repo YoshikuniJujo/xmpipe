@@ -110,8 +110,6 @@ process = await >>= \mr -> case mr of
 					(To, fromJid recipient) ]
 				[XmlNode (nullQ "body") [] []
 					[XmlCharData message]]
---			yield . SRMessage Chat "prof_3" Nothing recipient $
---				MBody message
 			yield XCEnd
 	Just _ -> process
 	_ -> return ()

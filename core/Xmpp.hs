@@ -3,10 +3,11 @@
 module Xmpp (
 	input, output,
 
-	Xmpp(..), fromCommon, Jid(..), toJid, fromJid, Side(..),
+	Xmpp(..), fromCommon,
+	Jid(..), toJid, fromJid,
+	Side(..),
 	Feature(..), Tag(..),
-	MessageType(..), Query(..), Roster(..),
-	Bind(..), Requirement(..), toRequirement, fromRequirement,
+	Query(..), Bind(..), Requirement(..), toRequirement, fromRequirement,
 
 	voidM, hlpDebug, SHandle(..),
 

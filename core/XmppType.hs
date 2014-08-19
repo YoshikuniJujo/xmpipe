@@ -2,19 +2,12 @@
 
 module XmppType (
 	Xmpp(..), toCommon, fromCommon,
-
-	Jid(..), toJid,
+	Jid(..), toJid, fromJid,
 	Side(..),
+	Tag(..), toTag, fromTag,
 	Feature(..),
-	Tag(..), Requirement(..), toRequirement, fromRequirement,
-
-	Bind(..), Roster(..),
-
-	Query(..),
-	MessageType(..),
-
-	toTag, toMessageType, fromTag, fromJid,
-	messageTypeToAtt,
+	Query(..), Bind(..),
+	Requirement(..), toRequirement, fromRequirement,
 	) where
 
 import Control.Arrow
@@ -46,16 +39,13 @@ data Xmpp
 	| XCRaw XmlNode
 	deriving Show
 
-data Query = IqBind (Maybe Requirement) Bind
-	deriving Show
+data Query = IqBind (Maybe Requirement) Bind deriving Show
 
 data Bind
 	= Resource BS.ByteString
 	| BJid Jid
 	| BindRaw XmlNode
 	deriving Show
-
-data Roster = Roster (Maybe BS.ByteString) [XmlNode] deriving Show
 
 data Tag
 	= Id | From | To | Version | Lang | Mechanism | Type
@@ -141,24 +131,6 @@ toMechanism _ = error "toMechanism: bad"
 
 fromMechanism :: BS.ByteString -> XmlNode
 fromMechanism m = XmlNode (nullQ "mechanism") [] [] [XmlCharData m]
-
-data MessageType = Normal | Chat | Groupchat | Headline | MTError
-	deriving (Eq, Show)
-
-toMessageType :: BS.ByteString -> MessageType
-toMessageType "normal" = Normal
-toMessageType "chat" = Chat
-toMessageType _ = error "toMessageType: bad"
-
-fromMessageType :: MessageType -> BS.ByteString
-fromMessageType Normal = "normal"
-fromMessageType Chat = "chat"
-fromMessageType Groupchat = "groupchat"
-fromMessageType Headline = "headline"
-fromMessageType MTError = "error"
-
-messageTypeToAtt :: MessageType -> (QName, BS.ByteString)
-messageTypeToAtt = (nullQ "type" ,) . fromMessageType
 
 data Jid = Jid BS.ByteString BS.ByteString (Maybe BS.ByteString) deriving (Eq, Show)
 
