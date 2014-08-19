@@ -162,20 +162,20 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		yield $ SRMessage ts2 bd
 		yield $ SRMessage ts3 bd
 		makeP
-	(Just (SRIq ts (QueryRaw ns)), _)
+	(Just (SRIq ts ns), _)
 		| Just (IRRoster Nothing) <- toIRRoster ns,
 			Just "get" <- lookup Type ts,
 			Just i <- lookup Id ts -> do
-			yield . SRIq [(Type, "result"), (Id, i)] $ QueryRaw
+			yield $ SRIq [(Type, "result"), (Id, i)]
 				[fromIRRoster . IRRoster . Just
 					$ Roster (Just "1") []]
 			makeP
-	(Just (SRIq ts (IqBind (Just Required) (Resource n))), _)
+	(Just (SRIqBind ts (IqBind (Just Required) (Resource n))), _)
 		| Just "set" <- lookup Type ts,
 			Just i <- lookup Id ts -> do
 			lift $ modify (setResource n)
 			Just j <- lift $ gets receiver
-			yield . SRIq [(Type, "result"), (Id, i)]
+			yield . SRIqBind [(Type, "result"), (Id, i)]
 				. IqBind Nothing $ BJid j
 			makeP
 	(Just (SRPresence _ _), Just rcv) -> do

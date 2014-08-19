@@ -37,17 +37,16 @@ data Xmpp
 	| SRResponse BS.ByteString
 	| XCSaslSuccess (Maybe BS.ByteString)
 
+	| SRIqBind [(Tag, BS.ByteString)] Query
+
 	| SRMessage [(Tag, BS.ByteString)] [XmlNode]
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
-	| SRIq [(Tag, BS.ByteString)] Query
+	| SRIq [(Tag, BS.ByteString)] [XmlNode]
 
 	| XCRaw XmlNode
 	deriving Show
 
-data Query
-	= IqBind (Maybe Requirement) Bind
-	| QueryNull
-	| QueryRaw [XmlNode]
+data Query = IqBind (Maybe Requirement) Bind
 	deriving Show
 
 data Bind
@@ -213,8 +212,11 @@ toCommon (XmlNode ((_, Just q), "message") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
 		SRMessage (map (first toTag) as) ns
 toCommon (XmlNode ((_, Just q), "iq") _ as ns)
-	| q `elem` ["jabber:client", "jabber:server"] =
-		SRIq ts $ toIqBody ns
+	| q `elem` ["jabber:client", "jabber:server"], Just b <- toIqBody ns =
+		SRIqBind ts b
+	where ts = map (first toTag) as
+toCommon (XmlNode ((_, Just q), "iq") _ as ns)
+	| q `elem` ["jabber:client", "jabber:server"] = SRIq ts ns
 	where ts = map (first toTag) as
 toCommon (XmlNode ((_, Just "jabber:client"), "presence") _ as ns) =
 	SRPresence (map (first toTag) as) ns
@@ -223,13 +225,12 @@ toCommon (XmlNode ((_, Just "jabber:server"), "presence") _ as ns) =
 
 toCommon n = XCRaw n
 
-toIqBody :: [XmlNode] -> Query
+toIqBody :: [XmlNode] -> Maybe Query
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
-	[n]] = IqBind Nothing $ toBind n
+	[n]] = Just . IqBind Nothing $ toBind n
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
-	[n, n']] | r <- toRequirement [n] = IqBind (Just r) $ toBind n'
-toIqBody [] = QueryNull
-toIqBody ns = QueryRaw ns
+	[n, n']] | r <- toRequirement [n] = Just . IqBind (Just r) $ toBind n'
+toIqBody _ = Nothing
 
 toBind :: XmlNode -> Bind
 toBind (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "resource") [] []
@@ -287,8 +288,9 @@ fromCommon _ (SRResponse "") = drnToXmlNode
 fromCommon _ (SRResponse s) = drToXmlNode s
 fromCommon _ (SRMessage ts ns) =
 	XmlNode (nullQ "message") [] (map (first fromTag) ts) ns
-fromCommon _ (SRIq ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts)
+fromCommon _ (SRIqBind ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts)
 	(fromQuery q)
+fromCommon _ (SRIq ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts) q
 fromCommon _ (SRPresence ts c) =
 	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
 fromCommon _ (XCRaw n) = n
@@ -306,5 +308,3 @@ fromQuery :: Query -> [XmlNode]
 fromQuery (IqBind Nothing (BJid j)) =
 	[XmlNode (nullQ "jid") [] [] [XmlCharData $ fromJid j]]
 fromQuery (IqBind r b) = maybe id ((:) . fromRequirement) r $ fromBind b
-fromQuery QueryNull = []
-fromQuery (QueryRaw ns) = ns
