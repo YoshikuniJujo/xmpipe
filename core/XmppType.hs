@@ -213,17 +213,6 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "success")
 	_ [] [XmlCharData d]) =
 	XCSaslSuccess . Just . (\(Right r) -> r) $ B64.decode d
-toCommon (XmlNode ((_, Just q), "message") _ as ns)
-	| q `elem` ["jabber:client", "jabber:server"] =
-		XCMessage tp i fr to $ toBody ns
-	where
-	ts = map (first toTag) as
-	tp = toMessageType . fromJust $ lookup Type ts
-	i = fromJust $ lookup Id ts
-	fr = toJid <$> lookup From ts
-	to = toJid . fromJust $ lookup To ts
-	[] = filter ((`notElem` [Type, Id, From, To]) . fst) ts
-
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")
 	_ [] []) = SRChallenge ""
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "challenge")

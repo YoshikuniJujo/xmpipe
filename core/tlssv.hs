@@ -61,11 +61,12 @@ main = do
 					voidM . runPipe $ input sp
 						=$= hlpDebug sp
 						=$= makeP
+						=$= convert (\(Right x) -> x)
 						=$= output sp
 					voidM . runPipe $ input sp
 						=$= convert readIm
 						=$= (hlpDebug sp ++++ hlpDebug sp)
-						=$= (roster ++++ makeP)
+						=$= (roster |||| makeP)
 						=$= (outputIm sp ||||
 							outputSel sl sp)
 					hlPut sp $ xmlString [XmlEnd
@@ -129,37 +130,37 @@ readFiles = (,,)
 
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
+	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp (Either Im Xmpp) m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
-		yield XCDecl
-		lift nextUuid >>= \u -> yield $ XCBegin [
+		yield $ Right XCDecl
+		lift nextUuid >>= \u -> yield . Right $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		runSasl
+		runSasl =$= convert Right
 	(Just (XCBegin _), _) -> do
-		yield XCDecl
-		lift nextUuid >>= \u -> yield $ XCBegin [
+		yield $ Right XCDecl
+		lift nextUuid >>= \u -> yield . Right $ XCBegin [
 			(Id, toASCIIBytes u),
 			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
-		yield . XCFeatures $ map featureRToFeature
+		yield . Right . XCFeatures $ map featureRToFeature
 			[FRRosterver Optional, Ft $ FtBind Required]
 		makeP
 	(Just (SRIq Set i Nothing Nothing
 		(IqBind (Just Required) (Resource n))), _) -> do
 		lift $ modify (setResource n)
 		Just j <- lift $ gets receiver
-		yield . SRIq Result i Nothing Nothing
+		yield . Right . SRIq Result i Nothing Nothing
 			. IqBind Nothing $ BJid j
 		makeP
-	(Just (SRPresence _ _), Just rcv) ->
-		yield (XCMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!")
-			>> makeP
+	(Just (SRPresence _ _), Just rcv) -> do
+		yield . Left . ImMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		makeP
 	(Just (XCMessage Chat i _fr to bd), Just rcv) -> do
-		yield . XCMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
-		yield $ XCMessage Chat i
+		yield . Left . ImMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		yield . Left $ ImMessage Chat i
 			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
-		yield $ XCMessage Chat i
+		yield . Right $ XCMessage Chat i
 			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
 			to bd
 		makeP
@@ -167,12 +168,19 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 
 roster :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m)) => Pipe Im Im m ()
---		(BS.ByteString, BS.ByteString, IRRoster) 
---		(BS.ByteString, BS.ByteString, IRRoster) m ()
-roster = await >>= \mr -> case mr of
-	Just (ImRoster "GET" i (IRRoster Nothing)) -> do
-		yield . ImRoster "RESULT" i . IRRoster . Just $ Roster (Just "1") []
+	MonadError m, SaslError (ErrorType m)) => Pipe Im (Either Im Xmpp) m ()
+roster = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
+-- roster = await >>= \mr -> case mr of
+	(Just (ImRoster "GET" i (IRRoster Nothing)), _) -> do
+		yield . Left . ImRoster "RESULT" i . IRRoster . Just $ Roster (Just "1") []
+		roster
+	(Just (ImMessage Chat i _fr to bd), Just rcv) -> do
+		yield . Left . ImMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
+		yield . Left $ ImMessage Chat i
+			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
+		yield . Right $ XCMessage Chat i
+			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
+			to bd
 		roster
 	_ -> return ()
 

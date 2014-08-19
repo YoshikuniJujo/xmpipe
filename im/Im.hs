@@ -2,7 +2,7 @@
 
 module Im (
 	FeatureR(..), featureToFeatureR, featureRToFeature,
-	Im(..), readIm, outputIm,
+	Im(..), readIm, outputIm, fromIm,
 	IRRoster(..),
 	) where
 
