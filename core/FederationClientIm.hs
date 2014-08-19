@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, TypeFamilies, FlexibleContexts,
 	PackageImports #-}
 
-module FederationClient (Xmpp, connect) where
+module FederationClientIm (Im, connect) where
 
 import Control.Applicative
 import Control.Monad
@@ -20,8 +20,10 @@ import "crypto-random" Crypto.Random
 import Tools
 import SaslClient
 import Xmpp
+import Im
 
-connect :: CertificateStore -> CertSecretKey -> CertificateChain -> IO (TChan Xmpp, TChan ())
+connect :: CertificateStore -> CertSecretKey -> CertificateChain ->
+	IO (TChan (Either Im Xmpp), TChan ())
 connect ca k c = do
 	i <- atomically newTChan
 	e <- atomically newTChan
@@ -51,7 +53,7 @@ connect ca k c = do
 process :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
-	MonadIO m ) => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
+	MonadIO m ) => TChan (Either Im Xmpp) -> TChan () -> Pipe Xmpp Xmpp m ()
 process i e = do
 	yield XCDecl
 	yield $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
@@ -61,9 +63,9 @@ proc :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
 	MonadIO m) =>
-	TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
-proc i e = await >>= \mx -> case mx of
-	Just (XCBegin _as) -> proc i e
+	TChan (Either Im Xmpp) -> TChan () -> Pipe Xmpp Xmpp m ()
+proc ic e = await >>= \mx -> case mx of
+	Just (XCBegin _as) -> proc ic e
 	Just (XCFeatures [FtMechanisms ["EXTERNAL"]]) -> do
 		st <- lift $ gets getSaslState
 		lift . modify . putSaslState $ ("username", "") : st
@@ -75,10 +77,13 @@ proc i e = await >>= \mx -> case mx of
 	_ -> return ()
 	where
 	federation = do
-		m <- liftIO .atomically $ readTChan i
-		yield m
+		em <- liftIO .atomically $ readTChan ic
+		yield $ case em of
+			Right x -> x
+			Left (ImMessage tp i f t b) -> XCMessage tp i f t b
+			_ -> error "bad"
 		liftIO . atomically $ writeTChan e ()
-		proc i e
+		proc ic e
 
 processTls :: Monad m => Pipe Xmpp Xmpp m ()
 processTls = do

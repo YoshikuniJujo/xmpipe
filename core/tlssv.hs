@@ -28,7 +28,7 @@ import qualified Data.ByteString as BS
 import Xmpp
 import Im
 import SaslServer
-import FederationClient
+import FederationClientIm
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
@@ -67,7 +67,7 @@ main = do
 						=$= convert readIm
 						=$= (hlpDebug sp ++++ hlpDebug sp)
 						=$= (roster |||| makeP)
-						=$= (outputIm sp ||||
+						=$= (outputSelIm sl sp ||||
 							outputSel sl sp)
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
@@ -100,27 +100,46 @@ processTls = await >>= \mx -> case mx of
 	Just _ -> error "processTls: bad"
 	_ -> return ()
 
+outputSelIm :: (MonadIO (HandleMonad h),
+	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
+	HandleLike h) => TVar [(String, TChan (Either Im Xmpp))]
+		-> h -> Pipe Im () (HandleMonad h) ()
+outputSelIm sl h = await >>= \mx -> case mx of
+	Just m@(ImMessage Chat i f (Jid "yoshio" "otherhost" Nothing) b) -> do
+		l <- liftIO (atomically $ readTVar sl)
+		let m' = ImMessage Chat i f (Jid "yoshio" "otherhost" Nothing) b
+		maybe (otherhostIm sl m')
+			(liftIO . atomically . flip writeTChan (Left m))
+			$ lookup "otherhost" l
+		outputSelIm sl h
+	Just x -> lift (hlPut h $ xmlString [fromIm x]) >> outputSelIm sl h
+	_ -> return ()
+
 outputSel :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-	HandleLike h) =>
-	TVar [(String, TChan Xmpp)] -> h -> Pipe Xmpp () (HandleMonad h) ()
+	HandleLike h) => TVar [(String, TChan (Either Im Xmpp))]
+		-> h -> Pipe Xmpp () (HandleMonad h) ()
 outputSel sl h = await >>= \mx -> case mx of
-	Just m@(XCMessage Chat _ _ (Jid "yoshio" "otherhost" Nothing) _) -> do
-		l <- liftIO (atomically $ readTVar sl)
-		maybe (otherhost sl m) (liftIO . atomically . flip writeTChan m)
-			$ lookup "otherhost" l
-		outputSel sl h
 	Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> outputSel sl h
 	_ -> return ()
 
 otherhost :: MonadIO m =>
-	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp () m ()
+	TVar [(String, TChan (Either Im Xmpp))] -> Im -> Pipe Xmpp () m ()
 otherhost sl m = liftIO $ do
 	(ca, k, c) <- readFiles
-	(i, e) <- connect ca k c
-	atomically $ writeTChan i m
+	(ip, e) <- connect ca k c
+	atomically . writeTChan ip $ Left m
 	atomically $ readTChan e
-	atomically $ modifyTVar sl (("otherhost", i) :)
+	atomically $ modifyTVar sl (("otherhost", ip) :)
+
+otherhostIm :: MonadIO m =>
+	TVar [(String, TChan (Either Im Xmpp))] -> Im -> Pipe Im () m ()
+otherhostIm sl m = liftIO $ do
+	(ca, k, c) <- readFiles
+	(ip, e) <- connect ca k c
+	atomically . writeTChan ip $ Left m
+	atomically $ readTChan e
+	atomically $ modifyTVar sl (("otherhost", ip) :)
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
 readFiles = (,,)
@@ -156,21 +175,12 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 	(Just (SRPresence _ _), Just rcv) -> do
 		yield . Left . ImMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
 		makeP
-	(Just (XCMessage Chat i _fr to bd), Just rcv) -> do
-		yield . Left . ImMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
-		yield . Left $ ImMessage Chat i
-			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
-		yield . Right $ XCMessage Chat i
-			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
-			to bd
-		makeP
 	_ -> return ()
 
 roster :: (
 	MonadState m, StateType m ~ XmppState,
 	MonadError m, SaslError (ErrorType m)) => Pipe Im (Either Im Xmpp) m ()
 roster = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
--- roster = await >>= \mr -> case mr of
 	(Just (ImRoster "GET" i (IRRoster Nothing)), _) -> do
 		yield . Left . ImRoster "RESULT" i . IRRoster . Just $ Roster (Just "1") []
 		roster
@@ -178,7 +188,7 @@ roster = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		yield . Left . ImMessage Chat "hoge" (Just sender) rcv $ MBody "Hi, TLS!"
 		yield . Left $ ImMessage Chat i
 			(Just $ Jid "yoshio" "otherhost" Nothing) rcv bd
-		yield . Right $ XCMessage Chat i
+		yield . Left $ ImMessage Chat i
 			(Just . Jid "yoshikuni" "localhost" $ Just "profanity")
 			to bd
 		roster
