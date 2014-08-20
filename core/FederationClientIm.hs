@@ -21,6 +21,8 @@ import Tools
 import SaslClient
 import Xmpp
 
+import Im
+
 connect :: CertificateStore -> CertSecretKey -> CertificateChain ->
 	IO (TChan Xmpp, TChan ())
 connect ca k c = do
@@ -38,11 +40,11 @@ connect ca k c = do
 				[(k, c)] ca
 			getNames p >>= liftIO . print
 			let sp = SHandle p
-			void . (`runStateT` St []) . runPipe $ input sp
+			void . (`runStateT` St [] []) . runPipe $ input sp
 				=$= hlpDebug sp
 				=$= process i e
 				=$= output sp
-			void . (`runStateT` St []) . runPipe $ input sp
+			void . (`runStateT` St [] []) . runPipe $ input sp
 				=$= hlpDebug sp
 				=$= process i e
 				=$= output sp

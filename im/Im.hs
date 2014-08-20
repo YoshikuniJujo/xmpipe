@@ -3,11 +3,13 @@
 module Im (
 	FeatureR(..), featureToFeatureR, featureRToFeature,
 	IRRoster(..), Roster(..), toIRRoster, fromIRRoster,
+	St(..),
 	) where
 
 import Control.Applicative
 import Data.List
 import Text.XML.Pipe
+import Network.Sasl
 
 import qualified Data.ByteString as BS
 
@@ -55,3 +57,11 @@ fromIRRoster (IRRoster (Just (Roster mv ns))) =
 	where as = case mv of
 		Just v -> [(nullQ "ver", v)]
 		_ -> []
+
+data St = St
+	[FeatureR]
+	[(BS.ByteString, BS.ByteString)]
+	deriving Show
+instance SaslState St where
+	getSaslState (St _ ss) = ss
+	putSaslState ss (St fts _) = St fts ss

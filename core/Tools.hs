@@ -1,14 +1,13 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, TypeFamilies, PackageImports #-}
 
 module Tools (
-	SHandle(..), St(..), fromHandleLike, hlpDebug, voidM, nullQ, myFromJust
+	SHandle(..), fromHandleLike, hlpDebug, voidM, nullQ, myFromJust
 	) where
 
 import "monads-tf" Control.Monad.State
 import Data.Pipe
 import Data.HandleLike
 import Text.XML.Pipe
-import Network.Sasl
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -35,9 +34,6 @@ instance HandleLike h => HandleLike (SHandle s h) where
 
 voidM :: Monad m => m a -> m ()
 voidM = (>> return ())
-
-data St = St [(BS.ByteString, BS.ByteString)] deriving Show
-instance SaslState St where getSaslState (St ss) = ss; putSaslState ss _ = St ss
 
 myFromJust :: String -> Maybe a -> a
 myFromJust _ (Just x) = x

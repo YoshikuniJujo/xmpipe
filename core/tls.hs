@@ -6,7 +6,6 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 -- import Control.Concurrent.STM
 import Data.Maybe
-import Data.List
 import Data.Pipe
 import Data.HandleLike
 import System.Environment
@@ -61,52 +60,36 @@ main = do
 		let sp = SHandle p
 		((), _st) <- (`runStateT` saslInit) $ do
 			sasl sp host mechanisms
-			xmpp sp
+			Just ns <- bind sp host
+			voidM . runPipe $ input sp ns =$= hlpDebug sp =$=
+				(putPresence >> process) =$= output sp
 		return ()
 --		liftIO $ print st
 
 saslInit :: St
-saslInit = St [
+saslInit = St [] [
 	("username", (\(Jid u _ _) -> u) sender),
 	("authcid", (\(Jid u _ _) -> u) sender),
 	("password", "password"),
 	("cnonce", "00DEADBEEF00") ]
 
 xmpp :: (HandleLike h, -- MonadIO (HandleMonad h),
-	MonadState (HandleMonad h), SaslState (StateType (HandleMonad h)),
+	MonadState (HandleMonad h), St ~ (StateType (HandleMonad h)),
 	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
-	h -> HandleMonad h ()
-xmpp h = do
-	Just ns <- runPipe $ input' h =@= hlpDebug h =$=
-		(begin host "en" >> bind) =$= output h
-	voidM . runPipe $ input'' h ns =$= hlpDebug h =$=
+	h -> [Xmlns] -> HandleMonad h ()
+xmpp h ns = do
+	voidM . runPipe $ input h ns =$= hlpDebug h =$=
 		(putPresence >> process) =$= output h
 
-bind :: (Monad m,
-	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-bind = await >>= \mr -> case mr of
-	Just (XCFeatures fs) -> do
-		mapM_ yield . catMaybes
-			. map (responseToFeature . featureToFeatureR) $ sort fs
-		bind
-	Just _ -> bind
-	_ -> return ()
-
-responseToFeature :: FeatureR -> Maybe Xmpp
-responseToFeature (Ft (FtBind _)) = Just
-	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
-	$ Resource "profanity"
-responseToFeature (FRRosterver _) = Just $ SRIq
-	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
-responseToFeature _ = Nothing
-
 putPresence :: (Monad m,
-	MonadState m, SaslState (StateType m),
+	MonadState m, St ~ (StateType m),
 	MonadError m, Error (ErrorType m) ) => Pipe a Xmpp m ()
-putPresence = yield . SRPresence tagsNull { tagId = Just "prof_presence_1" }
-	. fromCaps
-	$ capsToXmlCaps profanityCaps "http://www.profanity.im"
+putPresence = do
+	St fts _ <- get
+	mapM_ yield $ mapMaybe responseToFeature fts
+	yield . SRPresence tagsNull { tagId = Just "prof_presence_1" }
+		. fromCaps
+		$ capsToXmlCaps profanityCaps "http://www.profanity.im"
 
 process :: (Monad m,
 	MonadState m, SaslState (StateType m),
@@ -144,9 +127,6 @@ getCaps v n = SRIq tagsGet { tagId = Just "prof_caps_2", tagTo = Just sender }
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
 resultCaps i t n = SRIq tagsResult { tagId = Just i, tagTo = Just t }
 	. fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]
-
-tagsGet :: Tags
-tagsGet = Tags Nothing (Just "get") Nothing Nothing Nothing []
 
 tagsResult :: Tags
 tagsResult = Tags Nothing (Just "result") Nothing Nothing Nothing []

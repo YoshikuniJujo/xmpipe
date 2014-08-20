@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, TypeFamilies,
+	FlexibleContexts, PackageImports #-}
 
 module XmppClient (
 	Jid(..), toJid, fromJid,
@@ -10,9 +11,10 @@ module XmppClient (
 
 	Requirement(..), toRequirement,
 
-	input, input', input'', output, begin, starttls, sasl,
+	input, output, begin, starttls, sasl, bind,
 
 	tagsNull,
+	responseToFeature, tagsGet,
 	) where
 
 import Control.Monad
@@ -22,11 +24,17 @@ import Data.Maybe
 import Data.List
 import Data.HandleLike
 import Data.Pipe
+import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 
-import Xmpp
+import Xmpp hiding (input)
+import qualified Xmpp
+import Im
 import qualified SaslClient as SASL
+
+input :: HandleLike h => h -> [Xmlns] -> Pipe () Xmpp (HandleMonad h) ()
+input = input''
 
 begin :: Monad m => BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
 begin h l = do
@@ -34,7 +42,7 @@ begin h l = do
 	yield $ XCBegin [(To, h), (TagRaw $ nullQ "version", "1.0"), (Lang, l)]
 
 starttls :: HandleLike h => h -> BS.ByteString -> HandleMonad h ()
-starttls h hst = voidM . runPipe $ input h
+starttls h hst = voidM . runPipe $ Xmpp.input h
 --	=$= hlpDebug h
 	=$= (begin hst "en" >> starttls_) =$= output h
 
@@ -53,7 +61,7 @@ sasl :: (
 	MonadState (HandleMonad h), SASL.SaslState (StateType (HandleMonad h)),
 	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> BS.ByteString -> [BS.ByteString] -> HandleMonad h ()
-sasl h hst ms = voidM . runPipe $ input h
+sasl h hst ms = voidM . runPipe $ Xmpp.input h
 --	=$= hlpDebug h
 	=$= (begin hst "en" >> sasl_ ms) =$= output h
 
@@ -68,3 +76,46 @@ sasl_ sl = do
 	where
 	isFtMechanisms (FtMechanisms _) = True
 	isFtMechanisms _ = False
+
+bind :: (
+	HandleLike h,
+	MonadState (HandleMonad h), St ~ (StateType (HandleMonad h)),
+	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
+	h -> BS.ByteString -> HandleMonad h (Maybe [Xmlns])
+bind h hst = runPipe $ input' h =@=
+--	hlpDebug h =$=
+	(begin hst "en" >> bind_) =$= output h
+
+bind_ :: (
+	MonadState m, St ~ (StateType m),
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
+bind_ = await >>= \mr -> case mr of
+	Just (XCFeatures fs) -> do
+		let (b, fs') = sepBind $ map featureToFeatureR fs
+		lift . modify $ putFeatures fs'
+		mapM_ yield . catMaybes $ map responseToFeature b
+		modify $ putFeatures fs'
+		bind_
+	Just _ -> bind_
+	_ -> return ()
+
+sepBind :: [FeatureR] -> ([FeatureR], [FeatureR])
+sepBind = partition isFtBind
+
+isFtBind :: FeatureR -> Bool
+isFtBind (Ft (FtBind _)) = True
+isFtBind _ = False
+
+responseToFeature :: FeatureR -> Maybe Xmpp
+responseToFeature (Ft (FtBind _)) = Just
+	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
+	$ Resource "profanity"
+responseToFeature (FRRosterver _) = Just $ SRIq
+	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
+responseToFeature _ = Nothing
+
+tagsGet :: Tags
+tagsGet = Tags Nothing (Just "get") Nothing Nothing Nothing []
+
+putFeatures :: [FeatureR] -> St -> St
+putFeatures fts (St _ ss) = St fts ss
