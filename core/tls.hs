@@ -82,6 +82,9 @@ proc :: (Monad m,
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 proc = begin host "en" >> process
 
+nullTags :: Tags
+nullTags = Tags Nothing Nothing Nothing Nothing Nothing []
+
 process :: (Monad m,
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
@@ -89,8 +92,9 @@ process = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
 		mapM_ yield . catMaybes
 			. map (responseToFeature . featureToFeatureR) $ sort fs
-		yield $ SRPresence [(Id, "prof_presence_1")] . fromCaps $
-			capsToXmlCaps profanityCaps "http://www.profanity.im"
+		yield $ SRPresence nullTags { tagId = Just "prof_presence_1" }
+			. fromCaps
+			$ capsToXmlCaps profanityCaps "http://www.profanity.im"
 		process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
@@ -98,10 +102,10 @@ process = await >>= \mr -> case mr of
 		_ -> process
 	Just (SRIq ts ns)
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
-			Just "get" <- lookup Type ts,
-			Just i <- lookup Id ts,
-			Just f <- toJid <$> lookup From ts,
-			Just (Jid u d _) <- toJid <$> lookup To ts,
+			Just "get" <- tagType ts,
+			Just i <- tagId ts,
+			Just f <- tagFrom ts,
+			Just (Jid u d _) <- tagTo ts,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
 			yield $ SRMessage
@@ -121,17 +125,22 @@ responseToFeature :: FeatureR -> Maybe Xmpp
 responseToFeature (Ft (FtBind _)) = Just
 	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
 	$ Resource "profanity"
-responseToFeature (FRRosterver _) = Just $
-	SRIq [(Type, "get"), (Id, "_xmpp-roster1")]
-		[fromIRRoster $ IRRoster Nothing]
+responseToFeature (FRRosterver _) = Just $ SRIq
+	getTags { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
 responseToFeature _ = Nothing
 
+getTags :: Tags
+getTags = Tags Nothing (Just "get") Nothing Nothing Nothing []
+
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
-getCaps v n = SRIq [(Type, "get"), (Id, "prof_caps_2"), (To, fromJid sender)]
+getCaps v n = SRIq getTags { tagId = Just "prof_caps_2", tagTo = Just sender }
 	. fromQueryDisco $ IqCapsQuery v n
 
+resultTags :: Tags
+resultTags = Tags Nothing (Just "result") Nothing Nothing Nothing []
+
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
-resultCaps i t n = SRIq [(Type, "result"), (Id, i), (To, fromJid t)]
+resultCaps i t n = SRIq resultTags { tagId = Just i, tagTo = Just t }
 	. fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]
 
 message :: BS.ByteString

@@ -35,10 +35,10 @@ data Xmpp
 
 	| SRIqBind [(Tag, BS.ByteString)] Query
 
---	| SRMessage [(Tag, BS.ByteString)] [XmlNode]
 	| SRMessage Tags [XmlNode]
-	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
-	| SRIq [(Tag, BS.ByteString)] [XmlNode]
+	| SRPresence Tags [XmlNode]
+	| SRIq Tags [XmlNode]
+--	| SRIq [(Tag, BS.ByteString)] [XmlNode]
 
 	| XCRaw XmlNode
 	deriving Show
@@ -221,11 +221,11 @@ toCommon (XmlNode ((_, Just q), "iq") _ as ns)
 	where ts = map (first toTag) as
 toCommon (XmlNode ((_, Just q), "iq") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] = SRIq ts ns
-	where ts = map (first toTag) as
+	where ts = toTags as
 toCommon (XmlNode ((_, Just "jabber:client"), "presence") _ as ns) =
-	SRPresence (map (first toTag) as) ns
+	SRPresence (toTags as) ns
 toCommon (XmlNode ((_, Just "jabber:server"), "presence") _ as ns) =
-	SRPresence (map (first toTag) as) ns
+	SRPresence (toTags as) ns
 
 toCommon n = XCRaw n
 
@@ -294,9 +294,8 @@ fromCommon _ (SRMessage ts ns) =
 	XmlNode (nullQ "message") [] (fromTags ts) ns
 fromCommon _ (SRIqBind ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts)
 	(fromQuery q)
-fromCommon _ (SRIq ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts) q
-fromCommon _ (SRPresence ts c) =
-	XmlNode (nullQ "presence") [] (map (first fromTag) ts) c
+fromCommon _ (SRIq ts q) = XmlNode (nullQ "iq") [] (fromTags ts) q
+fromCommon _ (SRPresence ts c) = XmlNode (nullQ "presence") [] (fromTags ts) c
 fromCommon _ (XCRaw n) = n
 
 drToXmlNode :: BS.ByteString -> XmlNode

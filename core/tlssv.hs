@@ -138,6 +138,9 @@ tagsChat = Tags {
 	tagLang = Nothing,
 	tagOthers = [] }
 
+tagsResult :: Tags
+tagsResult = Tags Nothing (Just "result") Nothing Nothing Nothing []
+
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
 	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
@@ -176,9 +179,9 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		makeP
 	(Just (SRIq ts ns), _)
 		| Just (IRRoster Nothing) <- toIRRoster ns,
-			Just "get" <- lookup Type ts,
-			Just i <- lookup Id ts -> do
-			yield $ SRIq [(Type, "result"), (Id, i)]
+			Just "get" <- tagType ts,
+			Just i <- tagId ts -> do
+			yield $ SRIq tagsResult { tagId = Just i }
 				[fromIRRoster . IRRoster . Just
 					$ Roster (Just "1") []]
 			makeP
