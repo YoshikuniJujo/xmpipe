@@ -1,7 +1,7 @@
-{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE OverloadedStrings, PackageImports #-}
 
 module Xmpp (
-	input, output,
+	input, input', input'', output,
 
 	Xmpp(..), fromCommon,
 	Tags(..),
@@ -31,7 +31,28 @@ input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
 input h = fromHandleLike h
 	=$= xmlEvent
 	=$= convert fromJust
-	=$= xmlReborn
+	=$= mapOut toCommon xmlReborn
+
+isSaslSuccess :: XmlNode -> Bool
+isSaslSuccess (XmlNode ((_, Just "jabber:client"), "iq")
+	_ _ [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ _ _]) = True
+isSaslSuccess _ = False
+
+input' :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) [Xmlns]
+input' h = fromHandleLike h
+	=$= xmlEvent
+	=$= convert fromJust
+--	=$= hlpDebug h
+	=$= mapOut toCommon xmlPipe
+
+xmlPipe :: Monad m => Pipe XmlEvent XmlNode m [Xmlns]
+xmlPipe = xmlBegin >>= \ns -> xmlNodeUntil isSaslSuccess ns >> return ns
+
+input'' :: HandleLike h => h -> [Xmlns] -> Pipe () Xmpp (HandleMonad h) ()
+input'' h ns = fromHandleLike h
+	=$= xmlEvent
+	=$= convert fromJust
+	=$= xmlNode ns
 	=$= convert toCommon
 
 output :: HandleLike h => h -> Pipe Xmpp () (HandleMonad h) ()

@@ -4,6 +4,7 @@
 import Control.Applicative
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
+-- import Control.Concurrent.STM
 import Data.Maybe
 import Data.List
 import Data.Pipe
@@ -47,6 +48,14 @@ cipherSuites = ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 mechanisms :: [BS.ByteString]
 mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
+{-
+data ChanHandle = ChanHandle (TChan BS.ByteString) (TChan BS.ByteString)
+
+instance HandleLike ChanHandle where
+	type HandleMonad ChanHandle = IO
+	hlPut (ChanHandle c) = atomically 
+	-}
+
 main :: IO ()
 main = do
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
@@ -70,9 +79,12 @@ xmpp :: (HandleLike h, -- MonadIO (HandleMonad h),
 	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> HandleMonad h ()
 xmpp h = do
-	sequence_ $ map (runPipe . (input h =$=) . (=$= output h)) [
-		hlpDebug h =$= (begin host "en" >> sasl mechanisms),
-		hlpDebug h =$= (begin host "en" >> process) ]
+	voidM . runPipe $ input h =$= hlpDebug h =$=
+		(begin host "en" >> sasl mechanisms) =$= output h
+	Just ns <- runPipe $ input' h =@= hlpDebug h =$=
+		(begin host "en" >> process) =$= output h
+	voidM . runPipe $ input'' h ns =$= hlpDebug h =$=
+		(putPresence >> process') =$= output h
 
 putPresence :: (Monad m,
 	MonadState m, SaslState (StateType m),
@@ -81,19 +93,14 @@ putPresence = yield . SRPresence tagsNull { tagId = Just "prof_presence_1" }
 	. fromCaps
 	$ capsToXmlCaps profanityCaps "http://www.profanity.im"
 
-process :: (Monad m,
+process' :: (Monad m,
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-process = await >>= \mr -> case mr of
-	Just (XCFeatures fs) -> do
-		mapM_ yield . catMaybes
-			. map (responseToFeature . featureToFeatureR) $ sort fs
-		putPresence
-		process
+process' = await >>= \mr -> case mr of
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
-			yield (getCaps v n) >> process
-		_ -> process
+			yield (getCaps v n) >> process'
+		_ -> process'
 	Just (SRIq ts ns)
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
 			Just "get" <- tagType ts,
@@ -112,6 +119,17 @@ process = await >>= \mr -> case mr of
 				[XmlNode (nullQ "body") [] []
 					[XmlCharData message]]
 			yield XCEnd
+	Just _ -> process'
+	_ -> return ()
+
+process :: (Monad m,
+	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
+process = await >>= \mr -> case mr of
+	Just (XCFeatures fs) -> do
+		mapM_ yield . catMaybes
+			. map (responseToFeature . featureToFeatureR) $ sort fs
+		process
 	Just _ -> process
 	_ -> return ()
 

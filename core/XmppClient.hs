@@ -10,7 +10,7 @@ module XmppClient (
 
 	Requirement(..), toRequirement,
 
-	input, output, begin, starttls, sasl,
+	input, input', input'', output, begin, starttls, sasl,
 
 	tagsNull,
 	) where
