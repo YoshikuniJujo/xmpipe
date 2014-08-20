@@ -24,7 +24,6 @@ import Im
 import Tools
 import Caps
 import Disco
-import Delay
 
 host :: BS.ByteString
 host = case (\(Jid _ d _) -> d) sender of
@@ -36,8 +35,17 @@ port = PortNumber $ case (\(Jid _ d _) -> d) sender of
 	"otherhost" -> 55222
 	_ -> 5222
 
+message :: BS.ByteString
+sender, recipient :: Jid
+(sender, recipient, message) = unsafePerformIO $ do
+	[s, r, m] <- getArgs
+	return (toJid $ BSC.pack s, toJid $ BSC.pack r, BSC.pack m)
+
 cipherSuites :: [CipherSuite]
 cipherSuites = ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+
+mechanisms :: [BS.ByteString]
+mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
 main :: IO ()
 main = do
@@ -57,33 +65,21 @@ main = do
 			("cnonce", "00DEADBEEF00") ]
 		liftIO $ print st
 
-xmpp :: (HandleLike h,
-		MonadState (HandleMonad h), St ~ StateType (HandleMonad h),
-		MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
+xmpp :: (HandleLike h, -- MonadIO (HandleMonad h),
+	MonadState (HandleMonad h), SaslState (StateType (HandleMonad h)),
+	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> HandleMonad h ()
 xmpp h = do
-	voidM . runPipe $ input h =$=
-		hlpDebug h =$= (begin host "en" >> sasl mechanisms) =$= output h
-	hlDebug h "critical" "HERE\n"
-	voidM . runPipe $ input h
-		=$= convert readDelay
-		=$= (hlpDebug h ++++ hlpDebug h)
-		=$= (doNothing |||| proc)
-		=$= output h
+	sequence_ $ map (runPipe . (input h =$=) . (=$= output h)) [
+		hlpDebug h =$= (begin host "en" >> sasl mechanisms),
+		hlpDebug h =$= (begin host "en" >> process) ]
 
-doNothing :: Monad m => Pipe a b m ()
-doNothing = await >>= maybe (return ()) (const $ doNothing)
-
-mechanisms :: [BS.ByteString]
-mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
-
-proc :: (Monad m,
+putPresence :: (Monad m,
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-proc = begin host "en" >> process
-
-nullTags :: Tags
-nullTags = Tags Nothing Nothing Nothing Nothing Nothing []
+	MonadError m, Error (ErrorType m) ) => Pipe a Xmpp m ()
+putPresence = yield . SRPresence tagsNull { tagId = Just "prof_presence_1" }
+	. fromCaps
+	$ capsToXmlCaps profanityCaps "http://www.profanity.im"
 
 process :: (Monad m,
 	MonadState m, SaslState (StateType m),
@@ -92,9 +88,7 @@ process = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
 		mapM_ yield . catMaybes
 			. map (responseToFeature . featureToFeatureR) $ sort fs
-		yield $ SRPresence nullTags { tagId = Just "prof_presence_1" }
-			. fromCaps
-			$ capsToXmlCaps profanityCaps "http://www.profanity.im"
+		putPresence
 		process
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
@@ -126,25 +120,19 @@ responseToFeature (Ft (FtBind _)) = Just
 	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
 	$ Resource "profanity"
 responseToFeature (FRRosterver _) = Just $ SRIq
-	getTags { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
+	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
 responseToFeature _ = Nothing
 
-getTags :: Tags
-getTags = Tags Nothing (Just "get") Nothing Nothing Nothing []
-
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
-getCaps v n = SRIq getTags { tagId = Just "prof_caps_2", tagTo = Just sender }
+getCaps v n = SRIq tagsGet { tagId = Just "prof_caps_2", tagTo = Just sender }
 	. fromQueryDisco $ IqCapsQuery v n
 
-resultTags :: Tags
-resultTags = Tags Nothing (Just "result") Nothing Nothing Nothing []
-
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
-resultCaps i t n = SRIq resultTags { tagId = Just i, tagTo = Just t }
+resultCaps i t n = SRIq tagsResult { tagId = Just i, tagTo = Just t }
 	. fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]
 
-message :: BS.ByteString
-sender, recipient :: Jid
-(sender, recipient, message) = unsafePerformIO $ do
-	[s, r, m] <- getArgs
-	return (toJid $ BSC.pack s, toJid $ BSC.pack r, BSC.pack m)
+tagsGet :: Tags
+tagsGet = Tags Nothing (Just "get") Nothing Nothing Nothing []
+
+tagsResult :: Tags
+tagsResult = Tags Nothing (Just "result") Nothing Nothing Nothing []

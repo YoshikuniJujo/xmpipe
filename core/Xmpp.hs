@@ -12,7 +12,7 @@ module Xmpp (
 
 	voidM, hlpDebug, SHandle(..),
 
-	nullQ,
+	nullQ, tagsNull,
 	) where
 
 import "monads-tf" Control.Monad.Trans
@@ -23,6 +23,9 @@ import Text.XML.Pipe
 
 import XmppType
 import Tools
+
+tagsNull :: Tags
+tagsNull = Tags Nothing Nothing Nothing Nothing Nothing []
 
 input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
 input h = fromHandleLike h

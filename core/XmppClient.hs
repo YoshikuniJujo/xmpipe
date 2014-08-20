@@ -11,6 +11,8 @@ module XmppClient (
 	Requirement(..), toRequirement,
 
 	input, output, begin, starttls, sasl,
+
+	tagsNull,
 	) where
 
 import Control.Monad
