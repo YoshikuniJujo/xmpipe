@@ -7,7 +7,6 @@ import "monads-tf" Control.Monad.Error
 -- import Control.Concurrent.STM
 import Data.Maybe
 import Data.Pipe
-import Data.HandleLike
 import System.Environment
 import System.IO.Unsafe
 import Text.XML.Pipe
@@ -65,21 +64,8 @@ main = do
 				(putPresence >> process) =$= output sp
 		return ()
 --		liftIO $ print st
-
-saslInit :: St
-saslInit = St [] [
-	("username", (\(Jid u _ _) -> u) sender),
-	("authcid", (\(Jid u _ _) -> u) sender),
-	("password", "password"),
-	("cnonce", "00DEADBEEF00") ]
-
-xmpp :: (HandleLike h, -- MonadIO (HandleMonad h),
-	MonadState (HandleMonad h), St ~ (StateType (HandleMonad h)),
-	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
-	h -> [Xmlns] -> HandleMonad h ()
-xmpp h ns = do
-	voidM . runPipe $ input h ns =$= hlpDebug h =$=
-		(putPresence >> process) =$= output h
+	where
+	saslInit = mkSaslInit ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
 
 putPresence :: (Monad m,
 	MonadState m, St ~ (StateType m),
@@ -99,23 +85,16 @@ process = await >>= \mr -> case mr of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process
 		_ -> process
-	Just (SRIq ts ns)
+	Just (SRIq Tags {
+			tagType = Just "get", tagId = Just i,
+			tagFrom = Just f, tagTo = Just (Jid u d _) } ns)
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
-			Just "get" <- tagType ts,
-			Just i <- tagId ts,
-			Just f <- tagFrom ts,
-			Just (Jid u d _) <- tagTo ts,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
-			yield $ SRMessage
-				Tags {	tagId = Just "prof_3",
-					tagType = Just "chat",
-					tagFrom = Nothing,
-					tagTo = Just recipient,
-					tagLang = Nothing,
-					tagOthers = [] }
-				[XmlNode (nullQ "body") [] []
-					[XmlCharData message]]
+			yield $ SRMessage tagsChat {
+					tagId = Just "prof_3",
+					tagTo = Just recipient }
+				[XmlNode (nullQ "body") [] [] [XmlCharData message]]
 			yield XCEnd
 	Just _ -> process
 	_ -> return ()
@@ -127,6 +106,3 @@ getCaps v n = SRIq tagsGet { tagId = Just "prof_caps_2", tagTo = Just sender }
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
 resultCaps i t n = SRIq tagsResult { tagId = Just i, tagTo = Just t }
 	. fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]
-
-tagsResult :: Tags
-tagsResult = Tags Nothing (Just "result") Nothing Nothing Nothing []

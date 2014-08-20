@@ -13,8 +13,9 @@ module XmppClient (
 
 	input, output, begin, starttls, sasl, bind,
 
-	tagsNull,
+	tagsNull, tagsChat, tagsResult,
 	responseToFeature, tagsGet,
+	mkSaslInit,
 	) where
 
 import Control.Monad
@@ -119,3 +120,13 @@ tagsGet = Tags Nothing (Just "get") Nothing Nothing Nothing []
 
 putFeatures :: [FeatureR] -> St -> St
 putFeatures fts (St _ ss) = St fts ss
+
+tagsChat :: Tags
+tagsChat = Tags Nothing (Just "chat") Nothing Nothing Nothing []
+
+tagsResult :: Tags
+tagsResult = Tags Nothing (Just "result") Nothing Nothing Nothing []
+
+mkSaslInit :: BS.ByteString -> BS.ByteString -> BS.ByteString -> St
+mkSaslInit un pw cn = St []
+	[ ("username", un), ("authcid", un), ("password", pw), ("cnonce", cn) ]
