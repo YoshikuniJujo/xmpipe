@@ -105,9 +105,12 @@ process = await >>= \mr -> case mr of
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
 			yield $ SRMessage
-				[	(Type, "chat"),
-					(Id, "prof_3"),
-					(To, fromJid recipient) ]
+				Tags {	tagId = Just "prof_3",
+					tagType = Just "chat",
+					tagFrom = Nothing,
+					tagTo = Just recipient,
+					tagLang = Nothing,
+					tagOthers = [] }
 				[XmlNode (nullQ "body") [] []
 					[XmlCharData message]]
 			yield XCEnd

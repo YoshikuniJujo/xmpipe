@@ -90,7 +90,9 @@ processTls = await >>= \mx -> case mx of
 		yield $ XCBegin [
 			--	(Id, toASCIIBytes u),
 			(Id, "83e074ac-c014-432e9f21-d06e73f5777e"),
-			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
+			(From, "localhost"),
+			(TagRaw $ nullQ "version", "1.0"),
+			(Lang, "en") ]
 		yield $ XCFeatures [FtStarttls Required]
 		processTls
 	Just XCStarttls -> yield XCProceed
@@ -103,8 +105,7 @@ outputSel :: (MonadIO (HandleMonad h),
 		-> h -> Pipe Xmpp () (HandleMonad h) ()
 outputSel sl h = await >>= \mx -> case mx of
 	Just m@(SRMessage as _b)
-		| Just (Jid "yoshio" "otherhost" Nothing) <-
-			toJid <$> lookup To as -> do
+		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as -> do
 			l <- liftIO (atomically $ readTVar sl)
 			maybe (otherhost sl m)
 				(liftIO . atomically . flip writeTChan m)
@@ -128,6 +129,15 @@ readFiles = (,,)
 	<*> readKey "certs/localhost.sample_key"
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
 
+tagsChat :: Tags
+tagsChat = Tags {
+	tagId = Nothing,
+	tagType = Just "chat",
+	tagFrom = Nothing,
+	tagTo = Nothing,
+	tagLang = Nothing,
+	tagOthers = [] }
+
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
 	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
@@ -136,27 +146,29 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
-			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
+			(From, "localhost"),
+			(TagRaw $ nullQ "version", "1.0"),
+			(Lang, "en") ]
 		runSasl
 	(Just (XCBegin _), _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, toASCIIBytes u),
-			(From, "localhost"), (Version, "1.0"), (Lang, "en") ]
+			(From, "localhost"),
+			(TagRaw $ nullQ "version", "1.0"),
+			(Lang, "en") ]
 		yield . XCFeatures $ map featureRToFeature
 			[FRRosterver Optional, Ft $ FtBind Required]
 		makeP
 	(Just (SRMessage _ bd), Just rcv) -> do
-		let	ts1 = [	(Type, "chat"),
-				(From, fromJid sender),
-				(To, fromJid rcv) ]
-			ts2 = [	(Type, "chat"),
-				(From, fromJid $ Jid "yoshio" "otherhost" Nothing),
-				(To, fromJid rcv) ]
-			ts3 = [	(Type, "chat"),
-				(From, fromJid . Jid "yoshikuni" "localhost" $
-					Just "profanity"),
-				(To, fromJid $ Jid "yoshio" "otherhost" Nothing) ]
+		let	ts1 = tagsChat { tagFrom = Just sender, tagTo = Just rcv }
+			ts2 = tagsChat {
+				tagFrom = Just $ Jid "yoshio" "otherhost" Nothing,
+				tagTo = Just rcv }
+			ts3 = tagsChat {
+				tagFrom = Just $ Jid "yoshikuni" "localhost" $
+					Just "profanity",
+				tagTo = Just $ Jid "yoshio" "otherhost" Nothing }
 		yield $ SRMessage ts1
 			[XmlNode (nullQ "body") [] [] [XmlCharData "Hi, TLS!"]]
 		yield $ SRMessage ts2 bd
@@ -179,9 +191,13 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 				. IqBind Nothing $ BJid j
 			makeP
 	(Just (SRPresence _ _), Just rcv) -> do
-		let	ts1 = [	(Type, "chat"),
-				(From, fromJid sender),
-				(To, fromJid rcv) ]
+		let	ts1 = Tags {
+				tagId = Nothing,
+				tagType = Just "chat",
+				tagFrom = Just sender,
+				tagTo = Just rcv,
+				tagLang = Nothing,
+				tagOthers = [] }
 		yield $ SRMessage ts1
 			[XmlNode (nullQ "body") [] [] [XmlCharData "Hi, TLS!"]]
 		makeP

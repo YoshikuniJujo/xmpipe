@@ -2,6 +2,7 @@
 
 module XmppClient (
 	Jid(..), toJid, fromJid,
+	Tags(..),
 	Xmpp(..), Feature(..),
 	Query(..), Bind(..),
 	Tag(..),
@@ -27,7 +28,7 @@ import qualified SaslClient as SASL
 begin :: Monad m => BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
 begin h l = do
 	yield XCDecl
-	yield $ XCBegin [(To, h), (Version, "1.0"), (Lang, l)]
+	yield $ XCBegin [(To, h), (TagRaw $ nullQ "version", "1.0"), (Lang, l)]
 
 starttls :: Monad m => Pipe Xmpp Xmpp m ()
 starttls = do

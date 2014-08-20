@@ -103,7 +103,7 @@ begin :: UUID -> Xmpp
 begin u = XCBegin [
 	(From, "otherhost"),
 	(To, "localhost"),
-	(Version, "1.0"),
+	(TagRaw $ nullQ "version", "1.0"),
 	(Id, toASCIIBytes u)
 	]
 

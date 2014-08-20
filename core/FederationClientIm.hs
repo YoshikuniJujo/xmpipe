@@ -55,7 +55,10 @@ process :: (
 	MonadIO m ) => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 process i e = do
 	yield XCDecl
-	yield $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
+	yield $ XCBegin [
+		(From, "localhost"),
+		(To, "otherhost"),
+		(TagRaw $ nullQ "version", "1.0")]
 	proc i e
 
 proc :: (
@@ -83,7 +86,8 @@ proc ic e = await >>= \mx -> case mx of
 processTls :: Monad m => Pipe Xmpp Xmpp m ()
 processTls = do
 	yield XCDecl
-	yield $ XCBegin [(From, "localhost"), (To, "otherhost"), (Version, "1.0")]
+	yield $ XCBegin [(From, "localhost"), (To, "otherhost"),
+		(TagRaw $ nullQ "version", "1.0")]
 	procTls
 
 procTls :: Monad m => Pipe Xmpp Xmpp m ()

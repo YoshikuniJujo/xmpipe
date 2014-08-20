@@ -2,6 +2,7 @@
 
 module XmppType (
 	Xmpp(..), toCommon, fromCommon,
+	Tags(..),
 	Jid(..), toJid, fromJid,
 	Side(..),
 	Tag(..), toTag, fromTag,
@@ -10,7 +11,9 @@ module XmppType (
 	Requirement(..), toRequirement, fromRequirement,
 	) where
 
+import Control.Applicative
 import Control.Arrow
+import Data.Maybe
 import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
@@ -32,12 +35,40 @@ data Xmpp
 
 	| SRIqBind [(Tag, BS.ByteString)] Query
 
-	| SRMessage [(Tag, BS.ByteString)] [XmlNode]
+--	| SRMessage [(Tag, BS.ByteString)] [XmlNode]
+	| SRMessage Tags [XmlNode]
 	| SRPresence [(Tag, BS.ByteString)] [XmlNode]
 	| SRIq [(Tag, BS.ByteString)] [XmlNode]
 
 	| XCRaw XmlNode
 	deriving Show
+
+data Tags = Tags {
+	tagId :: Maybe BS.ByteString,
+	tagType :: Maybe BS.ByteString,
+	tagFrom :: Maybe Jid,
+	tagTo :: Maybe Jid,
+	tagLang :: Maybe BS.ByteString,
+	tagOthers :: [(QName, BS.ByteString)] } deriving Show
+
+toTags :: [(QName, BS.ByteString)] -> Tags
+toTags as = Tags {
+	tagId = i, tagType = tp, tagFrom = fr, tagTo = to, tagLang = ln,
+	tagOthers = ot }
+	where
+	ts = map (first toTag) as
+	i = lookup Id ts
+	tp = lookup Type ts
+	fr = toJid <$> lookup From ts
+	to = toJid <$> lookup To ts
+	ln = lookup Lang ts
+	ot = map (first $ \(TagRaw a) -> a) $ filter (isTagRaw . fst) ts
+
+fromTags :: Tags -> [(QName, BS.ByteString)]
+fromTags Tags { tagId = i, tagType = tp, tagFrom = fr, tagTo = to, tagLang = ln,
+	tagOthers = ot } = (++ ot) . map (first fromTag) $ catMaybes [
+		(Id ,) <$> i, (Type ,) <$> tp, (From ,) . fromJid <$> fr,
+		(To ,) . fromJid <$> to, (Lang ,) <$> ln ]
 
 data Query = IqBind (Maybe Requirement) Bind deriving Show
 
@@ -48,33 +79,31 @@ data Bind
 	deriving Show
 
 data Tag
-	= Id | From | To | Version | Lang | Mechanism | Type
-	| TagRaw QName
+	= Id | Type | From | To | Lang | TagRaw QName
 	deriving (Eq, Show)
 
+isTagRaw :: Tag -> Bool
+isTagRaw (TagRaw _) = True
+isTagRaw _ = False
+
 toTag :: QName -> Tag
-toTag ((_, Just "jabber:client"), "type") = Type
-toTag ((_, Just "jabber:server"), "type") = Type
 toTag ((_, Just "jabber:client"), "id") = Id
 toTag ((_, Just "jabber:server"), "id") = Id
+toTag ((_, Just "jabber:client"), "type") = Type
+toTag ((_, Just "jabber:server"), "type") = Type
 toTag ((_, Just "jabber:client"), "from") = From
 toTag ((_, Just "jabber:server"), "from") = From
 toTag ((_, Just "jabber:client"), "to") = To
 toTag ((_, Just "jabber:server"), "to") = To
-toTag ((_, Just "jabber:client"), "version") = Version
-toTag ((_, Just "jabber:server"), "version") = Version
-toTag ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism") = Mechanism
 toTag (("xml", Nothing), "lang") = Lang
 toTag n = TagRaw n
 
 fromTag :: Tag -> QName
-fromTag Type = nullQ "type"
 fromTag Id = nullQ "id"
+fromTag Type = nullQ "type"
 fromTag From = nullQ "from"
 fromTag To = nullQ "to"
-fromTag Version = nullQ "version"
 fromTag Lang = (("xml", Nothing), "lang")
-fromTag Mechanism = nullQ "mechanism"
 fromTag (TagRaw n) = n
 
 nullQ :: BS.ByteString -> QName
@@ -159,10 +188,13 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-tls"), "proceed")
 	_ [] []) = XCProceed
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [])
-	| [(Mechanism, m)] <- map (first toTag) as = XCAuth m Nothing
+	| [(((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism"), m)] <- as =
+	XCAuth m Nothing
+-- toTag ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism") = Mechanism
 toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "auth")
 	_ as [XmlCharData i])
-	| [(Mechanism, m)] <- map (first toTag) as =
+	| [(((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "mechanism"), m)] <- as =
+--	| [(Mechanism, m)] <- map (first toTag) as =
 	XCAuth m . Just . (\(Right r) -> r) $ case i of
 		"=" -> Right ""
 		_ -> B64.decode i
@@ -182,7 +214,7 @@ toCommon (XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-sasl"), "response")
 
 toCommon (XmlNode ((_, Just q), "message") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"] =
-		SRMessage (map (first toTag) as) ns
+		SRMessage (toTags as) ns
 toCommon (XmlNode ((_, Just q), "iq") _ as ns)
 	| q `elem` ["jabber:client", "jabber:server"], Just b <- toIqBody ns =
 		SRIqBind ts b
@@ -259,7 +291,7 @@ fromCommon _ (SRChallenge c) = XmlNode (nullQ "challenge")
 fromCommon _ (SRResponse "") = drnToXmlNode
 fromCommon _ (SRResponse s) = drToXmlNode s
 fromCommon _ (SRMessage ts ns) =
-	XmlNode (nullQ "message") [] (map (first fromTag) ts) ns
+	XmlNode (nullQ "message") [] (fromTags ts) ns
 fromCommon _ (SRIqBind ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts)
 	(fromQuery q)
 fromCommon _ (SRIq ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts) q

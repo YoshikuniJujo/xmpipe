@@ -4,6 +4,7 @@ module Xmpp (
 	input, output,
 
 	Xmpp(..), fromCommon,
+	Tags(..),
 	Jid(..), toJid, fromJid,
 	Side(..),
 	Feature(..), Tag(..),
