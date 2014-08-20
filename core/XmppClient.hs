@@ -2,20 +2,9 @@
 	FlexibleContexts, PackageImports #-}
 
 module XmppClient (
-	Jid(..), toJid, fromJid,
-	Tags(..),
-	Xmpp(..), Feature(..),
-	Query(..), Bind(..),
-	Tag(..),
-	SASL.SaslState(..),
-
-	Requirement(..), toRequirement,
-
-	input, output, begin, starttls, sasl, bind,
-
-	tagsNull, tagsChat, tagsResult,
-	responseToFeature, tagsGet,
-	mkSaslInit,
+	Xmpp(..), Jid(..), toJid, SASL.SaslState(..),
+	Tags(..), tagsNull, tagsResult, tagsChat, tagsGet,
+	starttls, sasl, bind, input, output, mkSaslInit,
 	) where
 
 import Control.Monad
@@ -111,8 +100,8 @@ responseToFeature :: FeatureR -> Maybe Xmpp
 responseToFeature (Ft (FtBind _)) = Just
 	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
 	$ Resource "profanity"
-responseToFeature (FRRosterver _) = Just $ SRIq
-	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
+-- responseToFeature (FRRosterver _) = Just $ SRIq
+--	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
 responseToFeature _ = Nothing
 
 tagsGet :: Tags

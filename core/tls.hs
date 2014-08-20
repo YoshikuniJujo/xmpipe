@@ -57,13 +57,11 @@ main = do
 	(`run` g) $ do
 		p <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca
 		let sp = SHandle p
-		((), _st) <- (`runStateT` saslInit) $ do
+		voidM . (`runStateT` saslInit) $ do
 			sasl sp host mechanisms
 			Just ns <- bind sp host
 			voidM . runPipe $ input sp ns =$= hlpDebug sp =$=
 				(putPresence >> process) =$= output sp
-		return ()
---		liftIO $ print st
 	where
 	saslInit = mkSaslInit ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
 
@@ -106,3 +104,8 @@ getCaps v n = SRIq tagsGet { tagId = Just "prof_caps_2", tagTo = Just sender }
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
 resultCaps i t n = SRIq tagsResult { tagId = Just i, tagTo = Just t }
 	. fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]
+
+responseToFeature :: FeatureR -> Maybe Xmpp
+responseToFeature (FRRosterver _) = Just $ SRIq
+	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
+responseToFeature _ = Nothing
