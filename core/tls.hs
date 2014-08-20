@@ -48,14 +48,6 @@ cipherSuites = ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 mechanisms :: [BS.ByteString]
 mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
-{-
-data ChanHandle = ChanHandle (TChan BS.ByteString) (TChan BS.ByteString)
-
-instance HandleLike ChanHandle where
-	type HandleMonad ChanHandle = IO
-	hlPut (ChanHandle c) = atomically 
-	-}
-
 main :: IO ()
 main = do
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
@@ -63,28 +55,51 @@ main = do
 	c <- readCertificateChain ["certs/xmpp_client.sample_cert"]
 	(g :: SystemRNG) <- cprgCreate <$> createEntropyPool
 	h <- connectTo (BSC.unpack host) port
-	void . runPipe $ input h =$=
-		hlpDebug h =$= (begin host "en" >> starttls) =$= output h
+	starttls h host
 	(`run` g) $ do
 		p <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca
-		((), st) <- xmpp (SHandle p) `runStateT` St [
-			("username", (\(Jid u _ _) -> u) sender),
-			("authcid", (\(Jid u _ _) -> u) sender),
-			("password", "password"),
-			("cnonce", "00DEADBEEF00") ]
-		liftIO $ print st
+		let sp = SHandle p
+		((), _st) <- (`runStateT` saslInit) $ do
+			sasl sp host mechanisms
+			xmpp sp
+		return ()
+--		liftIO $ print st
+
+saslInit :: St
+saslInit = St [
+	("username", (\(Jid u _ _) -> u) sender),
+	("authcid", (\(Jid u _ _) -> u) sender),
+	("password", "password"),
+	("cnonce", "00DEADBEEF00") ]
 
 xmpp :: (HandleLike h, -- MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), SaslState (StateType (HandleMonad h)),
 	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
 	h -> HandleMonad h ()
 xmpp h = do
-	voidM . runPipe $ input h =$= hlpDebug h =$=
-		(begin host "en" >> sasl mechanisms) =$= output h
 	Just ns <- runPipe $ input' h =@= hlpDebug h =$=
-		(begin host "en" >> process) =$= output h
+		(begin host "en" >> bind) =$= output h
 	voidM . runPipe $ input'' h ns =$= hlpDebug h =$=
-		(putPresence >> process') =$= output h
+		(putPresence >> process) =$= output h
+
+bind :: (Monad m,
+	MonadState m, SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
+bind = await >>= \mr -> case mr of
+	Just (XCFeatures fs) -> do
+		mapM_ yield . catMaybes
+			. map (responseToFeature . featureToFeatureR) $ sort fs
+		bind
+	Just _ -> bind
+	_ -> return ()
+
+responseToFeature :: FeatureR -> Maybe Xmpp
+responseToFeature (Ft (FtBind _)) = Just
+	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
+	$ Resource "profanity"
+responseToFeature (FRRosterver _) = Just $ SRIq
+	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
+responseToFeature _ = Nothing
 
 putPresence :: (Monad m,
 	MonadState m, SaslState (StateType m),
@@ -93,14 +108,14 @@ putPresence = yield . SRPresence tagsNull { tagId = Just "prof_presence_1" }
 	. fromCaps
 	$ capsToXmlCaps profanityCaps "http://www.profanity.im"
 
-process' :: (Monad m,
+process :: (Monad m,
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-process' = await >>= \mr -> case mr of
+process = await >>= \mr -> case mr of
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
-			yield (getCaps v n) >> process'
-		_ -> process'
+			yield (getCaps v n) >> process
+		_ -> process
 	Just (SRIq ts ns)
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
 			Just "get" <- tagType ts,
@@ -119,27 +134,8 @@ process' = await >>= \mr -> case mr of
 				[XmlNode (nullQ "body") [] []
 					[XmlCharData message]]
 			yield XCEnd
-	Just _ -> process'
-	_ -> return ()
-
-process :: (Monad m,
-	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-process = await >>= \mr -> case mr of
-	Just (XCFeatures fs) -> do
-		mapM_ yield . catMaybes
-			. map (responseToFeature . featureToFeatureR) $ sort fs
-		process
 	Just _ -> process
 	_ -> return ()
-
-responseToFeature :: FeatureR -> Maybe Xmpp
-responseToFeature (Ft (FtBind _)) = Just
-	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
-	$ Resource "profanity"
-responseToFeature (FRRosterver _) = Just $ SRIq
-	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
-responseToFeature _ = Nothing
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
 getCaps v n = SRIq tagsGet { tagId = Just "prof_caps_2", tagTo = Just sender }

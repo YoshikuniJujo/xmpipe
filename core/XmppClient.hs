@@ -20,6 +20,7 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.List
+import Data.HandleLike
 import Data.Pipe
 
 import qualified Data.ByteString as BS
@@ -32,19 +33,33 @@ begin h l = do
 	yield XCDecl
 	yield $ XCBegin [(To, h), (TagRaw $ nullQ "version", "1.0"), (Lang, l)]
 
-starttls :: Monad m => Pipe Xmpp Xmpp m ()
-starttls = do
+starttls :: HandleLike h => h -> BS.ByteString -> HandleMonad h ()
+starttls h hst = voidM . runPipe $ input h
+--	=$= hlpDebug h
+	=$= (begin hst "en" >> starttls_) =$= output h
+
+starttls_ :: Monad m => Pipe Xmpp Xmpp m ()
+starttls_ = do
 	Just (XCBegin _as) <- await
 	Just (XCFeatures fs) <- await
-	when (null $ filter isSt fs) $ fail "starttls: not support tls"
+	when (null $ filter isSt fs) $ fail "starttls_: not support tls"
 	yield XCStarttls
 	Just XCProceed <- await
 	return ()
 	where isSt (FtStarttls _) = True; isSt _ = False
 
-sasl :: (Monad m, MonadState m, SASL.SaslState (StateType m), MonadError m, Error (ErrorType m) ) =>
+sasl :: (
+	HandleLike h,
+	MonadState (HandleMonad h), SASL.SaslState (StateType (HandleMonad h)),
+	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
+	h -> BS.ByteString -> [BS.ByteString] -> HandleMonad h ()
+sasl h hst ms = voidM . runPipe $ input h
+--	=$= hlpDebug h
+	=$= (begin hst "en" >> sasl_ ms) =$= output h
+
+sasl_ :: (Monad m, MonadState m, SASL.SaslState (StateType m), MonadError m, Error (ErrorType m) ) =>
 	[BS.ByteString] -> Pipe Xmpp Xmpp m ()
-sasl sl = do
+sasl_ sl = do
 	Just (XCBegin _as) <- await
 	Just (XCFeatures fs) <- await
 	let	Just (FtMechanisms ms) = find isFtMechanisms fs
