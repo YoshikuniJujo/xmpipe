@@ -25,17 +25,13 @@ import Caps
 import Disco
 
 host :: BS.ByteString
-host = case (\(Jid _ d _) -> d) sender of
-	"otherhost" -> "localhost"
-	h -> h
+host = case (\(Jid _ d _) -> d) sender of "otherhost" -> "localhost"; h -> h
 
 port :: PortID
-port = PortNumber $ case (\(Jid _ d _) -> d) sender of
-	"otherhost" -> 55222
-	_ -> 5222
+port = PortNumber $
+	case (\(Jid _ d _) -> d) sender of "otherhost" -> 55222; _ -> 5222
 
-message :: BS.ByteString
-sender, recipient :: Jid
+sender, recipient :: Jid; message :: BS.ByteString
 (sender, recipient, message) = unsafePerformIO $ do
 	[s, r, m] <- getArgs
 	return (toJid $ BSC.pack s, toJid $ BSC.pack r, BSC.pack m)
@@ -65,17 +61,21 @@ main = do
 	where
 	saslInit = mkSaslInit ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
 
-putPresence :: (Monad m,
-	MonadState m, St ~ (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe a Xmpp m ()
+putPresence ::
+	(MonadState m, St ~ (StateType m), MonadError m, Error (ErrorType m)) =>
+	Pipe a Xmpp m ()
 putPresence = do
-	St fts _ <- get
-	mapM_ yield $ mapMaybe responseToFeature fts
+	gets stFeatures >>= mapM_ yield . mapMaybe resp
 	yield . SRPresence tagsNull { tagId = Just "prof_presence_1" }
 		. fromCaps
 		$ capsToXmlCaps profanityCaps "http://www.profanity.im"
+	where
+	resp (FRRosterver _) = Just $ SRIq
+		tagsGet { tagId = Just "_xmpp-roster1" }
+		[fromIRRoster $ IRRoster Nothing]
+	resp _ = Nothing
 
-process :: (Monad m,
+process :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 process = await >>= \mr -> case mr of
@@ -89,6 +89,7 @@ process = await >>= \mr -> case mr of
 		| Just (IqDiscoInfoNode [(DTNode, n)]) <- toQueryDisco ns,
 			(u, d) == let Jid u' d' _ = sender in (u', d') -> do
 			yield $ resultCaps i f n
+
 			yield $ SRMessage tagsChat {
 					tagId = Just "prof_3",
 					tagTo = Just recipient }
@@ -104,8 +105,3 @@ getCaps v n = SRIq tagsGet { tagId = Just "prof_caps_2", tagTo = Just sender }
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Xmpp
 resultCaps i t n = SRIq tagsResult { tagId = Just i, tagTo = Just t }
 	. fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]
-
-responseToFeature :: FeatureR -> Maybe Xmpp
-responseToFeature (FRRosterver _) = Just $ SRIq
-	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
-responseToFeature _ = Nothing

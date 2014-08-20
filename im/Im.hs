@@ -58,10 +58,11 @@ fromIRRoster (IRRoster (Just (Roster mv ns))) =
 		Just v -> [(nullQ "ver", v)]
 		_ -> []
 
-data St = St
-	[FeatureR]
-	[(BS.ByteString, BS.ByteString)]
+data St = St {
+	stFeatures :: [FeatureR],
+	stSaslState :: [(BS.ByteString, BS.ByteString)] }
 	deriving Show
+
 instance SaslState St where
 	getSaslState (St _ ss) = ss
 	putSaslState ss (St fts _) = St fts ss
