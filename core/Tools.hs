@@ -6,7 +6,6 @@ module Tools (
 	hlpDebug, voidM, nullQ, myFromJust,
 	fromHandle, toHandle,
 	debug,
-	endIf,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -59,7 +58,3 @@ toHandle h = await >>= maybe (return ()) ((>> toHandle h) . lift . BS.hPut h)
 
 debug :: (MonadIO m, Show a) => Pipe a a m ()
 debug = await >>= maybe (return ()) (\x -> liftIO (print x) >> yield x >> debug)
-
-endIf :: Monad m => (a -> Bool) -> Pipe a a m ()
-endIf p = await >>= maybe (return ())
-	(\x -> unless (p x) $ yield x >> endIf p)

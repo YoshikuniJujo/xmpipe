@@ -9,6 +9,7 @@ import Control.Concurrent hiding (yield)
 import Control.Concurrent.STM
 import Data.Maybe
 import Data.Pipe
+import Data.Pipe.Flow
 import Data.Pipe.ByteString
 import System.Environment
 import System.IO.Unsafe
@@ -24,7 +25,7 @@ import qualified Data.ByteString.Char8 as BSC
 
 import XmppClient
 import Im (IRRoster(..), FeatureR(..), fromIRRoster)
-import Tools (fromHandle, toHandle, endIf, debug, voidM, nullQ)
+import Tools (fromHandle, toHandle, debug, voidM, nullQ)
 import Caps (
 	XmlCaps(..), CapsTag(..), capsToQuery, profanityCaps, toCaps, fromCaps,
 	capsToXmlCaps )
@@ -74,7 +75,7 @@ main = do
 		=$= output
 		=$= toChan otc
 	voidM . runPipe $ fromHandleLn stdin
-		=$= endIf (== "/quit")
+		=$= before (== "/quit")
 		=$= convert toMessageMpi
 		=$= toChan ic
 	atomically $ writeTChan ic End
