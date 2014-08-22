@@ -12,6 +12,7 @@ module XmppClient (
 
 import Control.Monad
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Writer
 import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.List
@@ -67,20 +68,19 @@ sasl_ sl = do
 	isFtMechanisms _ = False
 
 bind :: (Monad m,
-	MonadState m, St ~ StateType m,
+	MonadWriter m, [FeatureR] ~ WriterType m,
 	MonadError m, Error (ErrorType m) ) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
 bind hst = inputP3 =@= (begin hst "en" >> bind_) =$= output
 
 bind_ :: (
-	MonadState m, St ~ (StateType m),
+	MonadWriter m, [FeatureR] ~ (WriterType m),
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 bind_ = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
 		let (b, fs') = sepBind $ map featureToFeatureR fs
-		lift . modify $ putFeatures fs'
 		mapM_ yield . catMaybes $ map responseToFeature b
-		modify $ putFeatures fs'
+		tell fs'
 		bind_
 	Just _ -> bind_
 	_ -> return ()
@@ -100,9 +100,6 @@ responseToFeature _ = Nothing
 
 tagsGet :: Tags
 tagsGet = Tags Nothing (Just "get") Nothing Nothing Nothing []
-
-putFeatures :: [FeatureR] -> St -> St
-putFeatures fts (St _ ss) = St fts ss
 
 tagsChat :: Tags
 tagsChat = Tags Nothing (Just "chat") Nothing Nothing Nothing []

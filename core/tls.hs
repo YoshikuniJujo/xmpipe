@@ -3,8 +3,8 @@
 
 import Control.Applicative
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Writer
 import "monads-tf" Control.Monad.Error
-import Control.Monad.Trans.Control
 import Control.Concurrent hiding (yield)
 import Control.Concurrent.STM
 import Data.Maybe
@@ -57,32 +57,31 @@ main = do
 	h <- connectTo (BSC.unpack host) port
 	_ <- runPipe $ fromHandle h =$= starttls host =$= toHandle h
 	(inc, otc) <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca g
-	voidM . (`runStateT` saslInit) $ do
-		_ <- runPipe $ fromChan inc =$= sasl host mechanisms =$= toChan otc
-		Just ns <- runPipe $ fromChan inc =$= bind host =@= toChan otc
-		sc <- lift $ atomically newTChan
-		ic <- lift $ atomically newTChan
-		_ <- liftBaseDiscard forkIO . voidM . runPipe $ fromChan inc
-			=$= input ns
-			=$= debug
-			=$= (putPresence >> process)
-			=$= toChan sc
-		_ <- liftBaseDiscard forkIO . voidM . runPipe $ fromChans [sc, ic]
-			=$= output
-			=$= toChan otc
-		voidM . runPipe $ fromHandleLn stdin
-			=$= endIf (== "/quit")
-			=$= convert toMessage
-			=$= toChan ic
-		lift . atomically $ writeTChan ic XCEnd
+	voidM . (`runStateT` saslInit) $
+		runPipe $ fromChan inc =$= sasl host mechanisms =$= toChan otc
+	(Just ns, fts) <-
+		runWriterT . runPipe $ fromChan inc =$= bind host =@= toChan otc
+	sc <- atomically newTChan
+	ic <- atomically newTChan
+	_ <- forkIO . voidM . runPipe $ fromChan inc
+		=$= input ns
+		=$= debug
+		=$= (putPresence fts >> process)
+		=$= toChan sc
+	_ <- forkIO . voidM . runPipe $ fromChans [sc, ic]
+		=$= output
+		=$= toChan otc
+	voidM . runPipe $ fromHandleLn stdin
+		=$= endIf (== "/quit")
+		=$= convert toMessage
+		=$= toChan ic
+	atomically $ writeTChan ic XCEnd
 	where
 	saslInit = mkSaslInit ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
 
-putPresence ::
-	(MonadState m, St ~ (StateType m), MonadError m, Error (ErrorType m)) =>
-	Pipe a Xmpp m ()
-putPresence = do
-	gets stFeatures >>= mapM_ yield . mapMaybe resp
+putPresence :: (MonadError m, Error (ErrorType m)) => [FeatureR] -> Pipe a Xmpp m ()
+putPresence fts = do
+	mapM_ yield $ mapMaybe resp fts
 	yield . SRPresence tagsNull { tagId = Just "prof_presence_1" }
 		. fromCaps
 		$ capsToXmlCaps profanityCaps "http://www.profanity.im"
@@ -92,9 +91,7 @@ putPresence = do
 		[fromIRRoster $ IRRoster Nothing]
 	resp _ = Nothing
 
-process :: (
-	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
+process :: (MonadError m, Error (ErrorType m)) => Pipe Xmpp Xmpp m ()
 process = await >>= \mr -> case mr of
 	Just (SRPresence _ ns) -> case toCaps ns of
 		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
