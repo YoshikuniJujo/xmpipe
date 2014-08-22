@@ -5,43 +5,32 @@ module XmppClient (
 	Xmpp(..), Jid(..), toJid, SASL.SaslState(..),
 	Tags(..), tagsNull, tagsResult, tagsChat, tagsGet,
 
-	starttls, mkSaslInit,
+	mkSaslInit,
 
-	saslP, bindP, inputC, outputC,
+	starttlsP, saslP, bindP, inputC, outputC,
 	) where
 
 import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
--- import Control.Monad.Trans.Control
--- import Control.Concurrent.STM
 import Data.Maybe
 import Data.List
-import Data.HandleLike
 import Data.Pipe
 import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 
-import Xmpp hiding (input)
-import qualified Xmpp
+import Xmpp
 import Im
 import qualified SaslClient as SASL
-
-{-
-input :: HandleLike h => h -> [Xmlns] -> Pipe () Xmpp (HandleMonad h) ()
-input = input''
--}
 
 begin :: Monad m => BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
 begin h l = do
 	yield XCDecl
 	yield $ XCBegin [(To, h), (TagRaw $ nullQ "version", "1.0"), (Lang, l)]
 
-starttls :: HandleLike h => h -> BS.ByteString -> HandleMonad h ()
-starttls h hst = voidM . runPipe $ Xmpp.input h
---	=$= hlpDebug h
-	=$= (begin hst "en" >> starttls_) =$= output h
+starttlsP :: Monad m => BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
+starttlsP hst = inputP3 =$= (begin hst "en" >> starttls_) =$= outputP
 
 starttls_ :: Monad m => Pipe Xmpp Xmpp m ()
 starttls_ = do
@@ -52,17 +41,6 @@ starttls_ = do
 	Just XCProceed <- await
 	return ()
 	where isSt (FtStarttls _) = True; isSt _ = False
-
-{-
-saslC :: (
-	MonadBaseControl IO m,
-	MonadState m, SASL.SaslState (StateType m),
-	MonadError m, Error (ErrorType m) ) =>
-	TChan BS.ByteString -> TChan BS.ByteString ->
-	BS.ByteString -> [BS.ByteString] -> m ()
-saslC i o hst ms = voidM . runPipe $
-	Xmpp.inputC2 i =$= sasl hst ms =$= outputC o
-	-}
 
 saslP :: (
 	MonadState m, SASL.SaslState (StateType m),
@@ -88,32 +66,11 @@ sasl_ sl = do
 	isFtMechanisms (FtMechanisms _) = True
 	isFtMechanisms _ = False
 
-{-
-bindC :: (
-	MonadBaseControl IO m,
-	MonadState m, St ~ (StateType m),
-	MonadError m, Error (ErrorType m) ) =>
-	TChan BS.ByteString -> TChan BS.ByteString ->
-	BS.ByteString -> m (Maybe [Xmlns])
-bindC i o hst = runPipe $ inputC3 i =@= (begin hst "en" >> bind_) =$= outputC o
--}
-
 bindP :: (Monad m,
 	MonadState m, St ~ StateType m,
 	MonadError m, Error (ErrorType m) ) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
 bindP hst = inputP3 =@= (begin hst "en" >> bind_) =$= outputP
-
-{-
-bind :: (
-	HandleLike h,
-	MonadState (HandleMonad h), St ~ (StateType (HandleMonad h)),
-	MonadError (HandleMonad h), Error (ErrorType (HandleMonad h)) ) =>
-	h -> BS.ByteString -> HandleMonad h (Maybe [Xmlns])
-bind h hst = runPipe $ input' h =@=
---	hlpDebug h =$=
-	(begin hst "en" >> bind_) =$= output h
-	-}
 
 bind_ :: (
 	MonadState m, St ~ (StateType m),
@@ -139,8 +96,6 @@ responseToFeature :: FeatureR -> Maybe Xmpp
 responseToFeature (Ft (FtBind _)) = Just
 	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
 	$ Resource "profanity"
--- responseToFeature (FRRosterver _) = Just $ SRIq
---	tagsGet { tagId = Just "_xmpp-roster1" } [fromIRRoster $ IRRoster Nothing]
 responseToFeature _ = Nothing
 
 tagsGet :: Tags

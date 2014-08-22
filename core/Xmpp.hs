@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module Xmpp (
-	input, input', input'', output,
+	input', input'', output,
 	inputC2, inputC3, inputC, outputC,
-	inputP2, inputP3, outputP,
+	inputP2, inputP3, inputP, outputP,
 
 	Xmpp(..), fromCommon,
 	Tags(..),
@@ -37,9 +37,6 @@ tagsNull = Tags Nothing Nothing Nothing Nothing Nothing []
 inputC2 :: MonadBaseControl IO m => TChan BS.ByteString -> Pipe () Xmpp m ()
 inputC2 c = fromChan c =$= inputP2
 
-input :: HandleLike h => h -> Pipe () Xmpp (HandleMonad h) ()
-input h = fromHandleLike h =$= inputP2
-
 inputP2 :: Monad m => Pipe BS.ByteString Xmpp m ()
 inputP2 = xmlEvent =$= convert fromJust =$= mapOut toCommon xmlReborn
 
@@ -62,11 +59,10 @@ xmlPipe = xmlBegin >>= \ns -> xmlNodeUntil isSaslSuccess ns >> return ns
 
 inputC :: MonadBaseControl IO m =>
 	TChan BS.ByteString -> [Xmlns] -> Pipe () Xmpp m ()
-inputC c ns = fromChan c
-	=$= xmlEvent
-	=$= convert fromJust
-	=$= xmlNode ns
-	=$= convert toCommon
+inputC c ns = fromChan c =$= inputP ns
+
+inputP :: Monad m => [Xmlns] -> Pipe BS.ByteString Xmpp m ()
+inputP ns = xmlEvent =$= convert fromJust =$= xmlNode ns =$= convert toCommon
 
 input'' :: HandleLike h => h -> [Xmlns] -> Pipe () Xmpp (HandleMonad h) ()
 input'' h ns = fromHandleLike h

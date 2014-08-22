@@ -51,6 +51,12 @@ mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 debug :: (MonadIO m, Show a) => Pipe a a m ()
 debug = await >>= maybe (return ()) (\x -> liftIO (print x) >> yield x >> debug)
 
+fromHandle :: Handle -> Pipe () BS.ByteString IO ()
+fromHandle h = lift (BS.hGet h 1) >>= yield >> fromHandle h
+
+toHandle :: Handle -> Pipe BS.ByteString () IO ()
+toHandle h = await >>= maybe (return ()) ((>> toHandle h) . lift . BS.hPut h)
+
 main :: IO ()
 main = do
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
@@ -58,7 +64,7 @@ main = do
 	c <- readCertificateChain ["certs/xmpp_client.sample_cert"]
 	(g :: SystemRNG) <- cprgCreate <$> createEntropyPool
 	h <- connectTo (BSC.unpack host) port
-	starttls h host
+	_ <- runPipe $ fromHandle h =$= starttlsP host =$= toHandle h
 	(inc, otc) <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca g
 	dbgc <- atomically newTChan
 	_ <- forkIO . forever $ do
