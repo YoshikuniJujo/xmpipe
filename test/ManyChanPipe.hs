@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module ManyChanPipe (
 	fromChan, fromChans, toChan,
@@ -7,6 +7,8 @@ module ManyChanPipe (
 import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.Trans
+import Control.Monad.Base
+import Control.Monad.Trans.Control
 import Data.Pipe
 import Data.Pipe.ByteString
 import Control.Concurrent hiding (yield)
@@ -28,8 +30,8 @@ main = do
 	_ <- runPipe (fromChans [c1, c2] =$= toHandleLn stdout :: Pipe () () IO ())
 	return ()
 
-fromChan :: TChan a -> Pipe () a IO ()
-fromChan c = liftIO (atomically $ readTChan c) >>= yield >> fromChan c
+fromChan :: MonadBaseControl IO m => TChan a -> Pipe () a m ()
+fromChan c = lift (liftBase . atomically $ readTChan c) >>= yield >> fromChan c
 
 toChan :: TChan a -> Pipe a () IO ()
 toChan c = await >>=

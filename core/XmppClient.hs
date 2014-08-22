@@ -5,11 +5,16 @@ module XmppClient (
 	Xmpp(..), Jid(..), toJid, SASL.SaslState(..),
 	Tags(..), tagsNull, tagsResult, tagsChat, tagsGet,
 	starttls, sasl, bind, input, output, mkSaslInit,
+
+	saslC, bindC,
+	inputC, outputC,
 	) where
 
 import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
+import Control.Monad.Trans.Control
+import Control.Concurrent.STM
 import Data.Maybe
 import Data.List
 import Data.HandleLike
@@ -46,6 +51,16 @@ starttls_ = do
 	return ()
 	where isSt (FtStarttls _) = True; isSt _ = False
 
+saslC :: (
+	MonadBaseControl IO m,
+	MonadState m, SASL.SaslState (StateType m),
+	MonadError m, Error (ErrorType m) ) =>
+	TChan BS.ByteString -> TChan BS.ByteString ->
+	BS.ByteString -> [BS.ByteString] -> m ()
+saslC i o hst ms = voidM . runPipe $ Xmpp.inputC2 i
+--	=$= hlpDebug h
+	=$= (begin hst "en" >> sasl_ ms) =$= outputC o
+
 sasl :: (
 	HandleLike h,
 	MonadState (HandleMonad h), SASL.SaslState (StateType (HandleMonad h)),
@@ -66,6 +81,16 @@ sasl_ sl = do
 	where
 	isFtMechanisms (FtMechanisms _) = True
 	isFtMechanisms _ = False
+
+bindC :: (
+	MonadBaseControl IO m,
+	MonadState m, St ~ (StateType m),
+	MonadError m, Error (ErrorType m) ) =>
+	TChan BS.ByteString -> TChan BS.ByteString ->
+	BS.ByteString -> m (Maybe [Xmlns])
+bindC i o hst = runPipe $ inputC3 i =@=
+--	hlpDebug h =$=
+	(begin hst "en" >> bind_) =$= outputC o
 
 bind :: (
 	HandleLike h,
