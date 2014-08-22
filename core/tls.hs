@@ -48,15 +48,6 @@ cipherSuites = ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 mechanisms :: [BS.ByteString]
 mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
-debug :: (MonadIO m, Show a) => Pipe a a m ()
-debug = await >>= maybe (return ()) (\x -> liftIO (print x) >> yield x >> debug)
-
-fromHandle :: Handle -> Pipe () BS.ByteString IO ()
-fromHandle h = lift (BS.hGet h 1) >>= yield >> fromHandle h
-
-toHandle :: Handle -> Pipe BS.ByteString () IO ()
-toHandle h = await >>= maybe (return ()) ((>> toHandle h) . lift . BS.hPut h)
-
 main :: IO ()
 main = do
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
@@ -66,34 +57,26 @@ main = do
 	h <- connectTo (BSC.unpack host) port
 	_ <- runPipe $ fromHandle h =$= starttls host =$= toHandle h
 	(inc, otc) <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca g
-	dbgc <- atomically newTChan
-	_ <- forkIO . forever $ do
-		bs <- atomically $ readTChan dbgc
-		print bs
-		atomically $ writeTChan otc bs
 	voidM . (`runStateT` saslInit) $ do
 		_ <- runPipe $ fromChan inc =$= sasl host mechanisms =$= toChan otc
 		Just ns <- runPipe $ fromChan inc =$= bind host =@= toChan otc
 		sc <- lift $ atomically newTChan
 		ic <- lift $ atomically newTChan
-		_ <- liftBaseDiscard forkIO . voidM . runPipe $ inputC inc ns
+		_ <- liftBaseDiscard forkIO . voidM . runPipe $ fromChan inc
+			=$= input ns
 			=$= debug
 			=$= (putPresence >> process)
 			=$= toChan sc
-		lift . atomically . writeTChan ic $ toMessage "HOGETAKANA"
-		_ <- liftBaseDiscard forkIO . voidM . runPipe $ fromChans [sc, ic] =$= outputC dbgc
-		voidM . runPipe $
-			fromHandleLn stdin
-				=$= endIf (== "/quit")
-				=$= convert toMessage
-				=$= toChan ic
+		_ <- liftBaseDiscard forkIO . voidM . runPipe $ fromChans [sc, ic]
+			=$= output
+			=$= toChan otc
+		voidM . runPipe $ fromHandleLn stdin
+			=$= endIf (== "/quit")
+			=$= convert toMessage
+			=$= toChan ic
 		lift . atomically $ writeTChan ic XCEnd
 	where
 	saslInit = mkSaslInit ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
-
-endIf :: Monad m => (a -> Bool) -> Pipe a a m ()
-endIf p = await >>= maybe (return ())
-	(\x -> unless (p x) $ yield x >> endIf p)
 
 putPresence ::
 	(MonadState m, St ~ (StateType m), MonadError m, Error (ErrorType m)) =>

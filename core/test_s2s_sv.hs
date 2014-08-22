@@ -18,6 +18,7 @@ import qualified Data.ByteString as BS
 
 import Xmpp
 import SaslServer
+import Tools
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
@@ -36,10 +37,11 @@ main = do
 		let us = randoms sg :: [UUID]
 		void . forkIO . (`evalStateT` g0) $ do
 			us' <- lift . (`execStateT` XmppState Nothing False us)
-				. runPipe $ input sh
+				. runPipe $ fromHandleLike sh =$= inputP3
 					=$= hlpDebug sh
 					=$= processTls
-					=$= output sh
+					=$= output
+					=$= toHandleLike sh
 			g <- StateT $ return . cprgFork
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
@@ -47,10 +49,11 @@ main = do
 				getNames p >>= liftIO . print
 				let sp = SHandle p
 				void . (`evalStateT` us')
-					. runPipe $ input sp
+					. runPipe $ fromHandleLike sp =$= inputP2
 						=$= hlpDebug sp
 						=$= process
-						=$= output sp
+						=$= output
+						=$= toHandleLike sp
 
 data XmppState = XmppState {
 	xsDomainName :: Maybe BS.ByteString,

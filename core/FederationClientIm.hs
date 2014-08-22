@@ -30,24 +30,29 @@ connect ca k c = do
 	e <- atomically newTChan
 	_ <- forkIO $ do
 		h <- connectTo "localhost" $ PortNumber 55269
-		void . runPipe $ input h
+		void . runPipe $ fromHandleLike h =$= inputP3
 			=$= hlpDebug h
 			=$= processTls
-			=$= output h
+			=$= output
+			=$= toHandleLike h
 		g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 		(`run` g) $ do
 			p <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 				[(k, c)] ca
 			getNames p >>= liftIO . print
 			let sp = SHandle p
-			void . (`runStateT` St [] []) . runPipe $ input sp
+			void . (`runStateT` St [] []) . runPipe $ fromHandleLike sp
+				=$= inputP3
 				=$= hlpDebug sp
 				=$= process i e
-				=$= output sp
-			void . (`runStateT` St [] []) . runPipe $ input sp
+				=$= output
+				=$= toHandleLike sp
+			void . (`runStateT` St [] []) . runPipe $ fromHandleLike sp
+				=$= inputP3
 				=$= hlpDebug sp
 				=$= process i e
-				=$= output sp
+				=$= output
+				=$= toHandleLike sp
 			hlClose p
 	return (i, e)
 

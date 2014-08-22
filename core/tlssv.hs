@@ -29,6 +29,7 @@ import Xmpp
 import Im
 import SaslServer
 import FederationClientIm
+import Tools
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
@@ -47,10 +48,11 @@ main = do
 		voidM . forkIO . (`evalStateT` g0) $ do
 			uuids <- randoms <$> lift getStdGen
 			g <- StateT $ return . cprgFork
-			voidM . liftIO . runPipe $ input h
+			voidM . liftIO . runPipe $ fromHandleLike h =$= inputP3
 				=$= hlpDebug h
 				=$= processTls
-				=$= output h
+				=$= output
+				=$= toHandleLike h
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing
@@ -58,11 +60,14 @@ main = do
 				getNames p >>= liftIO . print
 				(`evalStateT` initXmppState uuids) $ do
 					let sp = SHandle p
-					voidM . runPipe $ input sp
+					voidM . runPipe $ fromHandleLike sp
+						=$= inputP2
 						=$= hlpDebug sp
 						=$= makeP
-						=$= output sp
-					voidM . runPipe $ input sp
+						=$= output
+						=$= toHandleLike sp
+					voidM . runPipe $ fromHandleLike sp
+						=$= inputP2
 						=$= hlpDebug sp
 						=$= makeP
 						=$= outputSel sl sp

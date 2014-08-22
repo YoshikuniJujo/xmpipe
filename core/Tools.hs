@@ -1,12 +1,18 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, TypeFamilies, PackageImports #-}
 
 module Tools (
-	SHandle(..), fromHandleLike, hlpDebug, voidM, nullQ, myFromJust
+	SHandle(..),
+	fromHandleLike, toHandleLike,
+	hlpDebug, voidM, nullQ, myFromJust,
+	fromHandle, toHandle,
+	debug,
+	endIf,
 	) where
 
 import "monads-tf" Control.Monad.State
 import Data.Pipe
 import Data.HandleLike
+import System.IO
 import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
@@ -14,6 +20,9 @@ import qualified Data.ByteString.Char8 as BSC
 
 fromHandleLike :: HandleLike h => h -> Pipe () BS.ByteString (HandleMonad h) ()
 fromHandleLike h = lift (hlGetContent h) >>= ((>> fromHandleLike h) . yield)
+
+toHandleLike :: HandleLike h => h -> Pipe BS.ByteString () (HandleMonad h) ()
+toHandleLike h = await >>= maybe (return ()) ((>> toHandleLike h) . lift . hlPut h)
 
 hlpDebug :: (HandleLike h, Show a) => h -> Pipe a a (HandleMonad h) ()
 hlpDebug h = await >>= maybe (return ())
@@ -41,3 +50,16 @@ myFromJust msg _ = error msg
 
 nullQ :: BS.ByteString -> QName
 nullQ = (("", Nothing) ,)
+
+fromHandle :: Handle -> Pipe () BS.ByteString IO ()
+fromHandle h = lift (BS.hGet h 1) >>= yield >> fromHandle h
+
+toHandle :: Handle -> Pipe BS.ByteString () IO ()
+toHandle h = await >>= maybe (return ()) ((>> toHandle h) . lift . BS.hPut h)
+
+debug :: (MonadIO m, Show a) => Pipe a a m ()
+debug = await >>= maybe (return ()) (\x -> liftIO (print x) >> yield x >> debug)
+
+endIf :: Monad m => (a -> Bool) -> Pipe a a m ()
+endIf p = await >>= maybe (return ())
+	(\x -> unless (p x) $ yield x >> endIf p)
