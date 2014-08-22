@@ -16,7 +16,6 @@ import System.IO
 import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.TChan.Client
--- import Network.PeyoTLS.Client
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
@@ -60,43 +59,35 @@ main = do
 	(g :: SystemRNG) <- cprgCreate <$> createEntropyPool
 	h <- connectTo (BSC.unpack host) port
 	starttls h host
--- {-
 	(inc, otc) <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca g
 	dbgc <- atomically newTChan
-	forkIO . forever $ do
+	_ <- forkIO . forever $ do
 		bs <- atomically $ readTChan dbgc
 		print bs
 		atomically $ writeTChan otc bs
---	let sh = SHandle h
 	voidM . (`runStateT` saslInit) $ do
-		saslC inc otc host mechanisms
-		Just ns <- bindC inc otc host
+		_ <- runPipe $ fromChan inc =$= saslP host mechanisms =$= toChan otc
+		Just ns <- runPipe $ fromChan inc =$= bindP host =@= toChan otc
 		sc <- lift $ atomically newTChan
 		ic <- lift $ atomically newTChan
-		liftBaseDiscard forkIO . voidM . runPipe $ inputC inc ns
+		_ <- liftBaseDiscard forkIO . voidM . runPipe $ inputC inc ns
 			=$= debug
 			=$= (putPresence >> process)
 			=$= toChan sc
 		lift . atomically . writeTChan ic $ toMessage "HOGETAKANA"
-		liftBaseDiscard forkIO . voidM . runPipe $
-			fromHandleLn stdin =$= convert toMessage =$= toChan ic
-		liftBaseDiscard forkIO . voidM . runPipe $ fromChans [sc, ic] =$= outputC dbgc
-		lift $ threadDelay 4000000
+		_ <- liftBaseDiscard forkIO . voidM . runPipe $ fromChans [sc, ic] =$= outputC dbgc
+		voidM . runPipe $
+			fromHandleLn stdin
+				=$= endIf (== "/quit")
+				=$= convert toMessage
+				=$= toChan ic
 		lift . atomically $ writeTChan ic XCEnd
--- -}
-{-
-	(`run` g) $ do
-		p <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca
-		let sp = SHandle p
-		voidM . (`runStateT` saslInit) $ do
-			sasl sp host mechanisms
-			Just ns <- bind sp host
-			voidM . runPipe $ input sp ns =$= hlpDebug sp =$=
-				(putPresence >> process) =$= output sp
--}
-	threadDelay 1000000
 	where
 	saslInit = mkSaslInit ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
+
+endIf :: Monad m => (a -> Bool) -> Pipe a a m ()
+endIf p = await >>= maybe (return ())
+	(\x -> unless (p x) $ yield x >> endIf p)
 
 putPresence ::
 	(MonadState m, St ~ (StateType m), MonadError m, Error (ErrorType m)) =>
@@ -117,13 +108,7 @@ process :: (
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 process = await >>= \mr -> case mr of
 	Just (SRPresence _ ns) -> case toCaps ns of
-		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] -> do
-{-
-			yield $ SRMessage tagsChat {
-					tagId = Just "prof_3",
-					tagTo = Just recipient }
-				[XmlNode (nullQ "body") [] [] [XmlCharData message]]
--}
+		C [(CTHash, "sha-1"), (CTVer, v), (CTNode, n)] ->
 			yield (getCaps v n) >> process
 		_ -> process
 	Just (SRIq Tags {
@@ -135,21 +120,10 @@ process = await >>= \mr -> case mr of
 			yield $ resultCaps i f n
 
 			yield $ SRMessage tagsChat {
-					tagId = Just "prof_11",
-					tagTo = Just recipient }
-				[XmlNode (nullQ "body") [] [] [XmlCharData "hogeta"]]
-
-			yield $ SRMessage tagsChat {
 					tagId = Just "prof_3",
 					tagTo = Just recipient }
 				[XmlNode (nullQ "body") [] [] [XmlCharData message]]
-
-			yield $ SRMessage tagsChat {
-					tagId = Just "prof_15",
-					tagTo = Just recipient }
-				[XmlNode (nullQ "body") [] [] [XmlCharData "HOGETA"]]
-
---			yield XCEnd
+			process
 	Just _ -> process
 	_ -> return ()
 

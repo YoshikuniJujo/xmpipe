@@ -41,7 +41,7 @@ data Xmpp
 --	| SRIq [(Tag, BS.ByteString)] [XmlNode]
 
 	| XCRaw XmlNode
-	deriving Show
+	deriving (Eq, Show)
 
 data Tags = Tags {
 	tagId :: Maybe BS.ByteString,
@@ -49,7 +49,7 @@ data Tags = Tags {
 	tagFrom :: Maybe Jid,
 	tagTo :: Maybe Jid,
 	tagLang :: Maybe BS.ByteString,
-	tagOthers :: [(QName, BS.ByteString)] } deriving Show
+	tagOthers :: [(QName, BS.ByteString)] } deriving (Eq, Show)
 
 toTags :: [(QName, BS.ByteString)] -> Tags
 toTags as = Tags {
@@ -70,13 +70,13 @@ fromTags Tags { tagId = i, tagType = tp, tagFrom = fr, tagTo = to, tagLang = ln,
 		(Id ,) <$> i, (Type ,) <$> tp, (From ,) . fromJid <$> fr,
 		(To ,) . fromJid <$> to, (Lang ,) <$> ln ]
 
-data Query = IqBind (Maybe Requirement) Bind deriving Show
+data Query = IqBind (Maybe Requirement) Bind deriving (Eq, Show)
 
 data Bind
 	= Resource BS.ByteString
 	| BJid Jid
 	| BindRaw XmlNode
-	deriving Show
+	deriving (Eq, Show)
 
 data Tag
 	= Id | Type | From | To | Lang | TagRaw QName

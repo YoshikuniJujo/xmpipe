@@ -5,18 +5,19 @@ module ManyChanPipe (
 	) where
 
 import Control.Applicative
-import Control.Monad
+-- import Control.Monad
 import "monads-tf" Control.Monad.Trans
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Data.Pipe
-import Data.Pipe.ByteString
-import Control.Concurrent hiding (yield)
+-- import Data.Pipe.ByteString
+-- import Control.Concurrent hiding (yield)
 import Control.Concurrent.STM
-import System.IO
+-- import System.IO
 
-import qualified Data.ByteString as BS
+-- import qualified Data.ByteString as BS
 
+{-
 main :: IO ()
 main = do
 	c1 <- atomically newTChan
@@ -29,6 +30,7 @@ main = do
 			_ -> return ()
 	_ <- runPipe (fromChans [c1, c2] =$= toHandleLn stdout :: Pipe () () IO ())
 	return ()
+	-}
 
 fromChan :: MonadBaseControl IO m => TChan a -> Pipe () a m ()
 fromChan c = lift (liftBase . atomically $ readTChan c) >>= yield >> fromChan c
