@@ -33,12 +33,12 @@ main = do
 fromChan :: MonadBaseControl IO m => TChan a -> Pipe () a m ()
 fromChan c = lift (liftBase . atomically $ readTChan c) >>= yield >> fromChan c
 
-toChan :: TChan a -> Pipe a () IO ()
+toChan :: MonadBaseControl IO m => TChan a -> Pipe a () m ()
 toChan c = await >>=
-	maybe (return ()) ((>> toChan c) . liftIO . atomically . writeTChan c)
+	maybe (return ()) ((>> toChan c) . lift . liftBase . atomically . writeTChan c)
 
-fromChans :: [TChan a] -> Pipe () a IO ()
-fromChans cs = (>> fromChans cs) . (yield =<<) . lift . atomically $ do
+fromChans :: MonadBaseControl IO m => [TChan a] -> Pipe () a m ()
+fromChans cs = (>> fromChans cs) . (yield =<<) . lift . liftBase . atomically $ do
 	mx <- readTChans cs
 	case mx of
 		Just x -> return x

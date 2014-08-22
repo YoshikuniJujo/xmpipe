@@ -4,12 +4,15 @@
 import Control.Applicative
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
+import Control.Monad.Trans.Control
 import Control.Concurrent hiding (yield)
 import Control.Concurrent.STM
 import Data.Maybe
 import Data.Pipe
+import Data.Pipe.ByteString
 import System.Environment
 import System.IO.Unsafe
+import System.IO
 import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.TChan.Client
@@ -25,6 +28,8 @@ import Im
 import Tools
 import Caps
 import Disco
+
+import ManyChanPipe
 
 host :: BS.ByteString
 host = case (\(Jid _ d _) -> d) sender of "otherhost" -> "localhost"; h -> h
@@ -66,10 +71,18 @@ main = do
 	voidM . (`runStateT` saslInit) $ do
 		saslC inc otc host mechanisms
 		Just ns <- bindC inc otc host
-		voidM . runPipe $ inputC inc ns
+		sc <- lift $ atomically newTChan
+		ic <- lift $ atomically newTChan
+		liftBaseDiscard forkIO . voidM . runPipe $ inputC inc ns
 			=$= debug
 			=$= (putPresence >> process)
-			=$= outputC dbgc
+			=$= toChan sc
+		lift . atomically . writeTChan ic $ toMessage "HOGETAKANA"
+		liftBaseDiscard forkIO . voidM . runPipe $
+			fromHandleLn stdin =$= convert toMessage =$= toChan ic
+		liftBaseDiscard forkIO . voidM . runPipe $ fromChans [sc, ic] =$= outputC dbgc
+		lift $ threadDelay 4000000
+		lift . atomically $ writeTChan ic XCEnd
 -- -}
 {-
 	(`run` g) $ do
@@ -136,15 +149,13 @@ process = await >>= \mr -> case mr of
 					tagTo = Just recipient }
 				[XmlNode (nullQ "body") [] [] [XmlCharData "HOGETA"]]
 
-			yield XCEnd
+--			yield XCEnd
 	Just _ -> process
 	_ -> return ()
 
-{-
 toMessage :: BS.ByteString -> Xmpp
 toMessage m = SRMessage tagsChat { tagId = Just "hoge", tagTo = Just recipient }
 	[XmlNode (nullQ "body") [] [] [XmlCharData m]]
-	-}
 
 getCaps :: BS.ByteString -> BS.ByteString -> Xmpp
 getCaps v n = SRIq tagsGet { tagId = Just "prof_caps_2", tagTo = Just sender }
