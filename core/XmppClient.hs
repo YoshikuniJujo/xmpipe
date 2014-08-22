@@ -2,12 +2,9 @@
 	FlexibleContexts, PackageImports #-}
 
 module XmppClient (
-	Xmpp(..), Jid(..), toJid, SASL.SaslState(..),
-	Tags(..), tagsNull, tagsResult, tagsChat, tagsGet,
-
-	mkSaslInit,
-
-	starttls, sasl, bind, input, output,
+	Mpi(..), Jid(..), toJid,
+	Tags(..), tagsNull, tagsChat, tagsGet, tagsResult,
+	starttls, sasl, saslInit, bind, input, output,
 	) where
 
 import Control.Monad
@@ -21,9 +18,16 @@ import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 
-import Xmpp
+import Xmpp hiding (input, output)
+import qualified Xmpp
 import Im
 import qualified SaslClient as SASL
+
+input :: Monad m => [Xmlns] -> Pipe BS.ByteString Mpi m ()
+input = inputMpi
+
+output :: Monad m => Pipe Mpi BS.ByteString m ()
+output = outputMpi
 
 begin :: Monad m => BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
 begin h l = do
@@ -31,7 +35,7 @@ begin h l = do
 	yield $ XCBegin [(To, h), (TagRaw $ nullQ "version", "1.0"), (Lang, l)]
 
 starttls :: Monad m => BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
-starttls hst = inputP3 =$= (begin hst "en" >> starttls_) =$= output
+starttls hst = inputP3 =$= (begin hst "en" >> starttls_) =$= Xmpp.output
 
 starttls_ :: Monad m => Pipe Xmpp Xmpp m ()
 starttls_ = do
@@ -47,7 +51,7 @@ sasl :: (
 	MonadState m, SASL.SaslState (StateType m),
 	MonadError m, Error (ErrorType m)) =>
 	BS.ByteString -> [BS.ByteString] -> Pipe BS.ByteString BS.ByteString m ()
-sasl hst ms = inputP2 =$= sasl' hst ms =$= output
+sasl hst ms = inputP2 =$= sasl' hst ms =$= Xmpp.output
 
 sasl' :: (
 	MonadState m, SASL.SaslState (StateType m),
@@ -71,7 +75,7 @@ bind :: (Monad m,
 	MonadWriter m, [FeatureR] ~ WriterType m,
 	MonadError m, Error (ErrorType m) ) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
-bind hst = inputP3 =@= (begin hst "en" >> bind_) =$= output
+bind hst = inputP3 =@= (begin hst "en" >> bind_) =$= Xmpp.output
 
 bind_ :: (
 	MonadWriter m, [FeatureR] ~ (WriterType m),
@@ -107,6 +111,6 @@ tagsChat = Tags Nothing (Just "chat") Nothing Nothing Nothing []
 tagsResult :: Tags
 tagsResult = Tags Nothing (Just "result") Nothing Nothing Nothing []
 
-mkSaslInit :: BS.ByteString -> BS.ByteString -> BS.ByteString -> St
-mkSaslInit un pw cn = St []
+saslInit :: BS.ByteString -> BS.ByteString -> BS.ByteString -> St
+saslInit un pw cn = St []
 	[ ("username", un), ("authcid", un), ("password", pw), ("cnonce", cn) ]

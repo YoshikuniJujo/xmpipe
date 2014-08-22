@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module Xmpp (
-	inputP2, inputP3, input, output,
+	inputP2, inputP3, input, output, inputMpi, outputMpi,
+	Mpi(..),
 
 	Xmpp(..), fromCommon,
 	Tags(..),
@@ -44,5 +45,11 @@ xmlPipe = xmlBegin >>= \ns -> xmlNodeUntil isSaslSuccess ns >> return ns
 input :: Monad m => [Xmlns] -> Pipe BS.ByteString Xmpp m ()
 input ns = xmlEvent =$= convert fromJust =$= xmlNode ns =$= convert toCommon
 
+inputMpi :: Monad m => [Xmlns] -> Pipe BS.ByteString Mpi m ()
+inputMpi ns = xmlEvent =$= convert fromJust =$= xmlNode ns =$= convert toMpi
+
 output :: Monad m => Pipe Xmpp BS.ByteString m ()
 output = convert $ xmlString . (: []) . fromCommon Client
+
+outputMpi :: Monad m => Pipe Mpi BS.ByteString m ()
+outputMpi = convert $ xmlString . (: []) . fromMpi

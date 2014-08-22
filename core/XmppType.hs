@@ -9,6 +9,8 @@ module XmppType (
 	Feature(..),
 	Query(..), Bind(..),
 	Requirement(..), toRequirement, fromRequirement,
+
+	Mpi(..), toMpi, fromMpi,
 	) where
 
 import Control.Applicative
@@ -41,6 +43,14 @@ data Xmpp
 --	| SRIq [(Tag, BS.ByteString)] [XmlNode]
 
 	| XCRaw XmlNode
+	deriving (Eq, Show)
+
+data Mpi
+	= Message Tags [XmlNode]
+	| Presence Tags [XmlNode]
+	| Iq Tags [XmlNode]
+	| End
+	| MpiRaw XmlNode
 	deriving (Eq, Show)
 
 data Tags = Tags {
@@ -229,6 +239,19 @@ toCommon (XmlNode ((_, Just "jabber:server"), "presence") _ as ns) =
 
 toCommon n = XCRaw n
 
+toMpi :: XmlNode -> Mpi
+toMpi (XmlNode ((_, Just q), "message") _ as ns)
+	| q `elem` ["jabber:client", "jabber:server"] = Message (toTags as) ns
+toMpi (XmlNode ((_, Just q), "iq") _ as ns)
+	| q `elem` ["jabber:client", "jabber:server"] = Iq ts ns
+	where ts = toTags as
+toMpi (XmlNode ((_, Just "jabber:client"), "presence") _ as ns) =
+	Presence (toTags as) ns
+toMpi (XmlNode ((_, Just "jabber:server"), "presence") _ as ns) =
+	Presence (toTags as) ns
+toMpi (XmlEnd ((_, Just "http://etherx.jabber.org/streams"), "stream")) = End
+toMpi n = MpiRaw n
+
 toIqBody :: [XmlNode] -> Maybe Query
 toIqBody [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ []
 	[n]] = Just . IqBind Nothing $ toBind n
@@ -297,6 +320,13 @@ fromCommon _ (SRIqBind ts q) = XmlNode (nullQ "iq") [] (map (first fromTag) ts)
 fromCommon _ (SRIq ts q) = XmlNode (nullQ "iq") [] (fromTags ts) q
 fromCommon _ (SRPresence ts c) = XmlNode (nullQ "presence") [] (fromTags ts) c
 fromCommon _ (XCRaw n) = n
+
+fromMpi :: Mpi -> XmlNode
+fromMpi (Message ts ns) = XmlNode (nullQ "message") [] (fromTags ts) ns
+fromMpi (Iq ts q) = XmlNode (nullQ "iq") [] (fromTags ts) q
+fromMpi (Presence ts c) = XmlNode (nullQ "presence") [] (fromTags ts) c
+fromMpi End = XmlEnd (("stream", Nothing), "stream")
+fromMpi (MpiRaw n) = n
 
 drToXmlNode :: BS.ByteString -> XmlNode
 drToXmlNode dr = XmlNode (nullQ "response")
