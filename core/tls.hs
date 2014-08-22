@@ -64,7 +64,7 @@ main = do
 	c <- readCertificateChain ["certs/xmpp_client.sample_cert"]
 	(g :: SystemRNG) <- cprgCreate <$> createEntropyPool
 	h <- connectTo (BSC.unpack host) port
-	_ <- runPipe $ fromHandle h =$= starttlsP host =$= toHandle h
+	_ <- runPipe $ fromHandle h =$= starttls host =$= toHandle h
 	(inc, otc) <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca g
 	dbgc <- atomically newTChan
 	_ <- forkIO . forever $ do
@@ -72,8 +72,8 @@ main = do
 		print bs
 		atomically $ writeTChan otc bs
 	voidM . (`runStateT` saslInit) $ do
-		_ <- runPipe $ fromChan inc =$= saslP host mechanisms =$= toChan otc
-		Just ns <- runPipe $ fromChan inc =$= bindP host =@= toChan otc
+		_ <- runPipe $ fromChan inc =$= sasl host mechanisms =$= toChan otc
+		Just ns <- runPipe $ fromChan inc =$= bind host =@= toChan otc
 		sc <- lift $ atomically newTChan
 		ic <- lift $ atomically newTChan
 		_ <- liftBaseDiscard forkIO . voidM . runPipe $ inputC inc ns

@@ -7,7 +7,7 @@ module XmppClient (
 
 	mkSaslInit,
 
-	starttlsP, saslP, bindP, inputC, outputC,
+	starttls, sasl, bind, inputC, outputC,
 	) where
 
 import Control.Monad
@@ -29,8 +29,8 @@ begin h l = do
 	yield XCDecl
 	yield $ XCBegin [(To, h), (TagRaw $ nullQ "version", "1.0"), (Lang, l)]
 
-starttlsP :: Monad m => BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
-starttlsP hst = inputP3 =$= (begin hst "en" >> starttls_) =$= outputP
+starttls :: Monad m => BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
+starttls hst = inputP3 =$= (begin hst "en" >> starttls_) =$= outputP
 
 starttls_ :: Monad m => Pipe Xmpp Xmpp m ()
 starttls_ = do
@@ -42,17 +42,17 @@ starttls_ = do
 	return ()
 	where isSt (FtStarttls _) = True; isSt _ = False
 
-saslP :: (
-	MonadState m, SASL.SaslState (StateType m),
-	MonadError m, Error (ErrorType m)) =>
-	BS.ByteString -> [BS.ByteString] -> Pipe BS.ByteString BS.ByteString m ()
-saslP hst ms = inputP2 =$= sasl hst ms =$= outputP
-
 sasl :: (
 	MonadState m, SASL.SaslState (StateType m),
 	MonadError m, Error (ErrorType m)) =>
+	BS.ByteString -> [BS.ByteString] -> Pipe BS.ByteString BS.ByteString m ()
+sasl hst ms = inputP2 =$= sasl' hst ms =$= outputP
+
+sasl' :: (
+	MonadState m, SASL.SaslState (StateType m),
+	MonadError m, Error (ErrorType m)) =>
 	BS.ByteString -> [BS.ByteString] -> Pipe Xmpp Xmpp m ()
-sasl hst ms = begin hst "en" >> sasl_ ms
+sasl' hst ms = begin hst "en" >> sasl_ ms
 
 sasl_ :: (Monad m, MonadState m, SASL.SaslState (StateType m), MonadError m, Error (ErrorType m) ) =>
 	[BS.ByteString] -> Pipe Xmpp Xmpp m ()
@@ -66,11 +66,11 @@ sasl_ sl = do
 	isFtMechanisms (FtMechanisms _) = True
 	isFtMechanisms _ = False
 
-bindP :: (Monad m,
+bind :: (Monad m,
 	MonadState m, St ~ StateType m,
 	MonadError m, Error (ErrorType m) ) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
-bindP hst = inputP3 =@= (begin hst "en" >> bind_) =$= outputP
+bind hst = inputP3 =@= (begin hst "en" >> bind_) =$= outputP
 
 bind_ :: (
 	MonadState m, St ~ (StateType m),
