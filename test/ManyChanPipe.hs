@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings, PackageImports #-}
 
+module ManyChanPipe (
+	fromChan, fromChans, toChan,
+	) where
+
 import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.Trans
@@ -26,6 +30,10 @@ main = do
 
 fromChan :: TChan a -> Pipe () a IO ()
 fromChan c = liftIO (atomically $ readTChan c) >>= yield >> fromChan c
+
+toChan :: TChan a -> Pipe a () IO ()
+toChan c = await >>=
+	maybe (return ()) ((>> toChan c) . liftIO . atomically . writeTChan c)
 
 fromChans :: [TChan a] -> Pipe () a IO ()
 fromChans cs = (>> fromChans cs) . (yield =<<) . lift . atomically $ do

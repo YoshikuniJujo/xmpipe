@@ -34,12 +34,8 @@ main = do
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing
-				liftBaseDiscard forkIO . forever $ do
---				forever $ do
-					n <- liftIO . atomically $ readTChan ch
-					hlPutStrLn p . BSC.pack $ show n
---				liftBaseDiscard forkIO . forever $ do
 				forever $ do
 					ln <- hlGetLine p
 					liftIO $ print ln
+					hlPutStrLn p ln
 				hlClose p
