@@ -79,7 +79,7 @@ main = do
 		=$= (toTChan ic :: Pipe Mpi () IO ())
 	atomically $ writeTChan ic End
 	where
-	si = saslInit ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
+	si = saslState ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
 
 putPresence :: (MonadError m, Error (ErrorType m)) => [FeatureR] -> Pipe a Mpi m ()
 putPresence fts = do
@@ -89,7 +89,7 @@ putPresence fts = do
 		$ capsToXmlCaps profanityCaps "http://www.profanity.im"
 	where
 	resp (FRRosterver _) = Just $ Iq
-		tagsGet { tagId = Just "_xmpp-roster1" }
+		(tagsType "get") { tagId = Just "_xmpp-roster1" }
 		[fromIRRoster $ IRRoster Nothing]
 	resp _ = Nothing
 
@@ -107,7 +107,7 @@ process = await >>= \mr -> case mr of
 
 			yield $ resultCaps i f n
 
-			yield $ Message tagsChat {
+			yield $ Message (tagsType "chat") {
 					tagId = Just "prof_3",
 					tagTo = Just recipient }
 				[XmlNode (nullQ "body") [] [] [XmlCharData message]]
@@ -116,13 +116,15 @@ process = await >>= \mr -> case mr of
 	_ -> return ()
 
 toMessageMpi :: BS.ByteString -> Mpi
-toMessageMpi m = Message tagsChat { tagId = Just "hoge", tagTo = Just recipient }
+toMessageMpi m = Message (tagsType "chat") {
+	tagId = Just "hoge", tagTo = Just recipient }
 	[XmlNode (nullQ "body") [] [] [XmlCharData m]]
 
 getCaps :: BS.ByteString -> BS.ByteString -> Mpi
-getCaps v n = Iq tagsGet { tagId = Just "prof_caps_2", tagTo = Just sender }
+getCaps v n = Iq (tagsType "get") {
+		tagId = Just "prof_caps_2", tagTo = Just sender }
 	. fromQueryDisco $ IqCapsQuery v n
 
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Mpi
-resultCaps i t n = Iq tagsResult { tagId = Just i, tagTo = Just t }
+resultCaps i t n = Iq (tagsType "result") { tagId = Just i, tagTo = Just t }
 	. fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]

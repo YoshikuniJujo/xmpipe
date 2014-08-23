@@ -3,8 +3,8 @@
 
 module XmppClient (
 	Mpi(..), Jid(..), toJid,
-	Tags(..), tagsNull, tagsChat, tagsGet, tagsResult,
-	starttls, sasl, saslInit, bind, input, output,
+	Tags(..), tagsNull, tagsType,
+	starttls, sasl, saslState, bind, input, output,
 	) where
 
 import Control.Monad
@@ -102,15 +102,6 @@ responseToFeature (Ft (FtBind _)) = Just
 	$ Resource "profanity"
 responseToFeature _ = Nothing
 
-tagsGet :: Tags
-tagsGet = Tags Nothing (Just "get") Nothing Nothing Nothing []
-
-tagsChat :: Tags
-tagsChat = Tags Nothing (Just "chat") Nothing Nothing Nothing []
-
-tagsResult :: Tags
-tagsResult = Tags Nothing (Just "result") Nothing Nothing Nothing []
-
-saslInit :: BS.ByteString -> BS.ByteString -> BS.ByteString -> St
-saslInit un pw cn = St []
+saslState :: BS.ByteString -> BS.ByteString -> BS.ByteString -> St
+saslState un pw cn = St []
 	[ ("username", un), ("authcid", un), ("password", pw), ("cnonce", cn) ]

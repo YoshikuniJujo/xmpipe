@@ -13,7 +13,7 @@ module Xmpp (
 
 	voidM, hlpDebug, SHandle(..),
 
-	nullQ, tagsNull,
+	nullQ, tagsNull, tagsType,
 	) where
 
 import Data.Maybe
@@ -27,6 +27,9 @@ import Tools
 
 tagsNull :: Tags
 tagsNull = Tags Nothing Nothing Nothing Nothing Nothing []
+
+tagsType :: BS.ByteString -> Tags
+tagsType tp = tagsNull { tagType = Just tp }
 
 inputP2 :: Monad m => Pipe BS.ByteString Xmpp m ()
 inputP2 = xmlEvent =$= convert fromJust =$= mapOut toCommon xmlReborn
