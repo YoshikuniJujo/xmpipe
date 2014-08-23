@@ -46,11 +46,8 @@ main = do
 		voidM . forkIO . (`evalStateT` g0) $ do
 			uuids <- randoms <$> lift getStdGen
 			g <- StateT $ return . cprgFork
-			voidM . liftIO . runPipe $ fromHandleLike h =$= inputP3
-				=$= hlpDebug h
-				=$= processTls
-				=$= output
-				=$= toHandleLike h
+			voidM . liftIO . runPipe $
+				fromHandleLike h =$= starttls =$= toHandleLike h
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing
@@ -84,23 +81,6 @@ initXmppState uuids = XmppState {
 		("charset", "utf-8"),
 		("algorithm", "md5-sess"),
 		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4") ] }
-
-processTls :: (
-	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
-processTls = await >>= \mx -> case mx of
-	Just (XCBegin _as) -> do
-		yield XCDecl
-		yield $ XCBegin [
-			--	(Id, toASCIIBytes u),
-			(Id, "83e074ac-c014-432e9f21-d06e73f5777e"),
-			(From, "localhost"),
-			(TagRaw $ nullQ "version", "1.0"),
-			(Lang, "en") ]
-		yield $ XCFeatures [FtStarttls Required]
-		processTls
-	Just XCStarttls -> yield XCProceed
-	Just _ -> error "processTls: bad"
-	_ -> return ()
 
 outputSel :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
