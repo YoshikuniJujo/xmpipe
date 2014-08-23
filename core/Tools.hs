@@ -4,14 +4,11 @@ module Tools (
 	SHandle(..),
 	fromHandleLike, toHandleLike,
 	hlpDebug, voidM, nullQ, myFromJust,
-	fromHandle, toHandle,
-	debug,
 	) where
 
 import "monads-tf" Control.Monad.State
 import Data.Pipe
 import Data.HandleLike
-import System.IO
 import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
@@ -49,12 +46,3 @@ myFromJust msg _ = error msg
 
 nullQ :: BS.ByteString -> QName
 nullQ = (("", Nothing) ,)
-
-fromHandle :: Handle -> Pipe () BS.ByteString IO ()
-fromHandle h = lift (BS.hGet h 1) >>= yield >> fromHandle h
-
-toHandle :: Handle -> Pipe BS.ByteString () IO ()
-toHandle h = await >>= maybe (return ()) ((>> toHandle h) . lift . BS.hPut h)
-
-debug :: (MonadIO m, Show a) => Pipe a a m ()
-debug = await >>= maybe (return ()) (\x -> liftIO (print x) >> yield x >> debug)
