@@ -14,6 +14,8 @@ module Xmpp (
 	voidM, hlpDebug, SHandle(..),
 
 	nullQ, tagsNull, tagsType,
+
+	fromHandleLike, toHandleLike,
 	) where
 
 import Data.Maybe
@@ -23,7 +25,7 @@ import Text.XML.Pipe
 import qualified Data.ByteString as BS
 
 import XmppType
-import Tools
+import Tools (voidM, hlpDebug, SHandle(..), fromHandleLike, toHandleLike)
 
 tagsNull :: Tags
 tagsNull = Tags Nothing Nothing Nothing Nothing Nothing []

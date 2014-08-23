@@ -25,11 +25,9 @@ import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
 
-import Xmpp
+import XmppServer
 import Im
-import SaslServer
 import FederationClientIm
-import Tools
 
 instance SaslError Alert where
 	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
