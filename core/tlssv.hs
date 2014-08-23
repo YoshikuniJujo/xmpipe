@@ -23,8 +23,6 @@ import Network.PeyoTLS.Server
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
-import qualified Data.ByteString as BS
-
 import XmppServer
 import Im
 import FederationClientIm
@@ -56,10 +54,7 @@ main = do
 				(`evalStateT` initXmppState uuids) $ do
 					let sp = SHandle p
 					voidM . runPipe $ fromHandleLike sp
-						=$= inputP2
-						=$= hlpDebug sp
-						=$= makeP
-						=$= output
+						=$= sasl
 						=$= toHandleLike sp
 					voidM . runPipe $ fromHandleLike sp
 						=$= inputP2
@@ -69,18 +64,6 @@ main = do
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
 					hlClose sp
-
-initXmppState :: [UUID] -> XmppState
-initXmppState uuids = XmppState {
-	receiver = Nothing,
-	uuidList = uuids,
-	saslState = [
-		("realm", "localhost"),
-		("nonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
-		("qop", "auth"),
-		("charset", "utf-8"),
-		("algorithm", "md5-sess"),
-		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4") ] }
 
 outputSel :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
@@ -112,30 +95,10 @@ readFiles = (,,)
 	<*> readKey "certs/localhost.sample_key"
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
 
-tagsChat :: Tags
-tagsChat = Tags {
-	tagId = Nothing,
-	tagType = Just "chat",
-	tagFrom = Nothing,
-	tagTo = Nothing,
-	tagLang = Nothing,
-	tagOthers = [] }
-
-tagsResult :: Tags
-tagsResult = Tags Nothing (Just "result") Nothing Nothing Nothing []
-
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
 	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
 makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
-	(Just (XCBegin _), Nothing) -> do
-		yield XCDecl
-		lift nextUuid >>= \u -> yield $ XCBegin [
-			(Id, toASCIIBytes u),
-			(From, "localhost"),
-			(TagRaw $ nullQ "version", "1.0"),
-			(Lang, "en") ]
-		runSasl
 	(Just (XCBegin _), _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
@@ -147,11 +110,13 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			[FRRosterver Optional, Ft $ FtBind Required]
 		makeP
 	(Just (SRMessage _ bd), Just rcv) -> do
-		let	ts1 = tagsChat { tagFrom = Just sender, tagTo = Just rcv }
-			ts2 = tagsChat {
+		let	ts1 = (tagsType "chat") {
+				tagFrom = Just sender,
+				tagTo = Just rcv }
+			ts2 = (tagsType "chat") {
 				tagFrom = Just $ Jid "yoshio" "otherhost" Nothing,
 				tagTo = Just rcv }
-			ts3 = tagsChat {
+			ts3 = (tagsType "chat") {
 				tagFrom = Just $ Jid "yoshikuni" "localhost" $
 					Just "profanity",
 				tagTo = Just $ Jid "yoshio" "otherhost" Nothing }
@@ -164,7 +129,7 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		| Just (IRRoster Nothing) <- toIRRoster ns,
 			Just "get" <- tagType ts,
 			Just i <- tagId ts -> do
-			yield $ SRIq tagsResult { tagId = Just i }
+			yield $ SRIq (tagsType "result") { tagId = Just i }
 				[fromIRRoster . IRRoster . Just
 					$ Roster (Just "1") []]
 			makeP
@@ -191,34 +156,3 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 
 sender :: Jid
 sender = Jid "yoshio" "otherhost" (Just "profanity")
-
-setResource :: BS.ByteString -> XmppState -> XmppState
-setResource r xs@XmppState{ receiver = Just (Jid a d _) } =
-	xs { receiver = Just . Jid a d $ Just r }
-setResource _ _ = error "setResource: can't set resource to Nothing"
-
-nextUuid :: (MonadState m, StateType m ~ XmppState) => m UUID
-nextUuid = do
-	xs@XmppState { uuidList = u : us } <- get
-	put xs { uuidList = us }
-	return u
-
-data XmppState = XmppState {
-	receiver :: Maybe Jid,
-	uuidList :: [UUID],
-	saslState :: [(BS.ByteString, BS.ByteString)] }
-
-instance SaslState XmppState where
-	getSaslState xs = case receiver xs of
-		Just (Jid un _ _) -> ("username", un) : ss'
-		_ -> ss'
-		where
-		ss' = let u : _ = uuidList xs in ("uuid", toASCIIBytes u) : ss
-		ss = saslState xs
-	putSaslState ss xs = case lookup "username" ss of
-		Just un -> case receiver xs of
-			Just (Jid _ d r) -> xs' { receiver = Just $ Jid un d r }
-			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
-		_ -> xs'
-		where
-		xs' = xs {uuidList = tail $ uuidList xs, saslState = ss}
