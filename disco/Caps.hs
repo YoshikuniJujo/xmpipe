@@ -39,9 +39,6 @@ mkHash :: Caps -> BS.ByteString
 mkHash (Caps ids fs) = encode . hash . BS.concat . map (`BS.append` "<") $
 	map serialize (sort ids) ++ sort fs
 
-nullQ :: BS.ByteString -> QName
-nullQ = (("", Nothing) ,)
-
 capsToQuery :: Caps -> BS.ByteString -> XmlNode
 capsToQuery (Caps ids fs) nd = XmlNode (nullQ "query")
 	[("", "http://jabber.org/protocol/disco#info")]

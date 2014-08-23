@@ -43,6 +43,3 @@ voidM = (>> return ())
 myFromJust :: String -> Maybe a -> a
 myFromJust _ (Just x) = x
 myFromJust msg _ = error msg
-
-nullQ :: BS.ByteString -> QName
-nullQ = (("", Nothing) ,)

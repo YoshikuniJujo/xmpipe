@@ -26,7 +26,6 @@ import qualified Data.ByteString.Char8 as BSC
 
 import XmppClient
 import Im (IRRoster(..), FeatureR(..), fromIRRoster)
-import Tools (nullQ)
 import Caps (
 	XmlCaps(..), CapsTag(..), capsToQuery, profanityCaps, toCaps, fromCaps,
 	capsToXmlCaps )

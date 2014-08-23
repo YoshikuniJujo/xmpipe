@@ -116,9 +116,6 @@ fromTag To = nullQ "to"
 fromTag Lang = (("xml", Nothing), "lang")
 fromTag (TagRaw n) = n
 
-nullQ :: BS.ByteString -> QName
-nullQ = (("", Nothing) ,)
-
 data Requirement = Optional | Required | NoRequirement [XmlNode]
 	deriving (Eq, Ord, Show)
 
