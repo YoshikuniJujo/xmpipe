@@ -14,16 +14,19 @@ module XmppServer (
 
 	starttls,
 
-	sasl,
-	XmppState, initXmppState, receiver, nextUuid, setResource,
+	sasl, XmppState, initXmppState, receiver, nextUuid, setResource,
+
+	bind,
 	) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Pipe
 import Data.UUID
+import Text.XML.Pipe
 
 import Xmpp
+import Im
 import SaslServer
 
 import qualified Data.ByteString as BS
@@ -109,3 +112,33 @@ setResource :: BS.ByteString -> XmppState -> XmppState
 setResource r xs@XmppState{ receiver = Just (Jid a d _) } =
 	xs { receiver = Just . Jid a d $ Just r }
 setResource _ _ = error "setResource: can't set resource to Nothing"
+
+bind :: (
+	MonadState m, StateType m ~ XmppState,
+	MonadError m, SaslError (ErrorType m)) =>
+	Pipe BS.ByteString BS.ByteString m [Xmlns]
+bind = inputP3 =@= makeBind =$= output
+
+makeBind :: (
+	MonadState m, StateType m ~ XmppState,
+	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
+makeBind = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
+	(Just (XCBegin _), _) -> do
+		yield XCDecl
+		lift nextUuid >>= \u -> yield $ XCBegin [
+			(Id, toASCIIBytes u),
+			(From, "localhost"),
+			(TagRaw $ nullQ "version", "1.0"),
+			(Lang, "en") ]
+		yield . XCFeatures $ map featureRToFeature
+			[FRRosterver Optional, Ft $ FtBind Required]
+		makeBind
+	(Just (SRIqBind ts (IqBind (Just Required) (Resource n))), _)
+		| Just "set" <- lookup Type ts,
+			Just i <- lookup Id ts -> do
+			lift $ modify (setResource n)
+			Just j <- lift $ gets receiver
+			yield . SRIqBind [(Type, "result"), (Id, i)]
+				. IqBind Nothing $ BJid j
+			makeBind
+	_ -> return ()
