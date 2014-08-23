@@ -56,8 +56,13 @@ main = do
 					voidM . runPipe $ fromHandleLike sp
 						=$= sasl
 						=$= toHandleLike sp
+					Just ns <- runPipe $ fromHandleLike sp
+						=$= inputP3
+						=@= hlpDebug sp
+						=$= makeBind
+						=$= outputSel sl sp
 					voidM . runPipe $ fromHandleLike sp
-						=$= inputP2
+						=$= input ns
 						=$= hlpDebug sp
 						=$= makeP
 						=$= outputSel sl sp
@@ -94,6 +99,30 @@ readFiles = (,,)
 	<$> readCertificateStore ["certs/cacert.sample_pem"]
 	<*> readKey "certs/localhost.sample_key"
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
+
+makeBind :: (
+	MonadState m, StateType m ~ XmppState,
+	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
+makeBind = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
+	(Just (XCBegin _), _) -> do
+		yield XCDecl
+		lift nextUuid >>= \u -> yield $ XCBegin [
+			(Id, toASCIIBytes u),
+			(From, "localhost"),
+			(TagRaw $ nullQ "version", "1.0"),
+			(Lang, "en") ]
+		yield . XCFeatures $ map featureRToFeature
+			[FRRosterver Optional, Ft $ FtBind Required]
+		makeBind
+	(Just (SRIqBind ts (IqBind (Just Required) (Resource n))), _)
+		| Just "set" <- lookup Type ts,
+			Just i <- lookup Id ts -> do
+			lift $ modify (setResource n)
+			Just j <- lift $ gets receiver
+			yield . SRIqBind [(Type, "result"), (Id, i)]
+				. IqBind Nothing $ BJid j
+			makeBind
+	_ -> return ()
 
 makeP :: (
 	MonadState m, StateType m ~ XmppState,
@@ -132,14 +161,6 @@ makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 			yield $ SRIq (tagsType "result") { tagId = Just i }
 				[fromIRRoster . IRRoster . Just
 					$ Roster (Just "1") []]
-			makeP
-	(Just (SRIqBind ts (IqBind (Just Required) (Resource n))), _)
-		| Just "set" <- lookup Type ts,
-			Just i <- lookup Id ts -> do
-			lift $ modify (setResource n)
-			Just j <- lift $ gets receiver
-			yield . SRIqBind [(Type, "result"), (Id, i)]
-				. IqBind Nothing $ BJid j
 			makeP
 	(Just (SRPresence _ _), Just rcv) -> do
 		let	ts1 = Tags {

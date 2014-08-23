@@ -6,7 +6,7 @@ module XmppServer (
 	Bind(..), Query(..), Tag(..),
 	Feature(..), Requirement(..), runSasl,
 	SaslError(..), SaslState(..), Jid(..),
-	inputP2, inputP3, output,
+	input, inputP2, inputP3, output,
 	fromHandleLike, toHandleLike, voidM,
 	SHandle(..),
 
