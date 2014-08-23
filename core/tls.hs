@@ -12,6 +12,7 @@ import Data.Pipe
 import Data.Pipe.Flow
 import Data.Pipe.IO (debug)
 import Data.Pipe.ByteString
+import Data.Pipe.TChan
 import System.Environment
 import System.IO.Unsafe
 import System.IO
@@ -30,8 +31,6 @@ import Caps (
 	XmlCaps(..), CapsTag(..), capsToQuery, profanityCaps, toCaps, fromCaps,
 	capsToXmlCaps )
 import Disco (QueryDisco(..), DiscoTag(..), fromQueryDisco, toQueryDisco)
-
-import ManyChanPipe (fromChan, toChan, fromChans)
 
 host :: BS.ByteString
 host = case (\(Jid _ d _) -> d) sender of "otherhost" -> "localhost"; h -> h
@@ -61,23 +60,23 @@ main = do
 	_ <- runPipe $ fromHandle h =$= starttls host =$= toHandle h
 	(inc, otc) <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca g
 	_ <- (`runStateT` si) $
-		runPipe $ fromChan inc =$= sasl host mechanisms =$= toChan otc
+		runPipe $ fromTChan inc =$= sasl host mechanisms =$= toTChan otc
 	(Just ns, fts) <-
-		runWriterT . runPipe $ fromChan inc =$= bind host =@= toChan otc
+		runWriterT . runPipe $ fromTChan inc =$= bind host =@= toTChan otc
 	sc <- atomically newTChan
 	ic <- atomically newTChan
-	_ <- forkIO . (>> return ()) . runPipe $ fromChan inc
+	_ <- forkIO . (>> return ()) . runPipe $ fromTChan inc
 		=$= input ns
 		=$= debug
 		=$= (putPresence fts >> process)
-		=$= toChan sc
-	_ <- forkIO . (>> return ()) . runPipe $ fromChans [sc, ic]
+		=$= toTChan sc
+	_ <- forkIO . (>> return ()) . runPipe $ fromTChans [sc, ic]
 		=$= output
-		=$= toChan otc
+		=$= toTChan otc
 	_ <- runPipe $ fromHandleLn stdin
 		=$= before (== "/quit")
 		=$= convert toMessageMpi
-		=$= toChan ic
+		=$= (toTChan ic :: Pipe Mpi () IO ())
 	atomically $ writeTChan ic End
 	where
 	si = saslInit ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
