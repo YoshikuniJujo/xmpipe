@@ -26,7 +26,7 @@ import qualified Data.ByteString.Char8 as BSC
 
 import XmppClient
 import Im (IRRoster(..), FeatureR(..), fromIRRoster)
-import Tools (voidM, nullQ)
+import Tools (nullQ)
 import Caps (
 	XmlCaps(..), CapsTag(..), capsToQuery, profanityCaps, toCaps, fromCaps,
 	capsToXmlCaps )
@@ -61,21 +61,21 @@ main = do
 	h <- connectTo (BSC.unpack host) port
 	_ <- runPipe $ fromHandle h =$= starttls host =$= toHandle h
 	(inc, otc) <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca g
-	voidM . (`runStateT` si) $
+	_ <- (`runStateT` si) $
 		runPipe $ fromChan inc =$= sasl host mechanisms =$= toChan otc
 	(Just ns, fts) <-
 		runWriterT . runPipe $ fromChan inc =$= bind host =@= toChan otc
 	sc <- atomically newTChan
 	ic <- atomically newTChan
-	_ <- forkIO . voidM . runPipe $ fromChan inc
+	_ <- forkIO . (>> return ()) . runPipe $ fromChan inc
 		=$= input ns
 		=$= debug
 		=$= (putPresence fts >> process)
 		=$= toChan sc
-	_ <- forkIO . voidM . runPipe $ fromChans [sc, ic]
+	_ <- forkIO . (>> return ()) . runPipe $ fromChans [sc, ic]
 		=$= output
 		=$= toChan otc
-	voidM . runPipe $ fromHandleLn stdin
+	_ <- runPipe $ fromHandleLn stdin
 		=$= before (== "/quit")
 		=$= convert toMessageMpi
 		=$= toChan ic
