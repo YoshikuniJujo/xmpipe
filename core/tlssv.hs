@@ -12,10 +12,10 @@ import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
+import Control.Monad.Trans.Control
 import Control.Concurrent (forkIO)
 import Data.Pipe
 import Data.Pipe.TChan
-import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
 import Text.XML.Pipe
@@ -49,22 +49,29 @@ main = do
 				fromHandleLike h =$= starttls =$= toHandleLike h
 			(_cn, (inp, otp)) <- lift $ open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 				[(k, c)] Nothing g
+			from <- lift $ atomically newTChan
+			to <- lift $ atomically newTChan
 			(>> return ()) . lift
 				. (`evalStateT` initXmppState uuids) $ do
-				runPipe $ fromTChan inp =$= sasl =$= toTChan otp
+				_ <- runPipe $
+					fromTChan inp =$= sasl =$= toTChan otp
 				Just ns <- runPipe $
 					fromTChan inp =$= bind =@= toTChan otp
-				runPipe $ fromTChan inp
+				_ <- liftBaseDiscard forkIO . (>> return ())
+					. runPipe $ fromTChan inp
 					=$= input ns
 					=$= debug
-					=$= makeP
+					=$= toTChan from
+				_ <- liftBaseDiscard forkIO . (>> return ())
+					. runPipe $ fromTChan to
 					=$= outputSel sl
 					=$= output
 					=$= toTChan otp
+				(>> return ()) . runPipe $ fromTChan from
+					=$= makeP
+					=$= toTChan to
 
-outputSel :: (MonadIO m,
-	MonadState m, StateType m ~ XmppState) =>
-	TVar [(String, TChan Xmpp)] -> Pipe Xmpp Xmpp m ()
+outputSel :: MonadIO m => TVar [(String, TChan Xmpp)] -> Pipe Xmpp Xmpp m ()
 outputSel sl = await >>= \mx -> case mx of
 	Just m@(SRMessage as _b)
 		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as -> do
