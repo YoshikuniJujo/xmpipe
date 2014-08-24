@@ -2,27 +2,13 @@
 	PackageImports #-}
 
 module XmppServer (
-	Xmpp(..), fromCommon, Side(..), hlpDebug,
-	Tag(..),
-	Feature(..), Requirement(..),
-	SaslError(..), Jid(..),
-	input, output,
-	fromHandleLike, toHandleLike,
-	SHandle(..),
-
-	debug,
-
-	Tags(..), tagsType,
-
-	starttls,
-	sasl, XmppState, initXmppState, receiver, nextUuid, setResource,
-	bind,
+	Xmpp(..), Jid(..), SaslError, Tags(..), tagsType,
+	starttls, sasl, initXmppState, bind, input, output,
 	) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Pipe
-import Data.Pipe.IO
 import Data.UUID
 import Text.XML.Pipe
 

@@ -15,6 +15,8 @@ import Control.Monad.Trans.Control
 import Control.Concurrent (forkIO)
 import Data.Pipe
 import Data.Pipe.TChan
+import Data.Pipe.IO (debug)
+import Data.Pipe.ByteString
 import Data.X509
 import Data.X509.CertificateStore
 import Text.XML.Pipe
@@ -45,8 +47,7 @@ main = do
 				uuids <- randoms <$> lift getStdGen
 				g <- StateT $ return . cprgFork
 				(>> return ()) . liftIO . runPipe $
-					fromHandleLike h
-						=$= starttls =$= toHandleLike h
+					fromHandle h =$= starttls =$= toHandle h
 				(_cn, (inp, otp)) <- lift $
 					open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 						[(k, c)] Nothing g
@@ -103,8 +104,8 @@ makeP = await >>= \mm -> case mm of
 			[fromIRRoster . IRRoster . Just $ Roster (Just "1") []]
 		makeP
 	Just (SRPresence _ _) -> makeP
-	Just m -> yield m >> makeP
 	Just XCEnd -> yield XCEnd
+	Just m -> yield m >> makeP
 	_ -> return ()
 
 sender, reciever :: Jid
