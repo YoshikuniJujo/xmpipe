@@ -4,7 +4,6 @@
 
 import Control.Concurrent.STM
 
-import Data.UUID
 import System.Environment
 import System.Random
 
@@ -42,6 +41,8 @@ main = do
 	g0 <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 	forever $ do
 		(h, _, _) <- accept soc
+		from <- atomically newTChan
+		to <- atomically newTChan
 		(>> return ()) . forkIO . (`evalStateT` g0) $ do
 			uuids <- randoms <$> lift getStdGen
 			g <- StateT $ return . cprgFork
@@ -49,27 +50,23 @@ main = do
 				fromHandleLike h =$= starttls =$= toHandleLike h
 			(_cn, (inp, otp)) <- lift $ open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 				[(k, c)] Nothing g
-			from <- lift $ atomically newTChan
-			to <- lift $ atomically newTChan
 			(>> return ()) . lift
 				. (`evalStateT` initXmppState uuids) $ do
 				_ <- runPipe $
 					fromTChan inp =$= sasl =$= toTChan otp
 				Just ns <- runPipe $
 					fromTChan inp =$= bind =@= toTChan otp
-				_ <- liftBaseDiscard forkIO . (>> return ())
-					. runPipe $ fromTChan inp
+				_ <- liftBaseDiscard forkIO
+					. (>> return ()) . runPipe $ fromTChan inp
 					=$= input ns
 					=$= debug
 					=$= toTChan from
-				_ <- liftBaseDiscard forkIO . (>> return ())
-					. runPipe $ fromTChan to
+				(>> return ()) . liftBaseDiscard forkIO
+					. (>> return ()) . runPipe $ fromTChan to
 					=$= outputSel sl
 					=$= output
 					=$= toTChan otp
-				(>> return ()) . runPipe $ fromTChan from
-					=$= makeP
-					=$= toTChan to
+		(>> return ()) . runPipe $ fromTChan from =$= makeP =$= toTChan to
 
 outputSel :: MonadIO m => TVar [(String, TChan Xmpp)] -> Pipe Xmpp Xmpp m ()
 outputSel sl = await >>= \mx -> case mx of
@@ -99,19 +96,8 @@ readFiles = (,,)
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
 
 makeP :: (
-	MonadState m, StateType m ~ XmppState,
 	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
-makeP = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
-	(Just (XCBegin _), _) -> do
-		yield XCDecl
-		lift nextUuid >>= \u -> yield $ XCBegin [
-			(Id, toASCIIBytes u),
-			(From, "localhost"),
-			(TagRaw $ nullQ "version", "1.0"),
-			(Lang, "en") ]
-		yield . XCFeatures $ map featureRToFeature
-			[FRRosterver Optional, Ft $ FtBind Required]
-		makeP
+makeP = (,) `liftM` await `ap` lift (return . Just $ Jid "yoshikuni" "localhost" (Just "profanity")) >>= \p -> case p of
 	(Just (SRMessage _ bd), Just rcv) -> do
 		let	ts1 = (tagsType "chat") {
 				tagFrom = Just sender,
