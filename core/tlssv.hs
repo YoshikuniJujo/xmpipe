@@ -41,10 +41,10 @@ main = do
 	g0 <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 	forever $ do
 		(h, _, _) <- accept soc
-		voidM . forkIO . (`evalStateT` g0) $ do
+		(>> return ()) . forkIO . (`evalStateT` g0) $ do
 			uuids <- randoms <$> lift getStdGen
 			g <- StateT $ return . cprgFork
-			voidM . liftIO . runPipe $
+			(>> return ()) . liftIO . runPipe $
 				fromHandleLike h =$= starttls =$= toHandleLike h
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
@@ -53,11 +53,11 @@ main = do
 				getNames p >>= liftIO . print
 				(`evalStateT` initXmppState uuids) $ do
 					let sp = SHandle p
-					voidM . runPipe $ fromHandleLike sp
+					(>> return ()) . runPipe $ fromHandleLike sp
 						=$= sasl =$= toHandleLike sp
 					Just ns <- runPipe $ fromHandleLike sp
 						=$= bind =@= toHandleLike sp
-					voidM . runPipe $ fromHandleLike sp
+					(>> return ()) . runPipe $ fromHandleLike sp
 						=$= input ns
 						=$= hlpDebug sp
 						=$= makeP

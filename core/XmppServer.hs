@@ -3,11 +3,11 @@
 
 module XmppServer (
 	Xmpp(..), fromCommon, Side(..), hlpDebug,
-	Bind(..), Query(..), Tag(..),
-	Feature(..), Requirement(..), runSasl,
-	SaslError(..), SaslState(..), Jid(..),
-	input, inputP2, inputP3, output,
-	fromHandleLike, toHandleLike, voidM,
+	Tag(..),
+	Feature(..), Requirement(..),
+	SaslError(..), Jid(..),
+	input,
+	fromHandleLike, toHandleLike,
 	SHandle(..),
 
 	Tags(..), tagsType,
