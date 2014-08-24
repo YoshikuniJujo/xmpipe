@@ -32,7 +32,8 @@ import FederationClientIm
 
 main :: IO ()
 main = do
-	sl <- atomically $ newTVar []
+	sl <- atomically $ newTVar Nothing
+	otherhost sl
 --	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/localhost.sample_key"
 	c <- readCertificateChain ["certs/localhost.sample_crt"]
@@ -43,51 +44,54 @@ main = do
 		(h, _, _) <- accept soc
 		from <- atomically newTChan
 		to <- atomically newTChan
-		(>> return ()) . forkIO . (`evalStateT` g0) $ do
-			uuids <- randoms <$> lift getStdGen
-			g <- StateT $ return . cprgFork
-			(>> return ()) . liftIO . runPipe $
-				fromHandleLike h =$= starttls =$= toHandleLike h
-			(_cn, (inp, otp)) <- lift $ open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
-				[(k, c)] Nothing g
-			(>> return ()) . lift
-				. (`evalStateT` initXmppState uuids) $ do
-				_ <- runPipe $
-					fromTChan inp =$= sasl =$= toTChan otp
-				Just ns <- runPipe $
-					fromTChan inp =$= bind =@= toTChan otp
-				_ <- liftBaseDiscard forkIO
-					. (>> return ()) . runPipe $ fromTChan inp
-					=$= input ns
-					=$= debug
-					=$= toTChan from
-				(>> return ()) . liftBaseDiscard forkIO
-					. (>> return ()) . runPipe $ fromTChan to
-					=$= outputSel sl
-					=$= output
-					=$= toTChan otp
-		(>> return ()) . runPipe $ fromTChan from =$= makeP =$= toTChan to
+		(>> return ()) . forkIO $ do
+			(`evalStateT` g0) $ do
+				uuids <- randoms <$> lift getStdGen
+				g <- StateT $ return . cprgFork
+				(>> return ()) . liftIO . runPipe $
+					fromHandleLike h
+						=$= starttls =$= toHandleLike h
+				(_cn, (inp, otp)) <- lift $
+					open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+						[(k, c)] Nothing g
+				(>> return ()) . lift
+					. (`evalStateT` initXmppState uuids) $ do
+					_ <- runPipe $ fromTChan inp
+						=$= sasl =$= toTChan otp
+					Just ns <- runPipe $ fromTChan inp
+						=$= bind =@= toTChan otp
+					_ <- liftBaseDiscard forkIO
+						. (>> return ())
+						. runPipe $ fromTChan inp
+						=$= input ns
+						=$= debug
+						=$= toTChan from
+					(>> return ()) . liftBaseDiscard forkIO
+						. (>> return ())
+						. runPipe $ fromTChan to
+						=$= outputSel sl
+						=$= output
+						=$= toTChan otp
+			(>> return ()) . runPipe $
+				fromTChan from =$= makeP =$= toTChan to
 
-outputSel :: MonadIO m => TVar [(String, TChan Xmpp)] -> Pipe Xmpp Xmpp m ()
+outputSel :: MonadIO m => TVar (Maybe (TChan Xmpp, TChan ())) -> Pipe Xmpp Xmpp m ()
 outputSel sl = await >>= \mx -> case mx of
 	Just m@(SRMessage as _b)
 		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as -> do
-			l <- liftIO (atomically $ readTVar sl)
-			maybe (otherhost sl m)
-				(liftIO . atomically . flip writeTChan m)
-				$ lookup "otherhost" l
+			l' <- liftIO (atomically $ readTVar sl)
+			flip (maybe $ return ()) l' $ \(ip, e) -> liftIO $ do
+				atomically $ writeTChan ip m
+				atomically $ readTChan e
 			outputSel sl
 	Just x -> yield x >> outputSel sl
 	_ -> return ()
 
-otherhost :: MonadIO m =>
-	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp o m ()
-otherhost sl m = liftIO $ do
+otherhost :: TVar (Maybe (TChan Xmpp, TChan ())) -> IO ()
+otherhost sl = do
 	(ca, k, c) <- readFiles
 	(ip, e) <- connect ca k c
-	atomically $ writeTChan ip m
-	atomically $ readTChan e
-	atomically $ modifyTVar sl (("otherhost", ip) :)
+	atomically . writeTVar sl $ Just (ip, e)
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
 readFiles = (,,)
