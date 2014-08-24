@@ -12,7 +12,9 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Monad.Trans.Control
+import Control.Monad.Base
 import Control.Concurrent (forkIO)
+import Data.List
 import Data.Pipe
 import Data.Pipe.TChan
 import Data.X509
@@ -65,19 +67,32 @@ main = do
 					(>> return ()) . liftBaseDiscard forkIO
 						. (>> return ())
 						. runPipe $ fromTChan to
-						=$= outputSel ip e
 						=$= output
 						=$= toTChan otp
-			(>> return ()) . runPipe $
-				fromTChan from =$= makeP =$= toTChan to
+			(>> return ()) . runPipe $ fromTChan from
+				=$= makeP
+				=$= outputSel'
+				=$= toTChans [(id, ip), (not, to)]
+
+toTChans :: MonadBase IO m => [(a -> Bool, TChan b)] -> Pipe (a, b) () m ()
+toTChans cs = (await >>=) . maybe (return ()) $ \(t, x) -> (>> toTChans cs) $
+	case find (($ t) . fst) cs of
+		Just (_, c) -> lift . liftBase . atomically $ writeTChan c x
+		_ -> return ()
+
+outputSel' :: MonadIO m => Pipe Xmpp (Bool, Xmpp) m ()
+outputSel' = await >>= \mx -> case mx of
+	Just m@(SRMessage as _b)
+		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as ->
+			yield (True, m) >> outputSel'
+	Just x -> yield (False, x) >> outputSel'
+	_ -> return ()
 
 outputSel :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 outputSel ip e = await >>= \mx -> case mx of
 	Just m@(SRMessage as _b)
 		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as -> do
-			liftIO $ do
-				atomically $ writeTChan ip m
-				atomically $ readTChan e
+			liftIO . atomically $ writeTChan ip m
 			outputSel ip e
 	Just x -> yield x >> outputSel ip e
 	_ -> return ()
