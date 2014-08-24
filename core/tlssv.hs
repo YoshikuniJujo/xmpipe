@@ -12,9 +12,7 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Monad.Trans.Control
-import Control.Monad.Base
 import Control.Concurrent (forkIO)
-import Data.List
 import Data.Pipe
 import Data.Pipe.TChan
 import Data.X509
@@ -31,7 +29,7 @@ import FederationClientIm
 
 main :: IO ()
 main = do
-	(ip, e) <- readFiles >>= \(ca, k, c) -> connect ca k c
+	(ip, _e) <- readFiles >>= \(ca, k, c) -> connect ca k c
 --	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/localhost.sample_key"
 	c <- readCertificateChain ["certs/localhost.sample_crt"]
@@ -73,12 +71,6 @@ main = do
 				=$= makeP
 				=$= outputSel'
 				=$= toTChans [(id, ip), (not, to)]
-
-toTChans :: MonadBase IO m => [(a -> Bool, TChan b)] -> Pipe (a, b) () m ()
-toTChans cs = (await >>=) . maybe (return ()) $ \(t, x) -> (>> toTChans cs) $
-	case find (($ t) . fst) cs of
-		Just (_, c) -> lift . liftBase . atomically $ writeTChan c x
-		_ -> return ()
 
 outputSel' :: MonadIO m => Pipe Xmpp (Bool, Xmpp) m ()
 outputSel' = await >>= \mx -> case mx of
