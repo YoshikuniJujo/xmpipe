@@ -67,26 +67,19 @@ main = do
 						. runPipe $ fromTChan to
 						=$= output
 						=$= toTChan otp
-			(>> return ()) . runPipe $ fromTChan from
+			uip <- atomically newTChan
+			atomically $ writeTChan uip sampleMessage
+			(>> return ()) . runPipe $ fromTChans [from, uip]
 				=$= makeP
-				=$= outputSel'
+				=$= outputSel
 				=$= toTChans [(id, ip), (not, to)]
 
-outputSel' :: MonadIO m => Pipe Xmpp (Bool, Xmpp) m ()
-outputSel' = await >>= \mx -> case mx of
+outputSel :: MonadIO m => Pipe Xmpp (Bool, Xmpp) m ()
+outputSel = await >>= \mx -> case mx of
 	Just m@(SRMessage as _b)
 		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as ->
-			yield (True, m) >> outputSel'
-	Just x -> yield (False, x) >> outputSel'
-	_ -> return ()
-
-outputSel :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
-outputSel ip e = await >>= \mx -> case mx of
-	Just m@(SRMessage as _b)
-		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as -> do
-			liftIO . atomically $ writeTChan ip m
-			outputSel ip e
-	Just x -> yield x >> outputSel ip e
+			yield (True, m) >> outputSel
+	Just x -> yield (False, x) >> outputSel
 	_ -> return ()
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
@@ -95,45 +88,25 @@ readFiles = (,,)
 	<*> readKey "certs/localhost.sample_key"
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
 
-makeP :: (
-	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
-makeP = (,) `liftM` await `ap` lift (return . Just $ Jid "yoshikuni" "localhost" (Just "profanity")) >>= \p -> case p of
-	(Just (SRMessage _ bd), Just rcv) -> do
-		let	ts1 = (tagsType "chat") {
-				tagFrom = Just sender,
-				tagTo = Just rcv }
-			ts2 = (tagsType "chat") {
-				tagFrom = Just $ Jid "yoshio" "otherhost" Nothing,
-				tagTo = Just rcv }
-			ts3 = (tagsType "chat") {
-				tagFrom = Just $ Jid "yoshikuni" "localhost" $
-					Just "profanity",
-				tagTo = Just $ Jid "yoshio" "otherhost" Nothing }
-		yield $ SRMessage ts1
-			[XmlNode (nullQ "body") [] [] [XmlCharData "Hi, TLS!"]]
-		yield $ SRMessage ts2 bd
-		yield $ SRMessage ts3 bd
+sampleMessage :: Xmpp
+sampleMessage = let
+	ts1 = (tagsType "chat") { tagFrom = Just sender, tagTo = Just reciever } in
+	SRMessage ts1 [XmlNode (nullQ "body") [] [] [XmlCharData "Hi, USER!"]]
+
+makeP :: (MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
+makeP = await >>= \mm -> case mm of
+	Just (SRIq ts ns) |
+		Just (IRRoster Nothing) <- toIRRoster ns,
+		Just "get" <- tagType ts,
+		Just i <- tagId ts -> do
+		yield $ SRIq (tagsType "result") { tagId = Just i }
+			[fromIRRoster . IRRoster . Just $ Roster (Just "1") []]
 		makeP
-	(Just (SRIq ts ns), _)
-		| Just (IRRoster Nothing) <- toIRRoster ns,
-			Just "get" <- tagType ts,
-			Just i <- tagId ts -> do
-			yield $ SRIq (tagsType "result") { tagId = Just i }
-				[fromIRRoster . IRRoster . Just
-					$ Roster (Just "1") []]
-			makeP
-	(Just (SRPresence _ _), Just rcv) -> do
-		let	ts1 = Tags {
-				tagId = Nothing,
-				tagType = Just "chat",
-				tagFrom = Just sender,
-				tagTo = Just rcv,
-				tagLang = Nothing,
-				tagOthers = [] }
-		yield $ SRMessage ts1
-			[XmlNode (nullQ "body") [] [] [XmlCharData "Hi, TLS!"]]
-		makeP
+	Just (SRPresence _ _) -> makeP
+	Just m -> yield m >> makeP
+	Just XCEnd -> yield XCEnd
 	_ -> return ()
 
-sender :: Jid
+sender, reciever :: Jid
 sender = Jid "yoshio" "otherhost" (Just "profanity")
+reciever = Jid "yoshikuni" "localhost" (Just "profanity")
