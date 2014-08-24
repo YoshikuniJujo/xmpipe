@@ -46,6 +46,19 @@ main = do
 			g <- StateT $ return . cprgFork
 			(>> return ()) . liftIO . runPipe $
 				fromHandleLike h =$= starttls =$= toHandleLike h
+				{-
+			(_cn, (inp, otp)) <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+				[(k, c)] Nothing g
+			(`evalStateT` initXmppState uuids) $ do
+				runPipe $ fromTChan inp =$= sasl =$= toTChan otp
+				Just ns <- runPipe $
+					fromTChan inp =$= bind =@= toTChan otp
+				runPipe $ fromTChan inp
+					=$= input ns
+					=$= hlpDebug sp
+					=$= makeP
+					=$= toTChan sl sp
+					-}
 			liftIO . (`run` g) $ do
 				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing
@@ -62,6 +75,8 @@ main = do
 						=$= hlpDebug sp
 						=$= makeP
 						=$= outputSel sl sp
+						=$= output
+						=$= toHandleLike sp
 					hlPut sp $ xmlString [XmlEnd
 						(("stream", Nothing), "stream")]
 					hlClose sp
@@ -69,7 +84,7 @@ main = do
 outputSel :: (MonadIO (HandleMonad h),
 	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
 	HandleLike h) => TVar [(String, TChan Xmpp)]
-		-> h -> Pipe Xmpp () (HandleMonad h) ()
+		-> h -> Pipe Xmpp Xmpp (HandleMonad h) ()
 outputSel sl h = await >>= \mx -> case mx of
 	Just m@(SRMessage as _b)
 		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as -> do
@@ -78,11 +93,11 @@ outputSel sl h = await >>= \mx -> case mx of
 				(liftIO . atomically . flip writeTChan m)
 				$ lookup "otherhost" l
 			outputSel sl h
-	Just x -> lift (hlPut h $ xmlString [fromCommon Client x]) >> outputSel sl h
+	Just x -> yield x >> outputSel sl h
 	_ -> return ()
 
 otherhost :: MonadIO m =>
-	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp () m ()
+	TVar [(String, TChan Xmpp)] -> Xmpp -> Pipe Xmpp o m ()
 otherhost sl m = liftIO $ do
 	(ca, k, c) <- readFiles
 	(ip, e) <- connect ca k c

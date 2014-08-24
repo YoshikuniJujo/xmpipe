@@ -6,7 +6,7 @@ module XmppServer (
 	Tag(..),
 	Feature(..), Requirement(..),
 	SaslError(..), Jid(..),
-	input,
+	input, output,
 	fromHandleLike, toHandleLike,
 	SHandle(..),
 
