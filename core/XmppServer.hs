@@ -10,18 +10,19 @@ module XmppServer (
 	fromHandleLike, toHandleLike,
 	SHandle(..),
 
+	debug,
+
 	Tags(..), tagsType,
 
 	starttls,
-
 	sasl, XmppState, initXmppState, receiver, nextUuid, setResource,
-
 	bind,
 	) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Pipe
+import Data.Pipe.IO
 import Data.UUID
 import Text.XML.Pipe
 

@@ -14,12 +14,13 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Data.Pipe
+import Data.Pipe.TChan
 import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
 import Text.XML.Pipe
 import Network
-import Network.PeyoTLS.Server
+import Network.PeyoTLS.TChan.Server
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
@@ -27,8 +28,8 @@ import XmppServer
 import Im
 import FederationClientIm
 
-instance SaslError Alert where
-	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
+-- instance SaslError Alert where
+--	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
 
 main :: IO ()
 main = do
@@ -46,54 +47,33 @@ main = do
 			g <- StateT $ return . cprgFork
 			(>> return ()) . liftIO . runPipe $
 				fromHandleLike h =$= starttls =$= toHandleLike h
-				{-
-			(_cn, (inp, otp)) <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+			(_cn, (inp, otp)) <- lift $ open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 				[(k, c)] Nothing g
-			(`evalStateT` initXmppState uuids) $ do
+			(>> return ()) . lift
+				. (`evalStateT` initXmppState uuids) $ do
 				runPipe $ fromTChan inp =$= sasl =$= toTChan otp
 				Just ns <- runPipe $
 					fromTChan inp =$= bind =@= toTChan otp
 				runPipe $ fromTChan inp
 					=$= input ns
-					=$= hlpDebug sp
+					=$= debug
 					=$= makeP
-					=$= toTChan sl sp
-					-}
-			liftIO . (`run` g) $ do
-				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
-					[(k, c)] Nothing
---					[(k, c)] (Just ca)
-				getNames p >>= liftIO . print
-				(`evalStateT` initXmppState uuids) $ do
-					let sp = SHandle p
-					(>> return ()) . runPipe $ fromHandleLike sp
-						=$= sasl =$= toHandleLike sp
-					Just ns <- runPipe $ fromHandleLike sp
-						=$= bind =@= toHandleLike sp
-					(>> return ()) . runPipe $ fromHandleLike sp
-						=$= input ns
-						=$= hlpDebug sp
-						=$= makeP
-						=$= outputSel sl sp
-						=$= output
-						=$= toHandleLike sp
-					hlPut sp $ xmlString [XmlEnd
-						(("stream", Nothing), "stream")]
-					hlClose sp
+					=$= outputSel sl
+					=$= output
+					=$= toTChan otp
 
-outputSel :: (MonadIO (HandleMonad h),
-	MonadState (HandleMonad h), StateType (HandleMonad h) ~ XmppState,
-	HandleLike h) => TVar [(String, TChan Xmpp)]
-		-> h -> Pipe Xmpp Xmpp (HandleMonad h) ()
-outputSel sl h = await >>= \mx -> case mx of
+outputSel :: (MonadIO m,
+	MonadState m, StateType m ~ XmppState) =>
+	TVar [(String, TChan Xmpp)] -> Pipe Xmpp Xmpp m ()
+outputSel sl = await >>= \mx -> case mx of
 	Just m@(SRMessage as _b)
 		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as -> do
 			l <- liftIO (atomically $ readTVar sl)
 			maybe (otherhost sl m)
 				(liftIO . atomically . flip writeTChan m)
 				$ lookup "otherhost" l
-			outputSel sl h
-	Just x -> yield x >> outputSel sl h
+			outputSel sl
+	Just x -> yield x >> outputSel sl
 	_ -> return ()
 
 otherhost :: MonadIO m =>
