@@ -27,13 +27,9 @@ import XmppServer
 import Im
 import FederationClientIm
 
--- instance SaslError Alert where
---	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
-
 main :: IO ()
 main = do
-	sl <- atomically $ newTVar Nothing
-	otherhost sl
+	(ip, e) <- readFiles >>= \(ca, k, c) -> connect ca k c
 --	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/localhost.sample_key"
 	c <- readCertificateChain ["certs/localhost.sample_crt"]
@@ -69,29 +65,22 @@ main = do
 					(>> return ()) . liftBaseDiscard forkIO
 						. (>> return ())
 						. runPipe $ fromTChan to
-						=$= outputSel sl
+						=$= outputSel ip e
 						=$= output
 						=$= toTChan otp
 			(>> return ()) . runPipe $
 				fromTChan from =$= makeP =$= toTChan to
 
-outputSel :: MonadIO m => TVar (Maybe (TChan Xmpp, TChan ())) -> Pipe Xmpp Xmpp m ()
-outputSel sl = await >>= \mx -> case mx of
+outputSel :: MonadIO m => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
+outputSel ip e = await >>= \mx -> case mx of
 	Just m@(SRMessage as _b)
 		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as -> do
-			l' <- liftIO (atomically $ readTVar sl)
-			flip (maybe $ return ()) l' $ \(ip, e) -> liftIO $ do
+			liftIO $ do
 				atomically $ writeTChan ip m
 				atomically $ readTChan e
-			outputSel sl
-	Just x -> yield x >> outputSel sl
+			outputSel ip e
+	Just x -> yield x >> outputSel ip e
 	_ -> return ()
-
-otherhost :: TVar (Maybe (TChan Xmpp, TChan ())) -> IO ()
-otherhost sl = do
-	(ca, k, c) <- readFiles
-	(ip, e) <- connect ca k c
-	atomically . writeTVar sl $ Just (ip, e)
 
 readFiles :: IO (CertificateStore, CertSecretKey, CertificateChain)
 readFiles = (,,)
