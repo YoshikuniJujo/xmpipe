@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module Xmpp (
-	inputP2, inputP3, input, output, inputMpi, outputMpi,
+	inputP2, inputP3, input, output, outputS, inputMpi, outputMpi,
 	Mpi(..),
 
 	Xmpp(..), fromCommon,
@@ -55,6 +55,9 @@ inputMpi ns = xmlEvent =$= convert fromJust =$= xmlNode ns =$= convert toMpi
 
 output :: Monad m => Pipe Xmpp BS.ByteString m ()
 output = convert $ xmlString . (: []) . fromCommon Client
+
+outputS :: Monad m => Pipe Xmpp BS.ByteString m ()
+outputS = convert $ xmlString . (: []) . fromCommon Server
 
 outputMpi :: Monad m => Pipe Mpi BS.ByteString m ()
 outputMpi = convert $ xmlString . (: []) . fromMpi

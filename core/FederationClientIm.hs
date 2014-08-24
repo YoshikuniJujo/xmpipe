@@ -33,7 +33,7 @@ connect ca k c = do
 		void . runPipe $ fromHandleLike h =$= inputP3
 			=$= hlpDebug h
 			=$= processTls
-			=$= output
+			=$= outputS
 			=$= toHandleLike h
 		g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 		(`run` g) $ do
@@ -45,13 +45,13 @@ connect ca k c = do
 				=$= inputP3
 				=$= hlpDebug sp
 				=$= process i e
-				=$= output
+				=$= outputS
 				=$= toHandleLike sp
 			void . (`runStateT` St [] []) . runPipe $ fromHandleLike sp
 				=$= inputP3
 				=$= hlpDebug sp
 				=$= process i e
-				=$= output
+				=$= outputS
 				=$= toHandleLike sp
 			hlClose p
 	return (i, e)

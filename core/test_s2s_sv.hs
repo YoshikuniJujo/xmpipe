@@ -40,7 +40,7 @@ main = do
 				. runPipe $ fromHandleLike sh =$= inputP3
 					=$= hlpDebug sh
 					=$= processTls
-					=$= output
+					=$= outputS
 					=$= toHandleLike sh
 			g <- StateT $ return . cprgFork
 			liftIO . (`run` g) $ do
@@ -52,7 +52,7 @@ main = do
 					. runPipe $ fromHandleLike sp =$= inputP2
 						=$= hlpDebug sp
 						=$= process
-						=$= output
+						=$= outputS
 						=$= toHandleLike sp
 
 data XmppState = XmppState {
