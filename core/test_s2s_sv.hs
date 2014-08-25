@@ -5,18 +5,17 @@ import Control.Monad
 import "monads-tf" Control.Monad.State
 import Control.Concurrent (forkIO)
 import Data.Pipe
+import Data.Pipe.TChan
+import Data.Pipe.IO (debug)
 import Data.Pipe.ByteString
 import Data.UUID
 import System.Random
 import Network
-import Network.PeyoTLS.Server
+import Network.PeyoTLS.TChan.Server
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
 import S2sServer
-
-instance SaslError Alert where
-	fromSaslError et em = ExternalAlert $ show et ++ ":" ++ show em
 
 main :: IO ()
 main = do
@@ -34,25 +33,18 @@ main = do
 				. runPipe
 				$ fromHandle h =$= starttls =$= toHandle h
 			g <- StateT $ return . cprgFork
-			liftIO . (`run` g) $ do
-				p <- open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
-					[(k, c)] (Just ca)
-				getNames p >>= liftIO . print
-				let sp = SHandle p
-				us'' <- (`execStateT` us') . runPipe $
-					fromHandleLike sp
-						=$= sasl =$= toHandleLike sp
-				Just ns <- (`evalStateT` us'')
-					. runPipe $ fromHandleLike sp
-						=$= begin
-						=@= toHandleLike sp
-				void . (`evalStateT` us'')
-					. runPipe $ fromHandleLike sp
-						=$= input ns
-						=$= hlpDebug sp
-						=$= process
-						=$= outputS
-						=$= toHandleLike sp
+			(_, (inp, otp)) <- lift $ open h
+				["TLS_RSA_WITH_AES_128_CBC_SHA"] [(k, c)] (Just ca) g
+			us'' <- (`execStateT` us') . runPipe $
+				fromTChan inp =$= sasl =$= toTChan otp
+			Just ns <- (`evalStateT` us'') . runPipe $
+				fromTChan inp =$= begin =@= toTChan otp
+			void . (`evalStateT` us'') . runPipe $ fromTChan inp
+				=$= input ns
+				=$= debug
+				=$= process
+				=$= outputS
+				=$= toTChan otp
 
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
 process = await >>= \mx -> case mx of Just _ -> process; _ -> return ()
