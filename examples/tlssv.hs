@@ -25,8 +25,8 @@ import qualified Network.PeyoTLS.TChan.Client as C
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
-import XmppServer
-import qualified S2sClient as SC
+import Network.XMPiPe.Core.C2S.Server
+import qualified Network.XMPiPe.Core.S2S.Client as SC
 import Im
 
 main :: IO ()

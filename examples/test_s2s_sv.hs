@@ -15,7 +15,7 @@ import Network.PeyoTLS.TChan.Server
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
-import S2sServer
+import Network.XMPiPe.Core.S2S.Server
 
 main :: IO ()
 main = do

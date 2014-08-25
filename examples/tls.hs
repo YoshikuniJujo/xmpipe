@@ -25,7 +25,7 @@ import "crypto-random" Crypto.Random
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
-import XmppClient
+import Network.XMPiPe.Core.C2S.Client
 import Im (IRRoster(..), FeatureR(..), fromIRRoster)
 import Caps (
 	XmlCaps(..), CapsTag(..), capsToQuery, profanityCaps, toCaps, fromCaps,
