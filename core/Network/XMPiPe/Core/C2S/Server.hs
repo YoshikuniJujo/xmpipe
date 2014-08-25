@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts,
 	PackageImports #-}
 
-module XmppServer (
+module Network.XMPiPe.Core.C2S.Server (
 	Mpi(..), Jid(..), Tags(..), tagsType,
 	starttls, sasl, saslState, bind, inputMpi, outputMpi,
 	) where

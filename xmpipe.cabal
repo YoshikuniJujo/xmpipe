@@ -20,7 +20,10 @@ description:
 library
     hs-source-dirs:	core, im
     exposed-modules:
-        XmppClient, XmppServer, S2sClient, S2sServer
+        Network.XMPiPe.Core.C2S.Client,
+        Network.XMPiPe.Core.C2S.Server,
+        Network.XMPiPe.Core.S2S.Client,
+        Network.XMPiPe.Core.S2S.Server
     other-modules:
         Xmpp, XmppType, Tools, SaslClient, SaslServer, Retrieve, Im
     build-depends:

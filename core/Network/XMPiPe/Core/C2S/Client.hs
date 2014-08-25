@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies,
 	FlexibleContexts, PackageImports #-}
 
-module XmppClient (
+module Network.XMPiPe.Core.C2S.Client (
 	Mpi(..), Jid(..), toJid,
 	Tags(..), tagsNull, tagsType,
 	starttls, sasl, saslState, bind, input, output,

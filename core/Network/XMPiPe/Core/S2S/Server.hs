@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
-module S2sServer (
+module Network.XMPiPe.Core.S2S.Server (
 	Mpi, XmppState(..),
 	starttls, sasl, begin, inputMpi, outputMpi,
 	) where
@@ -108,7 +108,7 @@ begin = inputBegin =@= process  =$= outputS
 
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
 process = await >>= \mx -> case mx of
-	Just (XCBegin as) -> do
+	Just (XCBegin _as) -> do
 		yield XCDecl
 		nextUuid >>= yield . begin_
 		yield $ XCFeatures []
