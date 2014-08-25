@@ -40,15 +40,15 @@ procTls = await >>= \mx -> case mx of
 
 sasl :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m),
-	MonadIO m ) =>
+	MonadError m, Error (ErrorType m)
+	) =>
 	Pipe BS.ByteString BS.ByteString m ()
 sasl = inputP3 =$= processSasl =$= outputS
 
 processSasl :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m),
-	MonadIO m ) => Pipe Xmpp Xmpp m ()
+	MonadError m, Error (ErrorType m)
+	) => Pipe Xmpp Xmpp m ()
 processSasl = do
 	yield XCDecl
 	yield $ XCBegin [
@@ -59,8 +59,8 @@ processSasl = do
 
 procSasl :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m),
-	MonadIO m) => Pipe Xmpp Xmpp m ()
+	MonadError m, Error (ErrorType m)
+	) => Pipe Xmpp Xmpp m ()
 procSasl = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> procSasl
 	Just (XCFeatures [FtMechanisms ["EXTERNAL"]]) -> do
