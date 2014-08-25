@@ -1,14 +1,6 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module S2sClient (
-	Xmpp(..), Feature(..), Tag(..),
-
-	SaslState(..),
-	toHandleLike, fromHandleLike, outputS, inputP3, hlpDebug,
-	SHandle(..),
-
-	starttls, sasl,
-	) where
+module S2sClient (Xmpp, starttls, sasl, begin, input, outputS) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
@@ -72,3 +64,17 @@ procSasl = await >>= \mx -> case mx of
 		S.sasl "EXTERNAL"
 		lift . modify $ putSaslState st
 	_ -> return ()
+
+begin :: Monad m => Pipe BS.ByteString BS.ByteString m ()
+begin = inputP2 =$= process =$= outputS
+
+process :: Monad m => Pipe Xmpp Xmpp m ()
+process = do
+	yield XCDecl
+	yield $ XCBegin [
+		(From, "localhost"),
+		(To, "otherhost"),
+		(TagRaw $ nullQ "version", "1.0")]
+	Just (XCBegin _as) <- await
+	Just (XCFeatures []) <- await
+	return ()
