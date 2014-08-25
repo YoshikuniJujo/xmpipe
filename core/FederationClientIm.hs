@@ -10,16 +10,16 @@ import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Data.Pipe
+import Data.Pipe.ByteString
 import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
+import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.Client
 import "crypto-random" Crypto.Random
 
-import Tools
-import SaslClient
-import Xmpp
+import S2sClient
 
 import Im
 
@@ -30,11 +30,7 @@ connect ca k c = do
 	e <- atomically newTChan
 	_ <- forkIO $ do
 		h <- connectTo "localhost" $ PortNumber 55269
-		void . runPipe $ fromHandleLike h =$= inputP3
-			=$= hlpDebug h
-			=$= processTls
-			=$= outputS
-			=$= toHandleLike h
+		void . runPipe $ fromHandle h =$= starttls =$= toHandle h
 		g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 		(`run` g) $ do
 			p <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
@@ -89,20 +85,3 @@ proc ic e = await >>= \mx -> case mx of
 		liftIO (atomically $ readTChan ic) >>= yield
 		liftIO . atomically $ writeTChan e ()
 		proc ic e
-
-processTls :: Monad m => Pipe Xmpp Xmpp m ()
-processTls = do
-	yield XCDecl
-	yield $ XCBegin [(From, "localhost"), (To, "otherhost"),
-		(TagRaw $ nullQ "version", "1.0")]
-	procTls
-
-procTls :: Monad m => Pipe Xmpp Xmpp m ()
-procTls = await >>= \mx -> case mx of
-	Just (XCBegin _as) -> procTls
-	Just (XCFeatures [FtStarttls _]) -> do
-		yield XCStarttls
-		procTls
-	Just XCProceed -> return ()
-	Just _ -> return ()
-	_ -> return ()
