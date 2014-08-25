@@ -42,19 +42,17 @@ main = do
 				us'' <- (`execStateT` us') . runPipe $
 					fromHandleLike sp
 						=$= sasl =$= toHandleLike sp
+				Just ns <- (`evalStateT` us'')
+					. runPipe $ fromHandleLike sp
+						=$= begin
+						=@= toHandleLike sp
 				void . (`evalStateT` us'')
-					. runPipe $ fromHandleLike sp =$= inputP2
+					. runPipe $ fromHandleLike sp
+						=$= input ns
 						=$= hlpDebug sp
 						=$= process
 						=$= outputS
 						=$= toHandleLike sp
 
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
-process = await >>= \mx -> case mx of
-	Just (XCBegin as) -> do
-		modify $ \st -> st { xsDomainName = lookup From as }
-		yield XCDecl
-		nextUuid >>= yield . begin
-		yield $ XCFeatures []
-		process
-	_ -> return ()
+process = await >>= \mx -> case mx of Just _ -> process; _ -> return ()

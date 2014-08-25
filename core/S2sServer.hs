@@ -1,15 +1,16 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
 module S2sServer (
+	inputBegin,
 	SHandle(..), SaslError(..),
 	Xmpp(..), SaslState(..),
 	Tag(..),
 	fromHandleLike, toHandleLike, hlpDebug,
-	inputP2, outputS,
+	inputP2, inputP3, outputS,
 
-	XmppState(..), nextUuid, begin,
+	XmppState(..), nextUuid,
 
-	starttls, sasl,
+	starttls, sasl, begin, input,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -17,6 +18,7 @@ import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.Pipe
 import Data.UUID
+import Text.XML.Pipe
 
 import Xmpp
 import SaslServer
@@ -31,14 +33,14 @@ processTls :: (MonadState m, XmppState ~ StateType m) => Pipe Xmpp Xmpp m ()
 processTls = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> do
 		yield XCDecl
-		nextUuid >>= yield . begin
+		nextUuid >>= yield . begin_
 		yield $ XCFeatures [FtStarttls Required]
 		processTls
 	Just XCStarttls -> yield XCProceed
 	_ -> return ()
 
-begin :: UUID -> Xmpp
-begin u = XCBegin [
+begin_ :: UUID -> Xmpp
+begin_ u = XCBegin [
 	(From, "otherhost"),
 	(To, "localhost"),
 	(TagRaw $ nullQ "version", "1.0"),
@@ -76,7 +78,7 @@ processSasl = await >>= \mx -> case mx of
 	Just (XCBegin as) -> do
 		modify $ \st -> st { xsDomainName = lookup From as }
 		yield XCDecl
-		nextUuid >>= yield . begin
+		nextUuid >>= yield . begin_
 		yield $ XCFeatures [FtMechanisms ["EXTERNAL"]]
 		processSasl
 	Just (XCAuth "EXTERNAL" i) ->
@@ -107,3 +109,17 @@ outputScram = await >>= \mch -> case mch of
 	Just (Right r) -> yield (SRChallenge r) >> outputScram
 	Just (Left (Success r)) -> yield $ XCSaslSuccess r
 	Nothing -> return ()
+
+begin :: (MonadState m, StateType m ~ XmppState) =>
+	Pipe BS.ByteString BS.ByteString m [Xmlns]
+begin = inputBegin =@= process  =$= outputS
+
+process :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
+process = await >>= \mx -> case mx of
+	Just (XCBegin as) -> do
+		modify $ \st -> st { xsDomainName = lookup From as }
+		yield XCDecl
+		nextUuid >>= yield . begin_
+		yield $ XCFeatures []
+		process
+	_ -> return ()

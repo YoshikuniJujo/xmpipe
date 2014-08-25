@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module Xmpp (
-	inputP2, inputP3, input, output, outputS, inputMpi, outputMpi,
+	inputBegin, inputP2, inputP3, input, output, outputS, inputMpi, outputMpi,
 	Mpi(..),
 
 	Xmpp(..), fromCommon,
@@ -40,6 +40,9 @@ isSaslSuccess :: XmlNode -> Bool
 isSaslSuccess (XmlNode ((_, Just "jabber:client"), "iq")
 	_ _ [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ _ _]) = True
 isSaslSuccess _ = False
+
+inputBegin :: Monad m => Pipe BS.ByteString Xmpp m [Xmlns]
+inputBegin = xmlEvent =$= convert fromJust =$= mapOut toCommon xmlBegin
 
 inputP3 :: Monad m => Pipe BS.ByteString Xmpp m [Xmlns]
 inputP3 = xmlEvent =$= convert fromJust =$= mapOut toCommon xmlPipe
