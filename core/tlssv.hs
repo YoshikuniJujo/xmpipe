@@ -22,12 +22,13 @@ import Data.X509.CertificateStore
 import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.TChan.Server
+import qualified Network.PeyoTLS.TChan.Client as C
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
 import XmppServer
+import qualified S2sClient as SC
 import Im
-import FederationClientIm
 
 main :: IO ()
 main = do
@@ -111,3 +112,20 @@ makeP = await >>= \mm -> case mm of
 sender, reciever :: Jid
 sender = Jid "yoshio" "otherhost" (Just "profanity")
 reciever = Jid "yoshikuni" "localhost" (Just "profanity")
+
+connect :: CertificateStore -> CertSecretKey -> CertificateChain ->
+	IO (TChan Xmpp, TChan ())
+connect ca k c = do
+	i <- atomically newTChan
+	e <- atomically newTChan
+	_ <- forkIO $ do
+		h <- connectTo "localhost" $ PortNumber 55269
+		void . runPipe $ fromHandle h =$= SC.starttls =$= toHandle h
+		g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
+		(inc, otc) <- C.open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+			[(k, c)] ca g
+		void . (`runStateT` St [] []) . runPipe $ fromTChan inc
+			=$= SC.sasl =$= toTChan otc
+		void . runPipe $ fromTChan inc =$= SC.begin =$= toTChan otc
+		void . runPipe $ fromTChan i =$= SC.outputS =$= toTChan otc
+	return (i, e)
