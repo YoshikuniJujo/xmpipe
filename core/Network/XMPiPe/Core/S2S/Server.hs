@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
 module Network.XMPiPe.Core.S2S.Server (
+	-- * Types and Values
 	Mpi, XmppState(..),
+	-- * Functions
 	starttls, sasl, begin, inputMpi, outputMpi,
 	) where
 

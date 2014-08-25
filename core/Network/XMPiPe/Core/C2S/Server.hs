@@ -2,7 +2,9 @@
 	PackageImports #-}
 
 module Network.XMPiPe.Core.C2S.Server (
+	-- * Types and Values
 	Mpi(..), Jid(..), Tags(..), tagsType,
+	-- * Functions
 	starttls, sasl, saslState, bind, inputMpi, outputMpi,
 	) where
 

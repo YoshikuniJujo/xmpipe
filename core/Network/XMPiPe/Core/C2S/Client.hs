@@ -2,8 +2,10 @@
 	FlexibleContexts, PackageImports #-}
 
 module Network.XMPiPe.Core.C2S.Client (
+	-- * Types and Values
 	Mpi(..), Jid(..), toJid,
 	Tags(..), tagsNull, tagsType,
+	-- * Functions
 	starttls, sasl, saslState, bind, input, output,
 	) where
 

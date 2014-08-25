@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
 module Network.XMPiPe.Core.S2S.Client (
-	starttls, sasl, begin, input, outputMpi) where
+	-- * Types and Values
+	Mpi(..), Jid(..), Tags(..), tagsType,
+	-- * Functions
+	starttls, sasl, begin, input, outputMpi
+	) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
