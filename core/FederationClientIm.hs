@@ -10,13 +10,13 @@ import "monads-tf" Control.Monad.Error
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Data.Pipe
+import Data.Pipe.TChan
 import Data.Pipe.ByteString
-import Data.HandleLike
 import Data.X509
 import Data.X509.CertificateStore
 import Text.XML.Pipe
 import Network
-import Network.PeyoTLS.Client
+import Network.PeyoTLS.TChan.Client
 import "crypto-random" Crypto.Random
 
 import S2sClient
@@ -32,24 +32,18 @@ connect ca k c = do
 		h <- connectTo "localhost" $ PortNumber 55269
 		void . runPipe $ fromHandle h =$= starttls =$= toHandle h
 		g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
-		(`run` g) $ do
-			p <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
-				[(k, c)] ca
-			getNames p >>= liftIO . print
-			let sp = SHandle p
-			void . (`runStateT` St [] []) . runPipe $ fromHandleLike sp
-				=$= sasl =$= toHandleLike sp
-			void . (`runStateT` St [] []) . runPipe $ fromHandleLike sp
-				=$= inputP3
-				=$= hlpDebug sp
-				=$= process i e
-				=$= outputS
-				=$= toHandleLike sp
-			hlClose p
+		(inc, otc) <- open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+			[(k, c)] ca g
+		void . (`runStateT` St [] []) . runPipe $ fromTChan inc
+			=$= sasl =$= toTChan otc
+		void . runPipe $ fromTChan inc
+			=$= inputP3
+			=$= process i e
+			=$= outputS
+			=$= toTChan otc
 	return (i, e)
 
 process :: (
-	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
 	MonadIO m ) => TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 process i e = do
@@ -61,7 +55,6 @@ process i e = do
 	proc i e
 
 proc :: (
-	MonadState m, SaslState (StateType m),
 	MonadError m, Error (ErrorType m),
 	MonadIO m) =>
 	TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
