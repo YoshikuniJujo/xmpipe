@@ -1,16 +1,8 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
 module S2sServer (
-	inputBegin,
-	SHandle(..), SaslError(..),
-	Xmpp(..), SaslState(..),
-	Tag(..),
-	fromHandleLike, toHandleLike, hlpDebug,
-	inputP2, inputP3, outputS,
-
-	XmppState(..), nextUuid,
-
-	starttls, sasl, begin, input,
+	Mpi, XmppState(..),
+	starttls, sasl, begin, inputMpi, outputMpi,
 	) where
 
 import "monads-tf" Control.Monad.State
