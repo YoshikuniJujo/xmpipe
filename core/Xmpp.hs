@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
 
 module Xmpp (
 	inputBegin, inputP2, inputP3, input, output, outputS, inputMpi, outputMpi,

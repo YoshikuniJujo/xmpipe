@@ -109,7 +109,6 @@ begin = inputBegin =@= process  =$= outputS
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Xmpp Xmpp m ()
 process = await >>= \mx -> case mx of
 	Just (XCBegin as) -> do
-		modify $ \st -> st { xsDomainName = lookup From as }
 		yield XCDecl
 		nextUuid >>= yield . begin_
 		yield $ XCFeatures []
