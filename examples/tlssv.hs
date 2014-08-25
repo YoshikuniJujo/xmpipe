@@ -10,7 +10,6 @@ import System.Random
 import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.State
-import "monads-tf" Control.Monad.Error
 import Control.Monad.Trans.Control
 import Control.Concurrent (forkIO)
 import Data.Pipe
@@ -53,7 +52,7 @@ main = do
 					open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 						[(k, c)] Nothing g
 				(>> return ()) . lift
-					. (`evalStateT` initXmppState uuids) $ do
+					. (`evalStateT` saslState uuids) $ do
 					_ <- runPipe $ fromTChan inp
 						=$= sasl =$= toTChan otp
 					Just ns <- runPipe $ fromTChan inp
@@ -61,13 +60,13 @@ main = do
 					_ <- liftBaseDiscard forkIO
 						. (>> return ())
 						. runPipe $ fromTChan inp
-						=$= input ns
+						=$= inputMpi ns
 						=$= debug
 						=$= toTChan from
 					(>> return ()) . liftBaseDiscard forkIO
 						. (>> return ())
 						. runPipe $ fromTChan to
-						=$= output
+						=$= outputMpi
 						=$= toTChan otp
 			uip <- atomically newTChan
 			atomically $ writeTChan uip sampleMessage
@@ -76,9 +75,9 @@ main = do
 				=$= outputSel
 				=$= toTChans [(id, ip), (not, to)]
 
-outputSel :: MonadIO m => Pipe Xmpp (Bool, Xmpp) m ()
+outputSel :: MonadIO m => Pipe Mpi (Bool, Mpi) m ()
 outputSel = await >>= \mx -> case mx of
-	Just m@(SRMessage as _b)
+	Just m@(Message as _b)
 		| Just (Jid "yoshio" "otherhost" Nothing) <- tagTo as ->
 			yield (True, m) >> outputSel
 	Just x -> yield (False, x) >> outputSel
@@ -90,22 +89,22 @@ readFiles = (,,)
 	<*> readKey "certs/localhost.sample_key"
 	<*> readCertificateChain ["certs/localhost.sample_crt"]
 
-sampleMessage :: Xmpp
+sampleMessage :: Mpi
 sampleMessage = let
 	ts1 = (tagsType "chat") { tagFrom = Just sender, tagTo = Just reciever } in
-	SRMessage ts1 [XmlNode (nullQ "body") [] [] [XmlCharData "Hi, USER!"]]
+	Message ts1 [XmlNode (nullQ "body") [] [] [XmlCharData "Hi, USER!"]]
 
-makeP :: (MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
+makeP :: Monad m => Pipe Mpi Mpi m ()
 makeP = await >>= \mm -> case mm of
-	Just (SRIq ts ns) |
+	Just (Iq ts ns) |
 		Just (IRRoster Nothing) <- toIRRoster ns,
 		Just "get" <- tagType ts,
 		Just i <- tagId ts -> do
-		yield $ SRIq (tagsType "result") { tagId = Just i }
+		yield $ Iq (tagsType "result") { tagId = Just i }
 			[fromIRRoster . IRRoster . Just $ Roster (Just "1") []]
 		makeP
-	Just (SRPresence _ _) -> makeP
-	Just XCEnd -> yield XCEnd
+	Just (Presence _ _) -> makeP
+	Just End -> yield End
 	Just m -> yield m >> makeP
 	_ -> return ()
 
@@ -114,7 +113,7 @@ sender = Jid "yoshio" "otherhost" (Just "profanity")
 reciever = Jid "yoshikuni" "localhost" (Just "profanity")
 
 connect :: CertificateStore -> CertSecretKey -> CertificateChain ->
-	IO (TChan Xmpp, TChan ())
+	IO (TChan Mpi, TChan ())
 connect ca k c = do
 	i <- atomically newTChan
 	e <- atomically newTChan
@@ -127,5 +126,5 @@ connect ca k c = do
 		void . (`runStateT` St [] []) . runPipe $ fromTChan inc
 			=$= SC.sasl =$= toTChan otc
 		void . runPipe $ fromTChan inc =$= SC.begin =$= toTChan otc
-		void . runPipe $ fromTChan i =$= SC.outputS =$= toTChan otc
+		void . runPipe $ fromTChan i =$= SC.outputMpi =$= toTChan otc
 	return (i, e)

@@ -2,8 +2,8 @@
 	PackageImports #-}
 
 module XmppServer (
-	Xmpp(..), Jid(..), SaslError, Tags(..), tagsType,
-	starttls, sasl, initXmppState, bind, input, output,
+	Mpi(..), Jid(..), Tags(..), tagsType,
+	starttls, sasl, saslState, bind, inputMpi, outputMpi,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -60,7 +60,7 @@ makeSasl = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 data XmppState = XmppState {
 	receiver :: Maybe Jid,
 	uuidList :: [UUID],
-	saslState :: [(BS.ByteString, BS.ByteString)] }
+	sState :: [(BS.ByteString, BS.ByteString)] }
 
 instance SaslState XmppState where
 	getSaslState xs = case receiver xs of
@@ -68,14 +68,14 @@ instance SaslState XmppState where
 		_ -> ss'
 		where
 		ss' = let u : _ = uuidList xs in ("uuid", toASCIIBytes u) : ss
-		ss = saslState xs
+		ss = sState xs
 	putSaslState ss xs = case lookup "username" ss of
 		Just un -> case receiver xs of
 			Just (Jid _ d r) -> xs' { receiver = Just $ Jid un d r }
 			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
 		_ -> xs'
 		where
-		xs' = xs {uuidList = tail $ uuidList xs, saslState = ss}
+		xs' = xs {uuidList = tail $ uuidList xs, sState = ss}
 
 nextUuid :: (MonadState m, StateType m ~ XmppState) => m UUID
 nextUuid = do
@@ -83,11 +83,11 @@ nextUuid = do
 	put xs { uuidList = us }
 	return u
 
-initXmppState :: [UUID] -> XmppState
-initXmppState uuids = XmppState {
+saslState :: [UUID] -> XmppState
+saslState uuids = XmppState {
 	receiver = Nothing,
 	uuidList = uuids,
-	saslState = [
+	sState = [
 		("realm", "localhost"),
 		("nonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
 		("qop", "auth"),

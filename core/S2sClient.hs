@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-module S2sClient (Xmpp, starttls, sasl, begin, input, outputS) where
+module S2sClient (starttls, sasl, begin, input, outputMpi) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
