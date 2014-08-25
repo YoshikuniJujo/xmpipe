@@ -38,11 +38,7 @@ connect ca k c = do
 			getNames p >>= liftIO . print
 			let sp = SHandle p
 			void . (`runStateT` St [] []) . runPipe $ fromHandleLike sp
-				=$= inputP3
-				=$= hlpDebug sp
-				=$= process i e
-				=$= outputS
-				=$= toHandleLike sp
+				=$= sasl =$= toHandleLike sp
 			void . (`runStateT` St [] []) . runPipe $ fromHandleLike sp
 				=$= inputP3
 				=$= hlpDebug sp
@@ -71,11 +67,6 @@ proc :: (
 	TChan Xmpp -> TChan () -> Pipe Xmpp Xmpp m ()
 proc ic e = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> proc ic e
-	Just (XCFeatures [FtMechanisms ["EXTERNAL"]]) -> do
-		st <- lift $ gets getSaslState
-		lift . modify . putSaslState $ ("username", "") : st
-		sasl "EXTERNAL"
-		lift . modify $ putSaslState st
 	Just (XCFeatures []) -> federation
 	Just (SRMessage{}) -> federation
 	Just XCEnd -> yield XCEnd
