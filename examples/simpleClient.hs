@@ -25,7 +25,7 @@ main = do
 			=$= toHandle h
 	(Just ns, _fts) <-
 		runWriterT . runPipe $ fromHandle h
-			=$= bind "localhost"
+			=$= bind "localhost" "profanity"
 			=@= toHandle h
 	_ <- runPipe $ yield presence
 		=$= output

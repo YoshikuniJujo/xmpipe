@@ -62,8 +62,8 @@ main = do
 	(inc, otc) <- open' h (BSC.unpack host) cipherSuites [(k, c)] ca g
 	_ <- (`runStateT` si) $
 		runPipe $ fromTChan inc =$= sasl host mechanisms =$= toTChan otc
-	(Just ns, fts) <-
-		runWriterT . runPipe $ fromTChan inc =$= bind host =@= toTChan otc
+	(Just ns, fts) <- runWriterT . runPipe $ fromTChan inc
+		=$= bind host "profanity" =@= toTChan otc
 	sc <- atomically newTChan
 	ic <- atomically newTChan
 	_ <- forkIO . (>> return ()) . runPipe $ fromTChan inc

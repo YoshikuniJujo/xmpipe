@@ -75,20 +75,21 @@ sasl_ sl = do
 bind :: (Monad m,
 	MonadWriter m, [Feature] ~ WriterType m,
 	MonadError m, Error (ErrorType m) ) =>
-	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
-bind hst = inputP3 =@= (begin hst "en" >> bind_) =$= X.output
+	BS.ByteString -> BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
+bind hst r = inputP3 =@= (begin hst "en" >> bind_ r) =$= X.output
 
 bind_ :: (
 	MonadWriter m, [Feature] ~ (WriterType m),
-	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-bind_ = await >>= \mr -> case mr of
+	MonadError m, Error (ErrorType m) ) =>
+	BS.ByteString -> Pipe Xmpp Xmpp m ()
+bind_ r = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
 		let (b, fs') = sepBind fs
 		mapM_ yield . catMaybes $
-			map responseToFeature $ filter notFtSession b
+			map (responseToFeature r) $ filter notFtSession b
 		tell $ map getFeature fs'
-		bind_
-	Just _ -> bind_
+		bind_ r
+	Just _ -> bind_ r
 	_ -> return ()
 
 type Feature = XmlNode
@@ -108,8 +109,8 @@ notFtRaw :: X.Feature -> Bool
 notFtRaw (FtRaw _) = False
 notFtRaw _ = True
 
-responseToFeature :: X.Feature -> Maybe Xmpp
-responseToFeature (FtBind _) = Just
+responseToFeature :: BS.ByteString -> X.Feature -> Maybe Xmpp
+responseToFeature r (FtBind _) = Just
 	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
-	$ Resource "profanity"
-responseToFeature _ = Nothing
+	$ Resource r
+responseToFeature _ _ = Nothing
