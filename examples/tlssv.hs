@@ -48,16 +48,18 @@ main = do
 		to <- lift $ atomically newTChan
 		g <- StateT $ return . cprgFork
 		(>> return ()) . liftBaseDiscard forkIO $ do
-			ss <- saslState . map toASCIIBytes . randoms <$>
+			us <- map toASCIIBytes . randoms <$>
 				lift getStdGen
-			_ <- liftIO . runPipe $
-				fromHandle h =$= starttls =$= toHandle h
+			us' <- (`execStateT` us) . runPipe $
+				fromHandle h =$= starttls "localhost" =$= toHandle h
+			let ss = saslState us'
 			(_cn, (inp, otp)) <- lift $
 				open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing g
 			Just ns <- (`evalStateT` ss) . runPipe $ do
-				_ <- fromTChan inp =$= sasl =$= toTChan otp
-				fromTChan inp =$= bind =@= toTChan otp
+				_ <- fromTChan inp
+					=$= sasl "localhost" =$= toTChan otp
+				fromTChan inp =$= bind "localhost" =@= toTChan otp
 			_ <- liftBaseDiscard forkIO . (>> return ()) . runPipe $
 				fromTChan inp
 					=$= inputMpi ns =$= debug =$= toTChan from

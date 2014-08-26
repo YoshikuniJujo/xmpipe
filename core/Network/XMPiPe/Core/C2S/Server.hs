@@ -19,21 +19,22 @@ import SaslServer
 
 import qualified Data.ByteString as BS
 
-starttls :: Monad m => Pipe BS.ByteString BS.ByteString m ()
-starttls = inputP3 =$= processTls =$= output
+starttls :: (MonadState m, [BS.ByteString] ~ StateType m) =>
+	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
+starttls hst = inputP3 =$= processTls hst =$= output
 
-processTls :: Monad m => Pipe Xmpp Xmpp m ()
-processTls = await >>= \mx -> case mx of
+processTls :: (MonadState m, [BS.ByteString] ~ StateType m) =>
+	BS.ByteString -> Pipe Xmpp Xmpp m ()
+processTls hst = await >>= \mx -> case mx of
 	Just (XCBegin _as) -> do
+		u : us <- get
+		put us
 		yield XCDecl
 		yield $ XCBegin [
-			--	(Id, toASCIIBytes u),
-			(Id, "83e074ac-c014-432e9f21-d06e73f5777e"),
-			(From, "localhost"),
-			(TagRaw $ nullQ "version", "1.0"),
-			(Lang, "en") ]
+			(Id, u), (From, hst),
+			(TagRaw $ nullQ "version", "1.0"), (Lang, "en") ]
 		yield $ XCFeatures [FtStarttls Required]
-		processTls
+		processTls hst
 	Just XCStarttls -> yield XCProceed
 	Just _ -> error "processTls: bad"
 	_ -> return ()
@@ -41,21 +42,19 @@ processTls = await >>= \mx -> case mx of
 sasl :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
-	Pipe BS.ByteString BS.ByteString m ()
-sasl = inputP2 =$= makeSasl =$= output
+	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
+sasl hst = inputP2 =$= makeSasl hst =$= output
 
 makeSasl :: (
 	MonadState m, XmppState (StateType m),
-	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
-makeSasl = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
+	MonadError m, SaslError (ErrorType m)) =>
+	BS.ByteString -> Pipe Xmpp Xmpp m ()
+makeSasl hst = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
---			(Id, toASCIIBytes u),
-			(Id, u),
-			(From, "localhost"),
-			(TagRaw $ nullQ "version", "1.0"),
-			(Lang, "en") ]
+			(Id, u), (From, hst),
+			(TagRaw $ nullQ "version", "1.0"), (Lang, "en") ]
 		runSasl
 	_ -> return ()
 
@@ -79,23 +78,24 @@ setResource _ _ = error "setResource: can't set resource to Nothing"
 bind :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
-	Pipe BS.ByteString BS.ByteString m [Xmlns]
-bind = inputP3 =@= makeBind =$= output
+	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
+bind hst = inputP3 =@= makeBind hst =$= output
 
 makeBind :: (
 	MonadState m, XmppState (StateType m),
-	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
-makeBind = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
+	MonadError m, SaslError (ErrorType m)) =>
+	BS.ByteString -> Pipe Xmpp Xmpp m ()
+makeBind hst = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
 	(Just (XCBegin _), _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, u),
-			(From, "localhost"),
+			(From, hst),
 			(TagRaw $ nullQ "version", "1.0"),
 			(Lang, "en") ]
 		yield . XCFeatures $ map featureRToFeature
 			[FRRosterver Optional, Ft $ FtBind Required]
-		makeBind
+		makeBind hst
 	(Just (SRIqBind ts (IqBind (Just Required) (Resource n))), _)
 		| Just "set" <- lookup Type ts,
 			Just i <- lookup Id ts -> do
@@ -103,5 +103,5 @@ makeBind = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p ->
 			Just j <- lift $ fst `liftM` gets getXmppState
 			yield . SRIqBind [(Type, "result"), (Id, i)]
 				. IqBind Nothing $ BJid j
-			makeBind
+			makeBind hst
 	_ -> return ()
