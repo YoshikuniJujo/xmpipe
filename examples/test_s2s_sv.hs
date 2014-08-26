@@ -18,6 +18,8 @@ import "crypto-random" Crypto.Random
 
 import Network.XMPiPe.Core.S2S.Server
 
+import qualified Data.ByteString.Char8 as BSC
+
 main :: IO ()
 main = do
 	ca <- readCertificateStore ["certs/cacert.sample_pem"]
@@ -28,16 +30,17 @@ main = do
 	forever $ do
 		(h, _, _) <- accept soc
 		sg <- newStdGen
-		let us = randoms sg :: [UUID]
+		let us = map toASCIIBytes (randoms sg :: [UUID])
 		void . forkIO . (`evalStateT` g0) $ do
-			us' <- lift . (`execStateT` XmppState Nothing False us)
+			us' <- lift . (`execStateT` XmppState Nothing us)
 				. runPipe
 				$ fromHandle h =$= starttls =$= toHandle h
 			g <- StateT $ return . cprgFork
-			(_, (inp, otp)) <- lift $ open h
+			(Just cn, (inp, otp)) <- lift $ open h
 				["TLS_RSA_WITH_AES_128_CBC_SHA"] [(k, c)] (Just ca) g
-			us'' <- (`execStateT` us') . runPipe $
-				fromTChan inp =$= sasl =$= toTChan otp
+			lift . print $ cn "localhost"
+			us'' <- (`execStateT` us') . runPipe $ fromTChan inp
+				=$= sasl (cn . BSC.unpack) =$= toTChan otp
 			Just ns <- (`evalStateT` us'') . runPipe $
 				fromTChan inp =$= begin =@= toTChan otp
 			void . (`evalStateT` us'') . runPipe $ fromTChan inp

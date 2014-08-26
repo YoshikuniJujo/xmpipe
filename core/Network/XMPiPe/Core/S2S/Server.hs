@@ -2,7 +2,7 @@
 
 module Network.XMPiPe.Core.S2S.Server (
 	-- * Types and Values
-	Mpi(..), XmppState(..), Tags(..), tagsType,
+	Mpi(..), XmppState(..), Tags(..), tagsNull, tagsType, SaslState, SaslError,
 	-- * Functions
 	starttls, sasl, begin, inputMpi, outputMpi,
 	) where
@@ -11,7 +11,6 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Maybe
 import Data.Pipe
-import Data.UUID
 import Text.XML.Pipe
 
 import Xmpp
@@ -33,15 +32,12 @@ processTls = await >>= \mx -> case mx of
 	Just XCStarttls -> yield XCProceed
 	_ -> return ()
 
-begin_ :: UUID -> Xmpp
+begin_ :: BS.ByteString -> Xmpp
 begin_ u = XCBegin [
-	(From, "otherhost"),
-	(To, "localhost"),
-	(TagRaw $ nullQ "version", "1.0"),
-	(Id, toASCIIBytes u)
-	]
+	(From, "otherhost"), (To, "localhost"),
+	(TagRaw $ nullQ "version", "1.0"), (Id, u) ]
 
-nextUuid :: (MonadState m, StateType m ~ XmppState) => Pipe a b m UUID
+nextUuid :: (MonadState m, StateType m ~ XmppState) => Pipe a b m BS.ByteString
 nextUuid = lift $ do
 	u <- gets $ head . xsUuid
 	modify dropUuid
@@ -49,8 +45,7 @@ nextUuid = lift $ do
 
 data XmppState = XmppState {
 	xsDomainName :: Maybe BS.ByteString,
-	xsAuthed :: Bool,
-	xsUuid :: [UUID] }
+	xsUuid :: [BS.ByteString] }
 	deriving Show
 
 instance SaslState XmppState where
@@ -62,22 +57,31 @@ dropUuid xs = xs { xsUuid = tail $ xsUuid xs }
 
 sasl :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m) ) => Pipe BS.ByteString BS.ByteString m ()
-sasl = inputP2 =$= processSasl =$= outputS
+	MonadError m, SaslError (ErrorType m) ) =>
+	(BS.ByteString -> Bool) -> Pipe BS.ByteString BS.ByteString m ()
+sasl rt = inputP2 =$= processSasl rt' =$= outputS
+	where
+	rt' n = if rt n then return () else
+		throwError $ fromSaslError NotAuthorized n
 
 processSasl :: (
 	MonadState m, StateType m ~ XmppState,
-	MonadError m, SaslError (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-processSasl = await >>= \mx -> case mx of
+	MonadError m, SaslError (ErrorType m) ) =>
+	(BS.ByteString -> m ()) -> Pipe Xmpp Xmpp m ()
+processSasl rt = await >>= \mx -> case mx of
 	Just (XCBegin as) -> do
 		modify $ \st -> st { xsDomainName = lookup From as }
 		yield XCDecl
 		nextUuid >>= yield . begin_
 		yield $ XCFeatures [FtMechanisms ["EXTERNAL"]]
-		processSasl
-	Just (XCAuth "EXTERNAL" i) ->
-		sasl_ (fromJust $ lookup "EXTERNAL" saslServers) i
+		Just (XCAuth "EXTERNAL" i) <- await
+		flip sasl_ i . fromJust . lookup "EXTERNAL" . mkSaslServers
+			. (: []) . RTExternal
+			. rt' . fromJust $ lookup From as
 	_ -> return ()
+	where
+	rt' d "" = rt d
+	rt' _ hn = throwError $ fromSaslError NotAuthorized hn
 
 sasl_ :: (
 	MonadState m, SaslState (StateType m),

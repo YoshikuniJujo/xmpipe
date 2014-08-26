@@ -10,6 +10,7 @@ import System.Random
 import Control.Applicative
 import Control.Monad
 import "monads-tf" Control.Monad.State
+import "monads-tf" Control.Monad.Error
 import Control.Monad.Trans.Control
 import Control.Concurrent (forkIO)
 import Data.Pipe
@@ -34,11 +35,12 @@ import qualified Data.ByteString.Char8 as BSC
 import Network.XMPiPe.Core.C2S.Server
 import qualified Network.XMPiPe.Core.S2S.Client as SC
 import Im
+import Retrieve
 
 main :: IO ()
 main = do
 	(ip, _e, op) <- readFiles >>= \(ca, k, c) -> connect ca k c
-	forkIO . void . (runPipe :: Pipe () () IO () -> IO (Maybe ())) $
+	_ <- forkIO . void . (runPipe :: Pipe () () IO () -> IO (Maybe ())) $
 		fromTChan op =$= convert (BSC.pack . show) =$= toHandle stdout
 --	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/localhost.sample_key"
@@ -62,7 +64,8 @@ main = do
 					[(k, c)] Nothing g
 			Just ns <- (`evalStateT` ss) . runPipe $ do
 				_ <- fromTChan inp
-					=$= sasl "localhost" =$= toTChan otp
+					=$= sasl "localhost" sampleRetrieves
+					=$= toTChan otp
 				fromTChan inp =$= bind "localhost" =@= toTChan otp
 			_ <- liftBaseDiscard forkIO . (>> return ()) . runPipe $
 				fromTChan inp
@@ -182,3 +185,10 @@ instance SaslState XmppState_ where
 		_ -> xs'
 		where
 		xs' = xs {uuidList = tail $ uuidList xs, sState = ss}
+
+sampleRetrieves :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, SaslError (ErrorType m)) => [Retrieve m]
+sampleRetrieves = [
+	RTPlain retrievePln, RTExternal retrieveEx,
+	RTDigestMd5 retrieveDM5, RTScramSha1 retrieveSS1 ]

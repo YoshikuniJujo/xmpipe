@@ -1,8 +1,12 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, FlexibleContexts, PackageImports #-}
 
 module SaslServer (
-	SaslState(..), SaslError(..), runSasl,
-	saslServers, SaslErrorType(..), Success(..),
+	SaslState(..), SaslError(..),
+--	saslServers,
+	SaslErrorType(..), Success(..),
+	mkSaslServers, Retrieve(..),
+
+	runSasl,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -17,23 +21,32 @@ import qualified Network.Sasl.DigestMd5.Server as DM5
 import qualified Network.Sasl.ScramSha1.Server as SS1
 
 import XmppType
-import Retrieve
+
+{-
+sampleRetrieves :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, SaslError (ErrorType m)) => [Retrieve m]
+sampleRetrieves = [
+	RTPlain retrievePln, RTExternal retrieveEx,
+	RTDigestMd5 retrieveDM5, RTScramSha1 retrieveSS1 ]
+	-}
 
 runSasl :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, SaslError (ErrorType m) ) => Pipe Xmpp Xmpp m ()
-runSasl = do
+	MonadError m, SaslError (ErrorType m) ) =>
+	[Retrieve m] -> Pipe Xmpp Xmpp m ()
+runSasl rt = do
 	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]]
 	await >>= \a -> case a of
-		Just (XCAuth m i) -> sasl m i
+		Just (XCAuth m i) -> sasl_ rt m i
 		_ -> throwError $ fromSaslError
 			(SaslErrorType "EOF") "unexpected EOF"
 
-sasl :: (
+sasl_ :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, SaslError (ErrorType m) ) =>
-	BS.ByteString -> Maybe BS.ByteString -> Pipe Xmpp Xmpp m ()
-sasl n i = case lookup n saslServers of
+	[Retrieve m] -> BS.ByteString -> Maybe BS.ByteString -> Pipe Xmpp Xmpp m ()
+sasl_ rt n i = case lookup n $ mkSaslServers rt of
 	Just (b, s) -> saslPipe b i s
 	_ -> throwError $ fromSaslError InvalidMechanism "no such mechanisms"
 
@@ -65,6 +78,7 @@ data Retrieve m
 	| RTScramSha1 (BS.ByteString ->
 		m (BS.ByteString, BS.ByteString, BS.ByteString, Int))
 
+{-
 saslServers :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, SaslError (ErrorType m)) => [(
@@ -73,6 +87,7 @@ saslServers :: (
 saslServers = mkSaslServers [
 	RTPlain retrievePln, RTExternal retrieveEx,
 	RTDigestMd5 retrieveDM5, RTScramSha1 retrieveSS1 ]
+	-}
 
 mkSaslServers :: (
 	MonadState m, SaslState (StateType m),

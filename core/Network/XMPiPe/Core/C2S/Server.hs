@@ -3,7 +3,8 @@
 
 module Network.XMPiPe.Core.C2S.Server (
 	-- * Types and Values
-	Mpi(..), Jid(..), Tags(..), tagsType, XmppState(..),
+	Mpi(..), Jid(..), Tags(..), tagsType,
+	XmppState(..), Retrieve(..),
 	-- * Functions
 	starttls, sasl, bind, inputMpi, outputMpi,
 	) where
@@ -42,20 +43,20 @@ processTls hst = await >>= \mx -> case mx of
 sasl :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
-	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
-sasl hst = inputP2 =$= makeSasl hst =$= output
+	BS.ByteString -> [Retrieve m] -> Pipe BS.ByteString BS.ByteString m ()
+sasl hst rt = inputP2 =$= makeSasl hst rt =$= output
 
 makeSasl :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
-	BS.ByteString -> Pipe Xmpp Xmpp m ()
-makeSasl hst = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
+	BS.ByteString -> [Retrieve m] -> Pipe Xmpp Xmpp m ()
+makeSasl hst rt = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, u), (From, hst),
 			(TagRaw $ nullQ "version", "1.0"), (Lang, "en") ]
-		runSasl
+		runSasl rt
 	_ -> return ()
 
 class SaslState xs => XmppState xs where
