@@ -2,86 +2,66 @@
 
 import Prelude hiding (filter)
 
+import Control.Applicative
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Writer
 import Control.Concurrent hiding (yield)
+import Data.Maybe
 import Data.Pipe
 import Data.Pipe.Flow
 import Data.Pipe.ByteString
 import System.IO
+import System.Environment
 import Text.XML.Pipe
 import Network
 import Network.Sasl
 import Network.XMPiPe.Core.C2S.Client
 
 import qualified Data.ByteString as BS
-
-main :: IO ()
-main = do
-	h <- connectTo "localhost" $ PortNumber 5222
-	_ <- (`runStateT` si) $
-		runPipe $ fromHandle h
-			=$= sasl "localhost" mechanisms
-			=$= toHandle h
-	(Just ns, _fts) <-
-		runWriterT . runPipe $ fromHandle h
-			=$= bind "localhost" "profanity"
-			=@= toHandle h
-	_ <- runPipe $ yield presence
-		=$= output
-		=$= toHandle h
-	_ <- forkIO . void . runPipe $ fromHandle h -- =$= toHandleLn stdout
-		=$= input ns
-		=$= filter isMessage
-		=$= convert fromMessageBody
-		=$= toHandleLn stdout
-	_ <- runPipe $ fromHandleLn stdin
-		=$= before (== "/quit")
-		=$= convert toMessage
-		=$= output
-		=$= toHandle h
-	_ <- runPipe $ yield End =$= output =$= toHandle h
-	return ()
-	where
-	si = saslState "yoshikuni" "password" "00DEADBEEF00"
-
-fromHandle1 :: Handle -> Pipe () BS.ByteString IO ()
-fromHandle1 h = do
-	c <- lift $ BS.hGet h 1
-	yield c
-	fromHandle1 h
-
-presence :: Mpi
-presence = Presence
-	(tagsNull { tagFrom = Just $ Jid "yoshikuni" "localhost" Nothing })
-	[XmlNode (nullQ "presence") [] [] []]
-
-isMessage :: Mpi -> Bool
-isMessage (Message _ [XmlNode ((_, Just "jabber:client"), "body")
-	[] [] [XmlCharData _]]) = True
-isMessage _ = False
-
-fromMessageBody :: Mpi -> BS.ByteString
-fromMessageBody (Message ts [XmlNode _ [] [] [XmlCharData m]]) = let
-	Just (Jid n d _) = tagFrom ts in
-	BS.concat [n, "@", d, ": ", m]
-fromMessageBody _ = error "bad"
-
-toMessage :: BS.ByteString -> Mpi
-toMessage m = Message (tagsType "chat") {
-		tagId = Just "hoge",
-		tagTo = Just (Jid "yoshio" "localhost" Nothing) }
-	[XmlNode (nullQ "body") [] [] [XmlCharData m]]
-
-saslState :: BS.ByteString -> BS.ByteString -> BS.ByteString -> St
-saslState un pw cn = St
-	[("username", un), ("authcid", un), ("password", pw), ("cnonce", cn)]
+import qualified Data.ByteString.Char8 as BSC
 
 mechanisms :: [BS.ByteString]
 mechanisms = ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]
 
 data St = St [(BS.ByteString, BS.ByteString)]
+instance SaslState St where getSaslState (St ss) = ss; putSaslState ss _ = St ss
 
-instance SaslState St where
-	getSaslState (St ss) = ss
-	putSaslState ss _ = St ss
+main :: IO ()
+main = do
+	(me_ : pw : you_ : _) <- map BSC.pack <$> getArgs
+	let	me@(Jid un d (Just rsc)) = toJid me_; you = toJid you_
+		ss = St [
+			("username", un), ("authcid", un), ("password", pw),
+			("cnonce", "00DEADBEEF00") ]
+	h <- connectTo (BSC.unpack d) $ PortNumber 5222
+	void . (`evalStateT` ss) . runPipe $
+		fromHandle h =$= sasl d mechanisms =$= toHandle h
+	(Just ns, _fts) <- runWriterT . runPipe $
+		fromHandle h =$= bind d rsc =@= toHandle h
+	void . forkIO . void . runPipe $ fromHandle h =$= input ns
+		=$= convert fromMessage =$= filter isJust =$= convert fromJust
+		=$= toHandleLn stdout
+	void . (`runStateT` 0) . runPipe $ do
+		yield (presence me) =$= output =$= toHandle h
+		fromHandleLn stdin =$= before (== "/quit")
+			=$= mkMessage you =$= output =$= toHandle h
+		yield End =$= output =$= toHandle h
+
+presence :: Jid -> Mpi
+presence me = Presence
+	(tagsNull { tagFrom = Just me }) [XmlNode (nullQ "presence") [] [] []]
+
+mkMessage :: Jid -> Pipe BS.ByteString Mpi (StateT Int IO) ()
+mkMessage you = (await >>=) . maybe (return ()) $ \m -> do
+	n <- get; modify succ
+	yield $ toM n m
+	mkMessage you
+	where toM n msg = Message (tagsType "chat") {
+			tagId = Just . BSC.pack . ("msg_" ++) $ show n,
+			tagTo = Just you }
+		[XmlNode (nullQ "body") [] [] [XmlCharData msg]]
+
+fromMessage :: Mpi -> Maybe BS.ByteString
+fromMessage (Message ts [XmlNode _ [] [] [XmlCharData m]])
+	| Just (Jid n d _) <- tagFrom ts = Just $ BS.concat [n, "@", d, ": ", m]
+fromMessage _ = Nothing
