@@ -16,6 +16,7 @@ import Data.Pipe
 import Data.Pipe.TChan
 import Data.Pipe.IO (debug)
 import Data.Pipe.ByteString
+import Data.UUID
 import Data.X509
 import Data.X509.CertificateStore
 import Text.XML.Pipe
@@ -47,7 +48,7 @@ main = do
 		to <- atomically newTChan
 		(>> return ()) . forkIO $ do
 			(`evalStateT` g0) $ do
-				uuids <- randoms <$> lift getStdGen
+				uuids <- map toASCIIBytes . randoms <$> lift getStdGen
 				g <- StateT $ return . cprgFork
 				(>> return ()) . liftIO . runPipe $
 					fromHandle h =$= starttls =$= toHandle h
@@ -140,3 +141,40 @@ data St = St {
 instance SaslState St where
 	getSaslState (St _ ss) = ss
 	putSaslState ss (St fts _) = St fts ss
+
+saslState :: [BS.ByteString] -> XmppState_
+saslState uuids = XmppState_ {
+	receiver = Nothing,
+	uuidList = uuids,
+	sState = [
+		("realm", "localhost"),
+		("nonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
+		("qop", "auth"),
+		("charset", "utf-8"),
+		("algorithm", "md5-sess"),
+		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4") ] }
+
+data XmppState_ = XmppState_ {
+	receiver :: Maybe Jid,
+	uuidList :: [BS.ByteString],
+	sState :: [(BS.ByteString, BS.ByteString)] }
+
+instance XmppState XmppState_ where
+	getXmppState xs = (receiver xs, uuidList xs)
+	putXmppState (rcv, ul) xs = xs { receiver = rcv, uuidList = ul }
+
+instance SaslState XmppState_ where
+	getSaslState xs = case receiver xs of
+		Just (Jid un _ _) -> ("username", un) : ss'
+		_ -> ss'
+		where
+--		ss' = let u : _ = uuidList xs in ("uuid", toASCIIBytes u) : ss
+		ss' = let u : _ = uuidList xs in ("uuid", u) : ss
+		ss = sState xs
+	putSaslState ss xs = case lookup "username" ss of
+		Just un -> case receiver xs of
+			Just (Jid _ d r) -> xs' { receiver = Just $ Jid un d r }
+			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
+		_ -> xs'
+		where
+		xs' = xs {uuidList = tail $ uuidList xs, sState = ss}

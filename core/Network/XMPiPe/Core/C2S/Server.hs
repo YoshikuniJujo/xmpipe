@@ -3,15 +3,14 @@
 
 module Network.XMPiPe.Core.C2S.Server (
 	-- * Types and Values
-	Mpi(..), Jid(..), Tags(..), tagsType,
+	Mpi(..), Jid(..), Tags(..), tagsType, XmppState(..),
 	-- * Functions
-	starttls, sasl, saslState, bind, inputMpi, outputMpi,
+	starttls, sasl, bind, inputMpi, outputMpi,
 	) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Pipe
-import Data.UUID
 import Text.XML.Pipe
 
 import Xmpp
@@ -40,82 +39,57 @@ processTls = await >>= \mx -> case mx of
 	_ -> return ()
 
 sasl :: (
-	MonadState m, StateType m ~ XmppState,
+	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
 	Pipe BS.ByteString BS.ByteString m ()
 sasl = inputP2 =$= makeSasl =$= output
 
 makeSasl :: (
-	MonadState m, StateType m ~ XmppState,
+	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
-makeSasl = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
+makeSasl = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
 	(Just (XCBegin _), Nothing) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
-			(Id, toASCIIBytes u),
+--			(Id, toASCIIBytes u),
+			(Id, u),
 			(From, "localhost"),
 			(TagRaw $ nullQ "version", "1.0"),
 			(Lang, "en") ]
 		runSasl
 	_ -> return ()
 
-data XmppState = XmppState {
-	receiver :: Maybe Jid,
-	uuidList :: [UUID],
-	sState :: [(BS.ByteString, BS.ByteString)] }
+class SaslState xs => XmppState xs where
+	getXmppState :: xs -> (Maybe Jid, [BS.ByteString])
+	putXmppState :: (Maybe Jid, [BS.ByteString]) -> xs -> xs
 
-instance SaslState XmppState where
-	getSaslState xs = case receiver xs of
-		Just (Jid un _ _) -> ("username", un) : ss'
-		_ -> ss'
-		where
-		ss' = let u : _ = uuidList xs in ("uuid", toASCIIBytes u) : ss
-		ss = sState xs
-	putSaslState ss xs = case lookup "username" ss of
-		Just un -> case receiver xs of
-			Just (Jid _ d r) -> xs' { receiver = Just $ Jid un d r }
-			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
-		_ -> xs'
-		where
-		xs' = xs {uuidList = tail $ uuidList xs, sState = ss}
-
-nextUuid :: (MonadState m, StateType m ~ XmppState) => m UUID
+nextUuid :: (MonadState m, XmppState (StateType m)) => m BS.ByteString
 nextUuid = do
-	xs@XmppState { uuidList = u : us } <- get
-	put xs { uuidList = us }
+	xs <- get
+	let (r, u : us) = getXmppState xs
+	modify $ putXmppState (r, us)
 	return u
 
-saslState :: [UUID] -> XmppState
-saslState uuids = XmppState {
-	receiver = Nothing,
-	uuidList = uuids,
-	sState = [
-		("realm", "localhost"),
-		("nonce", "7658cddf-0e44-4de2-87df-4132bce97f4"),
-		("qop", "auth"),
-		("charset", "utf-8"),
-		("algorithm", "md5-sess"),
-		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4") ] }
-
-setResource :: BS.ByteString -> XmppState -> XmppState
-setResource r xs@XmppState{ receiver = Just (Jid a d _) } =
-	xs { receiver = Just . Jid a d $ Just r }
+setResource :: XmppState xs => BS.ByteString -> xs -> xs
+setResource r xs
+	| (Just (Jid a d _), ul) <- getXmppState xs =
+		putXmppState (Just . Jid a d $ Just r, ul) xs
 setResource _ _ = error "setResource: can't set resource to Nothing"
 
 bind :: (
-	MonadState m, StateType m ~ XmppState,
+	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
 	Pipe BS.ByteString BS.ByteString m [Xmlns]
 bind = inputP3 =@= makeBind =$= output
 
 makeBind :: (
-	MonadState m, StateType m ~ XmppState,
+	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) => Pipe Xmpp Xmpp m ()
-makeBind = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
+makeBind = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
 	(Just (XCBegin _), _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
-			(Id, toASCIIBytes u),
+			(Id, u),
 			(From, "localhost"),
 			(TagRaw $ nullQ "version", "1.0"),
 			(Lang, "en") ]
@@ -126,7 +100,7 @@ makeBind = (,) `liftM` await `ap` lift (gets receiver) >>= \p -> case p of
 		| Just "set" <- lookup Type ts,
 			Just i <- lookup Id ts -> do
 			lift $ modify (setResource n)
-			Just j <- lift $ gets receiver
+			Just j <- lift $ fst `liftM` gets getXmppState
 			yield . SRIqBind [(Type, "result"), (Id, i)]
 				. IqBind Nothing $ BJid j
 			makeBind
