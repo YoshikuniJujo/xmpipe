@@ -20,10 +20,13 @@ import Data.X509
 import Data.X509.CertificateStore
 import Text.XML.Pipe
 import Network
+import Network.Sasl
 import Network.PeyoTLS.TChan.Server
 import qualified Network.PeyoTLS.TChan.Client as C
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
+
+import qualified Data.ByteString as BS
 
 import Network.XMPiPe.Core.C2S.Server
 import qualified Network.XMPiPe.Core.S2S.Client as SC
@@ -128,3 +131,12 @@ connect ca k c = do
 		void . runPipe $ fromTChan inc =$= SC.begin =$= toTChan otc
 		void . runPipe $ fromTChan i =$= SC.outputMpi =$= toTChan otc
 	return (i, e)
+
+data St = St {
+	stFeatures :: [FeatureR],
+	stSaslState :: [(BS.ByteString, BS.ByteString)] }
+	deriving Show
+
+instance SaslState St where
+	getSaslState (St _ ss) = ss
+	putSaslState ss (St fts _) = St fts ss

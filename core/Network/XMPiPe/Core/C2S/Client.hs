@@ -6,7 +6,7 @@ module Network.XMPiPe.Core.C2S.Client (
 	Mpi(..), Jid(..), toJid,
 	Tags(..), tagsNull, tagsType,
 	-- * Functions
-	starttls, sasl, saslState, bind, input, output,
+	starttls, sasl, bind, input, output,
 	) where
 
 import Control.Monad
@@ -103,7 +103,3 @@ responseToFeature (Ft (FtBind _)) = Just
 	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
 	$ Resource "profanity"
 responseToFeature _ = Nothing
-
-saslState :: BS.ByteString -> BS.ByteString -> BS.ByteString -> St
-saslState un pw cn = St []
-	[ ("username", un), ("authcid", un), ("password", pw), ("cnonce", cn) ]

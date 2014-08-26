@@ -18,6 +18,7 @@ import System.IO.Unsafe
 import System.IO
 import Text.XML.Pipe
 import Network
+import Network.Sasl
 import Network.PeyoTLS.TChan.Client
 import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
@@ -128,3 +129,16 @@ getCaps v n = Iq (tagsType "get") {
 resultCaps :: BS.ByteString -> Jid -> BS.ByteString -> Mpi
 resultCaps i t n = Iq (tagsType "result") { tagId = Just i, tagTo = Just t }
 	. fromQueryDisco $ IqCapsQuery2 [capsToQuery profanityCaps n]
+
+saslState :: BS.ByteString -> BS.ByteString -> BS.ByteString -> St
+saslState un pw cn = St []
+	[ ("username", un), ("authcid", un), ("password", pw), ("cnonce", cn) ]
+
+data St = St {
+	stFeatures :: [FeatureR],
+	stSaslState :: [(BS.ByteString, BS.ByteString)] }
+	deriving Show
+
+instance SaslState St where
+	getSaslState (St _ ss) = ss
+	putSaslState ss (St fts _) = St fts ss
