@@ -27,7 +27,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
 import Network.XMPiPe.Core.C2S.Client
-import Im (IRRoster(..), FeatureR(..), fromIRRoster, featureToFeatureR)
+import Im (IRRoster(..), FeatureR(..), fromIRRoster, nodeToFeatureR)
 import Caps (
 	XmlCaps(..), CapsTag(..), capsToQuery, profanityCaps, toCaps, fromCaps,
 	capsToXmlCaps )
@@ -84,7 +84,7 @@ main = do
 
 putPresence :: (MonadError m, Error (ErrorType m)) => [Feature] -> Pipe a Mpi m ()
 putPresence fts = do
-	mapM_ yield $ mapMaybe (resp . featureToFeatureR) fts
+	mapM_ yield $ mapMaybe (resp . nodeToFeatureR) fts
 	yield . Presence tagsNull { tagId = Just "prof_presence_1" }
 		. fromCaps
 		$ capsToXmlCaps profanityCaps "http://www.profanity.im"

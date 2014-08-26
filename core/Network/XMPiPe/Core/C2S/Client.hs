@@ -3,7 +3,7 @@
 
 module Network.XMPiPe.Core.C2S.Client (
 	-- * Types and Values
-	Mpi(..), Feature(..), Jid(..), toJid,
+	Mpi(..), Feature, Jid(..), toJid,
 	Tags(..), tagsNull, tagsType,
 	-- * Functions
 	starttls, sasl, bind, input, output,
@@ -20,8 +20,8 @@ import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 
-import Xmpp hiding (input, output)
-import qualified Xmpp
+import Xmpp hiding (input, output, Feature)
+import qualified Xmpp as X
 import qualified SaslClient as SASL
 
 input :: Monad m => [Xmlns] -> Pipe BS.ByteString Mpi m ()
@@ -36,7 +36,7 @@ begin h l = do
 	yield $ XCBegin [(To, h), (TagRaw $ nullQ "version", "1.0"), (Lang, l)]
 
 starttls :: Monad m => BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
-starttls hst = inputP3 =$= (begin hst "en" >> starttls_) =$= Xmpp.output
+starttls hst = inputP3 =$= (begin hst "en" >> starttls_) =$= X.output
 
 starttls_ :: Monad m => Pipe Xmpp Xmpp m ()
 starttls_ = do
@@ -52,7 +52,7 @@ sasl :: (
 	MonadState m, SASL.SaslState (StateType m),
 	MonadError m, Error (ErrorType m)) =>
 	BS.ByteString -> [BS.ByteString] -> Pipe BS.ByteString BS.ByteString m ()
-sasl hst ms = inputP2 =$= sasl' hst ms =$= Xmpp.output
+sasl hst ms = inputP2 =$= sasl' hst ms =$= X.output
 
 sasl' :: (
 	MonadState m, SASL.SaslState (StateType m),
@@ -76,7 +76,7 @@ bind :: (Monad m,
 	MonadWriter m, [Feature] ~ WriterType m,
 	MonadError m, Error (ErrorType m) ) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
-bind hst = inputP3 =@= (begin hst "en" >> bind_) =$= Xmpp.output
+bind hst = inputP3 =@= (begin hst "en" >> bind_) =$= X.output
 
 bind_ :: (
 	MonadWriter m, [Feature] ~ (WriterType m),
@@ -84,20 +84,31 @@ bind_ :: (
 bind_ = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
 		let (b, fs') = sepBind fs
-		mapM_ yield . catMaybes $ map responseToFeature b
-		tell fs'
+		mapM_ yield . catMaybes $
+			map responseToFeature $ filter notFtSession b
+		tell $ map getFeature fs'
 		bind_
 	Just _ -> bind_
 	_ -> return ()
 
-sepBind :: [Feature] -> ([Feature], [Feature])
-sepBind = partition isFtBind
+type Feature = XmlNode
 
-isFtBind :: Feature -> Bool
-isFtBind (FtBind _) = True
-isFtBind _ = False
+getFeature :: X.Feature -> Feature
+getFeature (FtRaw ft) = ft
+getFeature _ = error "Network.XMPiPe.Core.C2S.Client.getFeature: bad"
 
-responseToFeature :: Feature -> Maybe Xmpp
+sepBind :: [X.Feature] -> ([X.Feature], [X.Feature])
+sepBind = partition notFtRaw
+
+notFtSession :: X.Feature -> Bool
+notFtSession (FtSession _) = False
+notFtSession _ = True
+
+notFtRaw :: X.Feature -> Bool
+notFtRaw (FtRaw _) = False
+notFtRaw _ = True
+
+responseToFeature :: X.Feature -> Maybe Xmpp
 responseToFeature (FtBind _) = Just
 	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
 	$ Resource "profanity"
