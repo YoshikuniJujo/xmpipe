@@ -34,7 +34,6 @@ main = do
 		=$= input ns
 		=$= filter isMessage
 		=$= convert fromMessageBody
---		=$= convert (BSC.pack . show)
 		=$= toHandleLn stdout
 	_ <- runPipe $ fromHandleLn stdin
 		=$= before (== "/quit")
@@ -45,10 +44,6 @@ main = do
 	return ()
 	where
 	si = saslState "yoshikuni" "password" "00DEADBEEF00"
-
-filter :: Monad m => (a -> Bool) -> Pipe a a m ()
-filter p = await >>= maybe (return ())
-	(\x -> if p x then yield x >> filter p else filter p)
 
 fromHandle1 :: Handle -> Pipe () BS.ByteString IO ()
 fromHandle1 h = do
