@@ -48,30 +48,26 @@ main = do
 		to <- atomically newTChan
 		(>> return ()) . forkIO $ do
 			(`evalStateT` g0) $ do
-				uuids <- map toASCIIBytes . randoms <$> lift getStdGen
+				ss <- saslState . map toASCIIBytes . randoms <$>
+					lift getStdGen
 				g <- StateT $ return . cprgFork
 				(>> return ()) . liftIO . runPipe $
 					fromHandle h =$= starttls =$= toHandle h
 				(_cn, (inp, otp)) <- lift $
 					open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 						[(k, c)] Nothing g
-				(>> return ()) . lift
-					. (`evalStateT` saslState uuids) $ do
-					_ <- runPipe $ fromTChan inp
-						=$= sasl =$= toTChan otp
-					Just ns <- runPipe $ fromTChan inp
-						=$= bind =@= toTChan otp
-					_ <- liftBaseDiscard forkIO
-						. (>> return ())
-						. runPipe $ fromTChan inp
+				Just ns <- (`evalStateT` ss) . runPipe $ do
+					_ <- fromTChan inp =$= sasl =$= toTChan otp
+					fromTChan inp =$= bind =@= toTChan otp
+				_ <- liftBaseDiscard forkIO . (>> return ())
+					. runPipe $ fromTChan inp
 						=$= inputMpi ns
 						=$= debug
 						=$= toTChan from
-					(>> return ()) . liftBaseDiscard forkIO
-						. (>> return ())
-						. runPipe $ fromTChan to
-						=$= outputMpi
-						=$= toTChan otp
+				_ <- liftBaseDiscard forkIO . (>> return ())
+					. runPipe $ fromTChan to
+						=$= outputMpi =$= toTChan otp
+				return ()
 			uip <- atomically newTChan
 			atomically $ writeTChan uip sampleMessage
 			(>> return ()) . runPipe $ fromTChans [from, uip]
