@@ -48,32 +48,27 @@ main = do
 		to <- lift $ atomically newTChan
 		g <- StateT $ return . cprgFork
 		(>> return ()) . liftBaseDiscard forkIO $ do
-			do
-				ss <- saslState . map toASCIIBytes . randoms <$>
-					lift getStdGen
-				(>> return ()) . liftIO . runPipe $
-					fromHandle h =$= starttls =$= toHandle h
-				(_cn, (inp, otp)) <- lift $
-					open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
-						[(k, c)] Nothing g
-				Just ns <- (`evalStateT` ss) . runPipe $ do
-					_ <- fromTChan inp =$= sasl =$= toTChan otp
-					fromTChan inp =$= bind =@= toTChan otp
-				_ <- liftBaseDiscard forkIO . (>> return ())
-					. runPipe $ fromTChan inp
-						=$= inputMpi ns
-						=$= debug
-						=$= toTChan from
-				_ <- liftBaseDiscard forkIO . (>> return ())
-					. runPipe $ fromTChan to
-						=$= outputMpi =$= toTChan otp
-				return ()
+			ss <- saslState . map toASCIIBytes . randoms <$>
+				lift getStdGen
+			_ <- liftIO . runPipe $
+				fromHandle h =$= starttls =$= toHandle h
+			(_cn, (inp, otp)) <- lift $
+				open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
+					[(k, c)] Nothing g
+			Just ns <- (`evalStateT` ss) . runPipe $ do
+				_ <- fromTChan inp =$= sasl =$= toTChan otp
+				fromTChan inp =$= bind =@= toTChan otp
+			_ <- liftBaseDiscard forkIO . (>> return ()) . runPipe $
+				fromTChan inp
+					=$= inputMpi ns =$= debug =$= toTChan from
+			_ <- liftBaseDiscard forkIO . (>> return ()) . runPipe $
+				fromTChan to =$= outputMpi =$= toTChan otp
 			uip <- lift $ atomically newTChan
 			lift . atomically $ writeTChan uip sampleMessage
-			(>> return ()) . runPipe $ fromTChans [from, uip]
-				=$= makeP
-				=$= outputSel
-				=$= toTChans [(id, ip), (not, to)]
+			(>> return ()) . runPipe $
+				fromTChans [from, uip]
+					=$= makeP =$= outputSel
+					=$= toTChans [(id, ip), (not, to)]
 
 outputSel :: MonadIO m => Pipe Mpi (Bool, Mpi) m ()
 outputSel = await >>= \mx -> case mx of
@@ -164,7 +159,6 @@ instance SaslState XmppState_ where
 		Just (Jid un _ _) -> ("username", un) : ss'
 		_ -> ss'
 		where
---		ss' = let u : _ = uuidList xs in ("uuid", toASCIIBytes u) : ss
 		ss' = let u : _ = uuidList xs in ("uuid", u) : ss
 		ss = sState xs
 	putSaslState ss xs = case lookup "username" ss of
