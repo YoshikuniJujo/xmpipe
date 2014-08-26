@@ -66,12 +66,15 @@ main = do
 				_ <- fromTChan inp
 					=$= sasl "localhost" sampleRetrieves
 					=$= toTChan otp
-				fromTChan inp =$= bind "localhost" =@= toTChan otp
+				fromTChan inp
+					=$= bind "localhost" [featureRToNode $
+						FRRosterver Optional]
+					=@= toTChan otp
 			_ <- liftBaseDiscard forkIO . (>> return ()) . runPipe $
 				fromTChan inp
-					=$= inputMpi ns =$= debug =$= toTChan from
+					=$= input ns =$= debug =$= toTChan from
 			_ <- liftBaseDiscard forkIO . (>> return ()) . runPipe $
-				fromTChan to =$= outputMpi =$= toTChan otp
+				fromTChan to =$= output =$= toTChan otp
 			uip <- lift $ atomically newTChan
 			lift . atomically $ writeTChan uip sampleMessage
 			(>> return ()) . runPipe $
@@ -137,8 +140,8 @@ connect ca k c = do
 			=$= SC.begin "localhost" "otherhost"
 			=@= toTChan otc
 		void . forkIO $ void . runPipe $
-			fromTChan inc =$= SC.inputMpi ns =$= toTChan o
-		void . runPipe $ fromTChan i =$= SC.outputMpi =$= toTChan otc
+			fromTChan inc =$= SC.input ns =$= toTChan o
+		void . runPipe $ fromTChan i =$= SC.output =$= toTChan otc
 	return (i, e, o)
 
 data St = St {

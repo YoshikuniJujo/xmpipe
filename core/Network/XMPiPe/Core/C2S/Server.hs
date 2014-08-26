@@ -3,7 +3,7 @@
 
 module Network.XMPiPe.Core.C2S.Server (
 	-- * Types and Values
-	Mpi(..), Jid(..), Tags(..), tagsType,
+	Mpi(..), Feature, Jid(..), Tags(..), tagsType,
 	XmppState(..), Retrieve(..),
 	-- * Functions
 	starttls, sasl, bind, input, output,
@@ -14,12 +14,13 @@ import "monads-tf" Control.Monad.Error
 import Data.Pipe
 import Text.XML.Pipe
 
-import Xmpp hiding (input, output)
+import Xmpp hiding (input, output, Feature)
 import qualified Xmpp as X
-import Im
 import SaslServer
 
 import qualified Data.ByteString as BS
+
+type Feature = XmlNode
 
 input :: Monad m => [Xmlns] -> Pipe BS.ByteString Mpi m ()
 input = inputMpi
@@ -86,14 +87,14 @@ setResource _ _ = error "setResource: can't set resource to Nothing"
 bind :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
-	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
-bind hst = inputP3 =@= makeBind hst =$= X.output
+	BS.ByteString -> [Feature] -> Pipe BS.ByteString BS.ByteString m [Xmlns]
+bind hst fts = inputP3 =@= makeBind hst fts =$= X.output
 
 makeBind :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
-	BS.ByteString -> Pipe Xmpp Xmpp m ()
-makeBind hst = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
+	BS.ByteString -> [Feature] -> Pipe Xmpp Xmpp m ()
+makeBind hst fts = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
 	(Just (XCBegin _), _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
@@ -101,9 +102,8 @@ makeBind hst = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \
 			(From, hst),
 			(TagRaw $ nullQ "version", "1.0"),
 			(Lang, "en") ]
-		yield . XCFeatures $ map featureRToFeature
-			[FRRosterver Optional, Ft $ FtBind Required]
-		makeBind hst
+		yield . XCFeatures . (FtBind Required :) $ map FtRaw fts
+		makeBind hst fts
 	(Just (SRIqBind ts (IqBind (Just Required) (Resource n))), _)
 		| Just "set" <- lookup Type ts,
 			Just i <- lookup Id ts -> do
@@ -111,5 +111,5 @@ makeBind hst = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \
 			Just j <- lift $ fst `liftM` gets getXmppState
 			yield . SRIqBind [(Type, "result"), (Id, i)]
 				. IqBind Nothing $ BJid j
-			makeBind hst
+			makeBind hst fts
 	_ -> return ()

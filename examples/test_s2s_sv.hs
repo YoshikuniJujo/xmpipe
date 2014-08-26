@@ -44,10 +44,10 @@ main = do
 			Just ns <- (`evalStateT` us'') . runPipe $
 				fromTChan inp =$= begin =@= toTChan otp
 			void . (`evalStateT` us'') . runPipe $ fromTChan inp
-				=$= inputMpi ns
+				=$= input ns
 				=$= debug
 				=$= process
-				=$= outputMpi
+				=$= output
 				=$= toTChan otp
 
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Mpi Mpi m ()

@@ -3,6 +3,8 @@
 module Im (
 	FeatureR(..), nodeToFeatureR, featureToFeatureR, featureRToFeature,
 	IRRoster(..), Roster(..), toIRRoster, fromIRRoster,
+	featureRToNode,
+	Requirement(..),
 	) where
 
 import Control.Applicative
@@ -38,6 +40,12 @@ featureRToFeature :: FeatureR -> Feature
 featureRToFeature (Ft f) = f
 featureRToFeature (FRNode n) = FtRaw n
 featureRToFeature (FRRosterver r) = FtRaw $ fromFtRosterver r
+
+featureRToNode :: FeatureR -> XmlNode
+featureRToNode (FRRosterver r) = fromFtRosterver r
+featureRToNode (FRNode n) = n
+featureRToNode (Ft (FtRaw n)) = n
+featureRToNode (Ft _) = error "featureRToNode: bad"
 
 fromFtRosterver :: Requirement -> XmlNode
 fromFtRosterver r = XmlNode (nullQ "ver")
