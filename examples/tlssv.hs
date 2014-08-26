@@ -19,6 +19,7 @@ import Data.Pipe.ByteString
 import Data.UUID
 import Data.X509
 import Data.X509.CertificateStore
+import System.IO
 import Text.XML.Pipe
 import Network
 import Network.Sasl
@@ -28,6 +29,7 @@ import Network.PeyoTLS.ReadFile
 import "crypto-random" Crypto.Random
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 
 import Network.XMPiPe.Core.C2S.Server
 import qualified Network.XMPiPe.Core.S2S.Client as SC
@@ -35,7 +37,9 @@ import Im
 
 main :: IO ()
 main = do
-	(ip, _e) <- readFiles >>= \(ca, k, c) -> connect ca k c
+	(ip, _e, op) <- readFiles >>= \(ca, k, c) -> connect ca k c
+	forkIO . void . (runPipe :: Pipe () () IO () -> IO (Maybe ())) $
+		fromTChan op =$= convert (BSC.pack . show) =$= toHandle stdout
 --	ca <- readCertificateStore ["certs/cacert.sample_pem"]
 	k <- readKey "certs/localhost.sample_key"
 	c <- readCertificateChain ["certs/localhost.sample_crt"]
@@ -110,21 +114,29 @@ sender = Jid "yoshio" "otherhost" (Just "profanity")
 reciever = Jid "yoshikuni" "localhost" (Just "profanity")
 
 connect :: CertificateStore -> CertSecretKey -> CertificateChain ->
-	IO (TChan Mpi, TChan ())
+	IO (TChan Mpi, TChan (), TChan Mpi)
 connect ca k c = do
 	i <- atomically newTChan
 	e <- atomically newTChan
+	o <- atomically newTChan
 	_ <- forkIO $ do
 		h <- connectTo "localhost" $ PortNumber 55269
-		void . runPipe $ fromHandle h =$= SC.starttls =$= toHandle h
+		void . runPipe $ fromHandle h
+			=$= SC.starttls "localhost" "otherhost"
+			=$= toHandle h
 		g <- cprgCreate <$> createEntropyPool :: IO SystemRNG
 		(inc, otc) <- C.open' h "otherhost" ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 			[(k, c)] ca g
 		void . (`runStateT` St [] []) . runPipe $ fromTChan inc
-			=$= SC.sasl =$= toTChan otc
-		void . runPipe $ fromTChan inc =$= SC.begin =$= toTChan otc
+			=$= SC.sasl "localhost" "otherhost"
+			=$= toTChan otc
+		Just ns <- runPipe $ fromTChan inc
+			=$= SC.begin "localhost" "otherhost"
+			=@= toTChan otc
+		void . forkIO $ void . runPipe $
+			fromTChan inc =$= SC.inputMpi ns =$= toTChan o
 		void . runPipe $ fromTChan i =$= SC.outputMpi =$= toTChan otc
-	return (i, e)
+	return (i, e, o)
 
 data St = St {
 	stFeatures :: [FeatureR],

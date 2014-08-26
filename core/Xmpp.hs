@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
 
 module Xmpp (
-	inputBegin, inputP2, inputP3, input, output, outputS, inputMpi, outputMpi,
+	inputBegin, inputFeature, inputP2, inputP3, input, output, outputS, inputMpi, outputMpi,
 	Mpi(..),
 
 	Xmpp(..), fromCommon,
@@ -17,6 +17,8 @@ module Xmpp (
 
 	fromHandleLike, toHandleLike,
 	) where
+
+import Debug.Trace
 
 import Data.Maybe
 import Data.Pipe
@@ -41,14 +43,25 @@ isSaslSuccess (XmlNode ((_, Just "jabber:client"), "iq")
 	_ _ [XmlNode ((_, Just "urn:ietf:params:xml:ns:xmpp-bind"), "bind") _ _ _]) = True
 isSaslSuccess _ = False
 
+isFeature :: XmlNode -> Bool
+isFeature (XmlNode
+	((_, Just "http://etherx.jabber.org/streams"), "features") _ [] []) = True
+isFeature n = trace ("isFeature: " ++ show n) False
+
 inputBegin :: Monad m => Pipe BS.ByteString Xmpp m [Xmlns]
 inputBegin = xmlEvent =$= convert fromJust =$= mapOut toCommon xmlBegin
+
+inputFeature :: Monad m => Pipe BS.ByteString Xmpp m [Xmlns]
+inputFeature = xmlEvent =$= convert fromJust =$= mapOut toCommon xmlFeature
 
 inputP3 :: Monad m => Pipe BS.ByteString Xmpp m [Xmlns]
 inputP3 = xmlEvent =$= convert fromJust =$= mapOut toCommon xmlPipe
 
 xmlPipe :: Monad m => Pipe XmlEvent XmlNode m [Xmlns]
 xmlPipe = xmlBegin >>= \ns -> xmlNodeUntil isSaslSuccess ns >> return ns
+
+xmlFeature :: Monad m => Pipe XmlEvent XmlNode m [Xmlns]
+xmlFeature = xmlBegin >>= \ns -> xmlNodeUntil isFeature ns >> return ns
 
 input :: Monad m => [Xmlns] -> Pipe BS.ByteString Xmpp m ()
 input ns = xmlEvent =$= convert fromJust =$= xmlNode ns =$= convert toCommon

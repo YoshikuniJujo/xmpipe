@@ -10,6 +10,7 @@ import Data.Pipe.IO (debug)
 import Data.Pipe.ByteString
 import Data.UUID
 import System.Random
+import Text.XML.Pipe
 import Network
 import Network.PeyoTLS.TChan.Server
 import Network.PeyoTLS.ReadFile
@@ -47,4 +48,9 @@ main = do
 				=$= toTChan otp
 
 process :: (MonadState m, StateType m ~ XmppState) => Pipe Mpi Mpi m ()
-process = await >>= \mx -> case mx of Just _ -> process; _ -> return ()
+process = await >>= \mx -> case mx of
+	Just (Message _ _) -> do
+		yield (Message (tagsType "chat") [XmlCharData "hage"])
+		process
+	Just _ -> process
+	_ -> return ()

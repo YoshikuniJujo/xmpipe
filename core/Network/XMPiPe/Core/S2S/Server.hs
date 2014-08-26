@@ -2,7 +2,7 @@
 
 module Network.XMPiPe.Core.S2S.Server (
 	-- * Types and Values
-	Mpi, XmppState(..),
+	Mpi(..), XmppState(..), Tags(..), tagsType,
 	-- * Functions
 	starttls, sasl, begin, inputMpi, outputMpi,
 	) where

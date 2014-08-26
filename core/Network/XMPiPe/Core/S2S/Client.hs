@@ -2,30 +2,30 @@
 
 module Network.XMPiPe.Core.S2S.Client (
 	-- * Types and Values
-	Mpi(..), Jid(..), Tags(..), tagsType,
+	Mpi(..), Jid(..), Tags(..), tagsNull, tagsType,
 	-- * Functions
-	starttls, sasl, begin, input, outputMpi
+	starttls, sasl, begin, inputMpi, outputMpi,
 	) where
 
 import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Data.Pipe
+import Text.XML.Pipe
 
 import qualified Data.ByteString as BS
 
-import Tools
 import SaslClient hiding (sasl)
 import qualified SaslClient as S
 import Xmpp
 
-starttls :: Monad m => Pipe BS.ByteString BS.ByteString m ()
-starttls = inputP3 =$= processTls =$= outputS
+starttls :: Monad m =>
+	BS.ByteString -> BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
+starttls fr to = inputP3 =$= processTls fr to =$= outputS
 
-processTls :: Monad m => Pipe Xmpp Xmpp m ()
-processTls = do
+processTls :: Monad m => BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
+processTls fr to = do
 	yield XCDecl
-	yield $ XCBegin [(From, "localhost"), (To, "otherhost"),
-		(TagRaw $ nullQ "version", "1.0")]
+	yield $ XCBegin [(From, fr), (To, to), (TagRaw $ nullQ "version", "1.0")]
 	procTls
 
 procTls :: Monad m => Pipe Xmpp Xmpp m ()
@@ -40,21 +40,17 @@ procTls = await >>= \mx -> case mx of
 
 sasl :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m)
-	) =>
-	Pipe BS.ByteString BS.ByteString m ()
-sasl = inputP3 =$= processSasl =$= outputS
+	MonadError m, Error (ErrorType m) ) =>
+	BS.ByteString -> BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
+sasl fr to = inputP3 =$= processSasl fr to =$= outputS
 
 processSasl :: (
 	MonadState m, SaslState (StateType m),
-	MonadError m, Error (ErrorType m)
-	) => Pipe Xmpp Xmpp m ()
-processSasl = do
+	MonadError m, Error (ErrorType m) ) =>
+	BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
+processSasl fr to = do
 	yield XCDecl
-	yield $ XCBegin [
-		(From, "localhost"),
-		(To, "otherhost"),
-		(TagRaw $ nullQ "version", "1.0")]
+	yield $ XCBegin [ (From, fr), (To, to), (TagRaw $ nullQ "version", "1.0")]
 	procSasl
 
 procSasl :: (
@@ -70,16 +66,15 @@ procSasl = await >>= \mx -> case mx of
 		lift . modify $ putSaslState st
 	_ -> return ()
 
-begin :: Monad m => Pipe BS.ByteString BS.ByteString m ()
-begin = inputP2 =$= process =$= outputS
+begin :: Monad m =>
+	BS.ByteString -> BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
+begin fr to = inputFeature =@= process fr to =$= outputS
 
-process :: Monad m => Pipe Xmpp Xmpp m ()
-process = do
+process :: Monad m => BS.ByteString -> BS.ByteString -> Pipe Xmpp Xmpp m ()
+process fr to = do
 	yield XCDecl
-	yield $ XCBegin [
-		(From, "localhost"),
-		(To, "otherhost"),
-		(TagRaw $ nullQ "version", "1.0")]
+	yield $ XCBegin [(From, fr), (To, to), (TagRaw $ nullQ "version", "1.0")]
 	Just (XCBegin _as) <- await
 	Just (XCFeatures []) <- await
+	_ <- await
 	return ()
