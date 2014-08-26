@@ -42,15 +42,15 @@ main = do
 	pn : _ <- getArgs
 	soc <- listenOn . PortNumber . fromIntegral $ (read :: String -> Int) pn
 	g0 <- cprgCreate <$> createEntropyPool :: IO SystemRNG
-	forever $ do
-		(h, _, _) <- accept soc
-		from <- atomically newTChan
-		to <- atomically newTChan
-		(>> return ()) . forkIO $ do
-			(`evalStateT` g0) $ do
+	(`evalStateT` g0) . forever $ do
+		(h, _, _) <- lift $ accept soc
+		from <- lift $ atomically newTChan
+		to <- lift $ atomically newTChan
+		g <- StateT $ return . cprgFork
+		(>> return ()) . liftBaseDiscard forkIO $ do
+			do
 				ss <- saslState . map toASCIIBytes . randoms <$>
 					lift getStdGen
-				g <- StateT $ return . cprgFork
 				(>> return ()) . liftIO . runPipe $
 					fromHandle h =$= starttls =$= toHandle h
 				(_cn, (inp, otp)) <- lift $
@@ -68,8 +68,8 @@ main = do
 					. runPipe $ fromTChan to
 						=$= outputMpi =$= toTChan otp
 				return ()
-			uip <- atomically newTChan
-			atomically $ writeTChan uip sampleMessage
+			uip <- lift $ atomically newTChan
+			lift . atomically $ writeTChan uip sampleMessage
 			(>> return ()) . runPipe $ fromTChans [from, uip]
 				=$= makeP
 				=$= outputSel
