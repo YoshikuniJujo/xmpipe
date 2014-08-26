@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, PackageImports #-}
 
 module Im (
-	FeatureR(..), featureToFeatureR, featureRToFeature,
+	FeatureR(..), nodeToFeatureR, featureToFeatureR, featureRToFeature,
 	IRRoster(..), Roster(..), toIRRoster, fromIRRoster,
 	) where
 
@@ -16,12 +16,18 @@ import Xmpp
 data FeatureR
 	= Ft Feature
 	| FRRosterver Requirement
+	| FRNode XmlNode
 	deriving (Eq, Ord, Show)
 
 featureToFeatureR :: Feature -> FeatureR
 featureToFeatureR (FtRaw n)
 	| Just r <- ftRosterver n = FRRosterver r
 featureToFeatureR f = Ft f
+
+nodeToFeatureR :: XmlNode -> FeatureR
+nodeToFeatureR n
+	| Just r <- ftRosterver n = FRRosterver r
+	| otherwise = FRNode n
 
 ftRosterver :: XmlNode -> Maybe Requirement
 ftRosterver (XmlNode ((_, Just "urn:xmpp:features:rosterver"), "ver") _ [] r) =
@@ -30,6 +36,7 @@ ftRosterver _ = Nothing
 
 featureRToFeature :: FeatureR -> Feature
 featureRToFeature (Ft f) = f
+featureRToFeature (FRNode n) = FtRaw n
 featureRToFeature (FRRosterver r) = FtRaw $ fromFtRosterver r
 
 fromFtRosterver :: Requirement -> XmlNode

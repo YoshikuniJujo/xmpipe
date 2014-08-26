@@ -3,7 +3,7 @@
 
 module Network.XMPiPe.Core.C2S.Client (
 	-- * Types and Values
-	Mpi(..), Jid(..), toJid,
+	Mpi(..), Feature(..), Jid(..), toJid,
 	Tags(..), tagsNull, tagsType,
 	-- * Functions
 	starttls, sasl, bind, input, output,
@@ -22,7 +22,6 @@ import qualified Data.ByteString as BS
 
 import Xmpp hiding (input, output)
 import qualified Xmpp
-import Im
 import qualified SaslClient as SASL
 
 input :: Monad m => [Xmlns] -> Pipe BS.ByteString Mpi m ()
@@ -74,32 +73,32 @@ sasl_ sl = do
 	isFtMechanisms _ = False
 
 bind :: (Monad m,
-	MonadWriter m, [FeatureR] ~ WriterType m,
+	MonadWriter m, [Feature] ~ WriterType m,
 	MonadError m, Error (ErrorType m) ) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
 bind hst = inputP3 =@= (begin hst "en" >> bind_) =$= Xmpp.output
 
 bind_ :: (
-	MonadWriter m, [FeatureR] ~ (WriterType m),
+	MonadWriter m, [Feature] ~ (WriterType m),
 	MonadError m, Error (ErrorType m) ) => Pipe Xmpp Xmpp m ()
 bind_ = await >>= \mr -> case mr of
 	Just (XCFeatures fs) -> do
-		let (b, fs') = sepBind $ map featureToFeatureR fs
+		let (b, fs') = sepBind fs
 		mapM_ yield . catMaybes $ map responseToFeature b
 		tell fs'
 		bind_
 	Just _ -> bind_
 	_ -> return ()
 
-sepBind :: [FeatureR] -> ([FeatureR], [FeatureR])
+sepBind :: [Feature] -> ([Feature], [Feature])
 sepBind = partition isFtBind
 
-isFtBind :: FeatureR -> Bool
-isFtBind (Ft (FtBind _)) = True
+isFtBind :: Feature -> Bool
+isFtBind (FtBind _) = True
 isFtBind _ = False
 
-responseToFeature :: FeatureR -> Maybe Xmpp
-responseToFeature (Ft (FtBind _)) = Just
+responseToFeature :: Feature -> Maybe Xmpp
+responseToFeature (FtBind _) = Just
 	. SRIqBind [(Type, "set"), (Id, "_xmpp_bind1")] . IqBind Nothing
 	$ Resource "profanity"
 responseToFeature _ = Nothing

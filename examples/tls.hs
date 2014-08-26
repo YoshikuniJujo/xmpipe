@@ -27,7 +27,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
 import Network.XMPiPe.Core.C2S.Client
-import Im (IRRoster(..), FeatureR(..), fromIRRoster)
+import Im (IRRoster(..), FeatureR(..), fromIRRoster, featureToFeatureR)
 import Caps (
 	XmlCaps(..), CapsTag(..), capsToQuery, profanityCaps, toCaps, fromCaps,
 	capsToXmlCaps )
@@ -82,9 +82,9 @@ main = do
 	where
 	si = saslState ((\(Jid u _ _) -> u) sender) "password" "00DEADBEEF00"
 
-putPresence :: (MonadError m, Error (ErrorType m)) => [FeatureR] -> Pipe a Mpi m ()
+putPresence :: (MonadError m, Error (ErrorType m)) => [Feature] -> Pipe a Mpi m ()
 putPresence fts = do
-	mapM_ yield $ mapMaybe resp fts
+	mapM_ yield $ mapMaybe (resp . featureToFeatureR) fts
 	yield . Presence tagsNull { tagId = Just "prof_presence_1" }
 		. fromCaps
 		$ capsToXmlCaps profanityCaps "http://www.profanity.im"
@@ -135,7 +135,7 @@ saslState un pw cn = St []
 	[ ("username", un), ("authcid", un), ("password", pw), ("cnonce", cn) ]
 
 data St = St {
-	stFeatures :: [FeatureR],
+	stFeatures :: [Feature],
 	stSaslState :: [(BS.ByteString, BS.ByteString)] }
 	deriving Show
 
