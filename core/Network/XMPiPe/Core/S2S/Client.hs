@@ -4,7 +4,7 @@ module Network.XMPiPe.Core.S2S.Client (
 	-- * Types and Values
 	Mpi(..), Jid(..), Tags(..), tagsNull, tagsType,
 	-- * Functions
-	starttls, sasl, begin, inputMpi, outputMpi,
+	starttls, sasl, begin, input, output,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -16,7 +16,13 @@ import qualified Data.ByteString as BS
 
 import SaslClient hiding (sasl)
 import qualified SaslClient as S
-import Xmpp
+import Xmpp hiding (input, output)
+
+input :: Monad m => [Xmlns] -> Pipe BS.ByteString Mpi m ()
+input = inputMpi
+
+output :: Monad m => Pipe Mpi BS.ByteString m ()
+output = outputMpi
 
 starttls :: Monad m =>
 	BS.ByteString -> BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()

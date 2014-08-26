@@ -6,7 +6,7 @@ module Network.XMPiPe.Core.C2S.Server (
 	Mpi(..), Jid(..), Tags(..), tagsType,
 	XmppState(..), Retrieve(..),
 	-- * Functions
-	starttls, sasl, bind, inputMpi, outputMpi,
+	starttls, sasl, bind, input, output,
 	) where
 
 import "monads-tf" Control.Monad.State
@@ -14,15 +14,22 @@ import "monads-tf" Control.Monad.Error
 import Data.Pipe
 import Text.XML.Pipe
 
-import Xmpp
+import Xmpp hiding (input, output)
+import qualified Xmpp as X
 import Im
 import SaslServer
 
 import qualified Data.ByteString as BS
 
+input :: Monad m => [Xmlns] -> Pipe BS.ByteString Mpi m ()
+input = inputMpi
+
+output :: Monad m => Pipe Mpi BS.ByteString m ()
+output = outputMpi
+
 starttls :: (MonadState m, [BS.ByteString] ~ StateType m) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m ()
-starttls hst = inputP3 =$= processTls hst =$= output
+starttls hst = inputP3 =$= processTls hst =$= X.output
 
 processTls :: (MonadState m, [BS.ByteString] ~ StateType m) =>
 	BS.ByteString -> Pipe Xmpp Xmpp m ()
@@ -44,7 +51,7 @@ sasl :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
 	BS.ByteString -> [Retrieve m] -> Pipe BS.ByteString BS.ByteString m ()
-sasl hst rt = inputP2 =$= makeSasl hst rt =$= output
+sasl hst rt = inputP2 =$= makeSasl hst rt =$= X.output
 
 makeSasl :: (
 	MonadState m, XmppState (StateType m),
@@ -80,7 +87,7 @@ bind :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
 	BS.ByteString -> Pipe BS.ByteString BS.ByteString m [Xmlns]
-bind hst = inputP3 =@= makeBind hst =$= output
+bind hst = inputP3 =@= makeBind hst =$= X.output
 
 makeBind :: (
 	MonadState m, XmppState (StateType m),
