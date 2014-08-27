@@ -9,18 +9,17 @@ import "monads-tf" Control.Monad.State
 import "monads-tf" Control.Monad.Error
 import Control.Concurrent hiding (yield)
 import Control.Concurrent.STM
-import Data.Maybe
 import Data.Pipe
-import Data.Pipe.Flow
-import Data.Pipe.TChan
 import Data.Pipe.IO (debug)
 import Data.Pipe.ByteString
--- import System.IO
+import Data.Pipe.TChan
 import Network
 import Network.Sasl
 import Network.XMPiPe.Core.C2S.Server
 
 import qualified Data.ByteString as BS
+import qualified Network.Sasl.DigestMd5.Server as DM5
+import qualified Network.Sasl.ScramSha1.Server as SS1
 
 main :: IO ()
 main = do
@@ -29,37 +28,22 @@ main = do
 	forever $ accept soc >>= \(h, _, _) -> forkIO $ do
 		(Just ns, st) <- (`runStateT` initState) $ do
 			_ <- runPipe $ fromHandle h
---				=$= debug
+				=$= debug
 				=$= sasl "localhost" sampleRetrieves
---				=$= debug
+				=$= debug
 				=$= toHandle h
 			runPipe $ fromHandle h
---				=$= debug
 				=$= bind "localhost" []
---				=@= debug
 				=@= toHandle h
-		print $ userName st
-		fr <- atomically newTChan
 		to <- atomically newTChan
 		void . forkIO . void . runPipe $ fromTChan to
 			=$= output
 			=$= toHandle h
 		atomically $ modifyTVar userlist ((userName st, to) :)
---		ul <- atomically $ readTVar userlist
 		void . runPipe $ fromHandle h
 			=$= input ns
---			=$= debug
 			=$= selectOut (userName st)
 			=$= toTChansM (getOutputList userlist to)
---			=$= messageTo userlist to
---			=$= toTChans ((isToMe, to) : map (first same) ul)
-
-{-
-messageTo_ :: TVar [(Jid, TChan Mpi)] -> TChan Mpi -> Pipe (Maybe Jid, Mpi) () IO ()
-messageTo_ vul to = await >>= 
-	ul <- lift . atomically $ readTVar vul
-	toTChans ((isToMe, to) : map (first same) ul)
-	-}
 
 getOutputList :: TVar [(Jid, TChan Mpi)]
 	-> TChan Mpi -> IO [(Maybe Jid -> Bool, TChan Mpi)]
@@ -99,10 +83,8 @@ initState = XSt {
 sampleRetrieves :: (
 	MonadState m, SaslState (StateType m),
 	MonadError m, SaslError (ErrorType m) ) => [Retrieve m]
-sampleRetrieves = [
-	RTPlain retrievePln ]
---	RTPlain retrievePln, RTExternal retrieveEx,
---	RTDigestMd5 retrieveDM5, RTScramSha1 retrieveSS1 ]
+sampleRetrieves =
+	[RTPlain retrievePln, RTDigestMd5 retrieveDM5, RTScramSha1 retrieveSS1]
 
 retrievePln :: (
 	MonadState m, SaslState (StateType m),
@@ -110,8 +92,27 @@ retrievePln :: (
 	BS.ByteString -> BS.ByteString -> BS.ByteString -> m ()
 retrievePln "" "yoshikuni" "password" = return ()
 retrievePln "" "yoshio" "password" = return ()
-retrievePln _ _ _ = throwError $ fromSaslError NotAuthorized
-	"incorrect username or password"
+retrievePln _ _ _ = throwError $
+	fromSaslError NotAuthorized "incorrect username or password"
+
+retrieveDM5 :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, SaslError (ErrorType m) ) => BS.ByteString -> m BS.ByteString
+retrieveDM5 "yoshikuni" = return $ DM5.mkStored "yoshikuni" "localhost" "password"
+retrieveDM5 "yoshio" = return $ DM5.mkStored "yoshio" "localhost" "password"
+retrieveDM5 _ = throwError $
+	fromSaslError NotAuthorized "incorrect username or password"
+
+retrieveSS1 :: (
+	MonadState m, SaslState (StateType m),
+	MonadError m, SaslError (ErrorType m) ) =>
+	BS.ByteString -> m (BS.ByteString, BS.ByteString, BS.ByteString, Int)
+retrieveSS1 "yoshikuni" = return (slt, stk, svk, i)
+	where slt = "pepper"; i = 4492; (stk, svk) = SS1.salt "password" slt i
+retrieveSS1 "yoshio" = return (slt, stk, svk, i)
+	where slt = "sugar"; i = 4492; (stk, svk) = SS1.salt "password" slt i
+retrieveSS1 _ = throwError $
+	fromSaslError NotAuthorized "incorrect username or password"
 
 data XSt = XSt {
 	userName :: Jid,
@@ -131,6 +132,9 @@ instance SaslState XSt where
 	putSaslState ss xs@XSt {
 		userName = Jid _ d r, randomList = _ : rs } =
 		case lookup "username" ss of
-			Just un -> xs { userName = Jid un d r, randomList = rs }
+			Just un -> xs {
+				userName = Jid un d r,
+				randomList = rs,
+				sSt = ss }
 			_ -> error "bad"
 	putSaslState _ _ = error "bad"
