@@ -68,8 +68,8 @@ makeSasl hst rt = await >>= \p -> case p of
 	_ -> return ()
 
 class SaslState xs => XmppState xs where
-	getXmppState :: xs -> (Maybe Jid, [BS.ByteString])
-	putXmppState :: (Maybe Jid, [BS.ByteString]) -> xs -> xs
+	getXmppState :: xs -> (Jid, [BS.ByteString])
+	putXmppState :: (Jid, [BS.ByteString]) -> xs -> xs
 
 nextUuid :: (MonadState m, XmppState (StateType m)) => m BS.ByteString
 nextUuid = do
@@ -79,10 +79,8 @@ nextUuid = do
 	return u
 
 setResource :: XmppState xs => BS.ByteString -> xs -> xs
-setResource r xs
-	| (Just (Jid a d _), ul) <- getXmppState xs =
-		putXmppState (Just . Jid a d $ Just r, ul) xs
-setResource _ _ = error "setResource: can't set resource to Nothing"
+setResource r xs | (Jid a d _, ul) <- getXmppState xs =
+	putXmppState (Jid a d $ Just r, ul) xs
 
 bind :: (
 	MonadState m, XmppState (StateType m),
@@ -107,7 +105,7 @@ makeBind hst fts = await >>= \p -> case p of
 	Just (SRIqBind ts (IqBind (Just Required) (Resource n)))
 		| Just "set" <- lookup Type ts, Just i <- lookup Id ts -> do
 			lift . modify $ setResource n
-			Just j <- lift $ fst `liftM` gets getXmppState
+			j <- lift $ fst `liftM` gets getXmppState
 			yield . SRIqBind [(Type, "result"), (Id, i)]
 				. IqBind Nothing $ BJid j
 			makeBind hst fts

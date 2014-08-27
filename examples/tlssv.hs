@@ -58,7 +58,7 @@ main = do
 				lift getStdGen
 			us' <- (`execStateT` us) . runPipe $
 				fromHandle h =$= starttls "localhost" =$= toHandle h
-			let ss = saslState us'
+			let ss = saslState (Jid "" "localhost" Nothing) us'
 			(_cn, (inp, otp)) <- lift $
 				open h ["TLS_RSA_WITH_AES_128_CBC_SHA"]
 					[(k, c)] Nothing g
@@ -153,9 +153,9 @@ instance SaslState St where
 	getSaslState (St _ ss) = ss
 	putSaslState ss (St fts _) = St fts ss
 
-saslState :: [BS.ByteString] -> XmppState_
-saslState uuids = XmppState_ {
-	receiver = Nothing,
+saslState :: Jid -> [BS.ByteString] -> XmppState_
+saslState jid uuids = XmppState_ {
+	receiver = jid,
 	uuidList = uuids,
 	sState = [
 		("realm", "localhost"),
@@ -166,7 +166,7 @@ saslState uuids = XmppState_ {
 		("snonce", "7658cddf-0e44-4de2-87df-4132bce97f4") ] }
 
 data XmppState_ = XmppState_ {
-	receiver :: Maybe Jid,
+	receiver :: Jid,
 	uuidList :: [BS.ByteString],
 	sState :: [(BS.ByteString, BS.ByteString)] }
 
@@ -176,15 +176,13 @@ instance XmppState XmppState_ where
 
 instance SaslState XmppState_ where
 	getSaslState xs = case receiver xs of
-		Just (Jid un _ _) -> ("username", un) : ss'
-		_ -> ss'
+		(Jid un _ _) -> ("username", un) : ss'
 		where
 		ss' = let u : _ = uuidList xs in ("uuid", u) : ss
 		ss = sState xs
 	putSaslState ss xs = case lookup "username" ss of
 		Just un -> case receiver xs of
-			Just (Jid _ d r) -> xs' { receiver = Just $ Jid un d r }
-			_ -> xs' { receiver = Just $ Jid un "localhost" Nothing }
+			Jid _ d r -> xs' { receiver = Jid un d r }
 		_ -> xs'
 		where
 		xs' = xs {uuidList = tail $ uuidList xs, sState = ss}

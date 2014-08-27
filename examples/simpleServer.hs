@@ -92,9 +92,8 @@ retrieveSS1 _ = throwError $
 data XSt = XSt { user :: Jid, rands :: [BS.ByteString], sSt :: Pairs BS.ByteString }
 
 instance XmppState XSt where
-	getXmppState xs = (Just $ user xs, rands xs)
-	putXmppState (Just usr, rl) xs = xs { user = usr, rands = rl }
-	putXmppState _ _ = error "bad"
+	getXmppState xs = (user xs, rands xs)
+	putXmppState (usr, rl) xs = xs { user = usr, rands = rl }
 
 instance SaslState XSt where
 	getSaslState XSt { user = Jid n _ _, rands = nnc : _, sSt = ss } =
