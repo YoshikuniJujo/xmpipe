@@ -58,8 +58,8 @@ makeSasl :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
 	BS.ByteString -> [Retrieve m] -> Pipe Xmpp Xmpp m ()
-makeSasl hst rt = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
-	(Just (XCBegin _), _) -> do
+makeSasl hst rt = await >>= \p -> case p of
+	Just (XCBegin _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, u), (From, hst),
@@ -94,8 +94,8 @@ makeBind :: (
 	MonadState m, XmppState (StateType m),
 	MonadError m, SaslError (ErrorType m)) =>
 	BS.ByteString -> [Feature] -> Pipe Xmpp Xmpp m ()
-makeBind hst fts = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
-	(Just (XCBegin _), _) -> do
+makeBind hst fts = await >>= \p -> case p of
+	Just (XCBegin _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, u),
@@ -104,10 +104,9 @@ makeBind hst fts = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >
 			(Lang, "en") ]
 		yield . XCFeatures . (FtBind Required :) $ map FtRaw fts
 		makeBind hst fts
-	(Just (SRIqBind ts (IqBind (Just Required) (Resource n))), _)
-		| Just "set" <- lookup Type ts,
-			Just i <- lookup Id ts -> do
-			lift $ modify (setResource n)
+	Just (SRIqBind ts (IqBind (Just Required) (Resource n)))
+		| Just "set" <- lookup Type ts, Just i <- lookup Id ts -> do
+			lift . modify $ setResource n
 			Just j <- lift $ fst `liftM` gets getXmppState
 			yield . SRIqBind [(Type, "result"), (Id, i)]
 				. IqBind Nothing $ BJid j
