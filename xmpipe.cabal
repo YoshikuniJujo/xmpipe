@@ -14,6 +14,29 @@ license-file:	LICENSE
 category:	Network
 synopsis:	XMPP implementation using simple-PIPE
 description:
+    This package includes XMPP libraries.
+    Now this contains only core (RFC 6120).
+    This package needs more improvement yet.
+    It has following features.
+    .
+    C2S
+    .
+    * TLS: use package <https://hackage.haskell.org/package/peyotls> (sample programs are coming soon)
+    .
+    * SASL: PLAIN, DIGEST-MD5, SCRAM-SHA-1, EXTERNAL (XEP-0178)
+    .
+    S2S
+    .
+    * TLS: use package <https://hackage.haskell.org/package/peyotls> (sample programs are comming soon)
+    .
+    * SASL: EXTERNAL (XEP-0178)
+    .
+    It does not have following features yet.
+    .
+    S2S
+    .
+    * DIALBACK (XEP-0220)
+    .
     Example programs
     .
     Client
@@ -108,6 +131,13 @@ description:
     Server
     .
     examples/simpleServer.hs
+    .
+    This simple server can process only chat between same domain (localhost) users.
+    Because this code use only C2S modules.
+    You can implement S2S connection by S2S modules.
+    But now this package contain only EXTERNAL authentification.
+    This package is not contain DIALBACK yet.
+    S2S examples which use EXTERNAL are comming soon.
     .
     extensions
     .
