@@ -105,9 +105,122 @@ description:
     > 	| Just (Jid n d _) <- tagFrom ts = Just $ BS.concat [n, "@", d, ": ", m]
     > fromMessage _ = Nothing
     .
+    Server
+    .
+    examples/simpleServer.hs
+    .
+    extensions
+    .
+    * OverloadedStrings
+    .
+    * PackageImports
+    .
+    replace
+    .
+    * &#38;&#35;123; to '&#123;'
+    .
+    * &#38;&#35;125; to '&#125;'
+    .
+    > import Control.Applicative
+    > import Control.Arrow
+    > import Control.Monad
+    > import "monads-tf" Control.Monad.State
+    > import "monads-tf" Control.Monad.Error
+    > import Control.Concurrent hiding (yield)
+    > import Control.Concurrent.STM
+    > import Data.Pipe
+    > import Data.Pipe.ByteString
+    > import Data.Pipe.TChan
+    > import Network
+    > import Network.Sasl
+    > import Network.XMPiPe.Core.C2S.Server
+    >
+    > import qualified Data.ByteString as BS
+    > import qualified Network.Sasl.DigestMd5.Server as DM5
+    > import qualified Network.Sasl.ScramSha1.Server as SS1
+    >
+    > main :: IO ()
+    > main = do
+    > 	userlist <- atomically $ newTVar []
+    > 	soc <- listenOn $ PortNumber 5222
+    > 	forever $ accept soc >>= \(h, _, _) -> forkIO $ do
+    > 		c <- atomically newTChan
+    > 		(Just ns, st) <- (`runStateT` initXSt) . runPipe $ do
+    > 			fromHandle h =$= sasl "localhost" retrieves =$= toHandle h
+    > 			fromHandle h =$= bind "localhost" [] =@= toHandle h
+    > 		let u = user st; sl = selector userlist
+    > 		atomically $ modifyTVar userlist ((u, c) :)
+    > 		void . forkIO . runPipe_ $ fromTChan c =$= output =$= toHandle h
+    > 		runPipe_ $ fromHandle h =$= input ns =$= select u =$= toTChansM sl
+    >
+    > selector :: TVar [(Jid, TChan Mpi)] -> IO [(Jid -> Bool, TChan Mpi)]
+    > selector ul = map (first eq) <$> atomically (readTVar ul)
+    > 	where
+    > 	eq (Jid u d _) (Jid v e Nothing) = u == v && d == e
+    > 	eq j k = j == k
+    >
+    > select :: Monad m => Jid -> Pipe Mpi (Jid, Mpi) m ()
+    > select f = (await >>=) . maybe (return ()) $ \mpi -> case mpi of
+    > 	End -> yield (f, End)
+    > 	Message tgs@(Tags &#123; tagTo = Just to &#125;) b ->
+    > 		yield (to, Message tgs &#123; tagFrom = Just f &#125; b) >> select f
+    > 	_ -> select f
+    >
+    > initXSt :: XSt
+    > initXSt = XSt &#123;
+    > 	user = Jid "" "localhost" Nothing, rands = repeat "00DEADBEEF00",
+    > 	sSt = [	("realm", "localhost"), ("qop", "auth"), ("charset", "utf-8"),
+    > 		("algorithm", "md5-sess") ] &#125;
+    >
+    > retrieves :: (
+    > 	MonadState m, SaslState (StateType m),
+    > 	MonadError m, SaslError (ErrorType m) ) => [Retrieve m]
+    > retrieves = [RTPlain retrievePln, RTDigestMd5 retrieveDM5, RTScramSha1 retrieveSS1]
+    >
+    > retrievePln :: (
+    > 	MonadState m, SaslState (StateType m),
+    > 	MonadError m, SaslError (ErrorType m) ) =>
+    > 	BS.ByteString -> BS.ByteString -> BS.ByteString -> m ()
+    > retrievePln "" "yoshikuni" "password" = return ()
+    > retrievePln "" "yoshio" "password" = return ()
+    > retrievePln _ _ _ = throwError $ fromSaslError NotAuthorized "auth failure"
+    >
+    > retrieveDM5 :: (
+    > 	MonadState m, SaslState (StateType m),
+    > 	MonadError m, SaslError (ErrorType m) ) => BS.ByteString -> m BS.ByteString
+    > retrieveDM5 "yoshikuni" = return $ DM5.mkStored "yoshikuni" "localhost" "password"
+    > retrieveDM5 "yoshio" = return $ DM5.mkStored "yoshio" "localhost" "password"
+    > retrieveDM5 _ = throwError $ fromSaslError NotAuthorized "auth failure"
+    >
+    > retrieveSS1 :: (
+    > 	MonadState m, SaslState (StateType m),
+    > 	MonadError m, SaslError (ErrorType m) ) => BS.ByteString ->
+    > 	m (BS.ByteString, BS.ByteString, BS.ByteString, Int)
+    > retrieveSS1 "yoshikuni" = return (slt, stk, svk, i)
+    > 	where slt = "pepper"; i = 4492; (stk, svk) = SS1.salt "password" slt i
+    > retrieveSS1 "yoshio" = return (slt, stk, svk, i)
+    > 	where slt = "sugar"; i = 4492; (stk, svk) = SS1.salt "password" slt i
+    > retrieveSS1 _ = throwError $ fromSaslError NotAuthorized "auth failure"
+    >
+    > type Pairs a = [(a, a)]
+    > data XSt = XSt &#123; user :: Jid, rands :: [BS.ByteString], sSt :: Pairs BS.ByteString &#125;
+    >
+    > instance XmppState XSt where
+    > 	getXmppState xs = (user xs, rands xs)
+    > 	putXmppState (usr, rl) xs = xs &#123; user = usr, rands = rl &#125;
+    >
+    > instance SaslState XSt where
+    > 	getSaslState XSt &#123; user = Jid n _ _, rands = nnc : _, sSt = ss &#125; =
+    > 		("username", n) : ("nonce", nnc) : ("snonce", nnc) : ss
+    > 	getSaslState _ = error "XSt.getSaslState: null random list"
+    > 	putSaslState ss xs@XSt &#123; user = Jid _ d r, rands = _ : rs &#125; =
+    > 		xs &#123; user = Jid n d r, rands = rs, sSt = ss &#125;
+    > 		where Just n = lookup "username" ss
+    > 	putSaslState _ _ = error "XSt.getSaslState: null random list"
 
 extra-source-files:
-    examples/simpleClient.hs
+    examples/simpleClient.hs,
+    examples/simpleServer.hs
 
 library
     hs-source-dirs:	core

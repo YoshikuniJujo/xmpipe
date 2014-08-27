@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, PackageImports #-}
 
-import Prelude hiding (until)
-
 import Control.Applicative
 import Control.Arrow
 import Control.Monad
