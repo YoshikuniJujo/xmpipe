@@ -36,7 +36,7 @@ runSasl :: (
 	MonadError m, SaslError (ErrorType m) ) =>
 	[Retrieve m] -> Pipe Xmpp Xmpp m ()
 runSasl rt = do
-	yield $ XCFeatures [FtMechanisms ["SCRAM-SHA-1", "DIGEST-MD5", "PLAIN"]]
+	yield $ XCFeatures [FtMechanisms $ map getMechanism rt]
 	await >>= \a -> case a of
 		Just (XCAuth m i) -> sasl_ rt m i
 		_ -> throwError $ fromSaslError
@@ -78,16 +78,11 @@ data Retrieve m
 	| RTScramSha1 (BS.ByteString ->
 		m (BS.ByteString, BS.ByteString, BS.ByteString, Int))
 
-{-
-saslServers :: (
-	MonadState m, SaslState (StateType m),
-	MonadError m, SaslError (ErrorType m)) => [(
-	BS.ByteString,
-	(Bool, Pipe BS.ByteString (Either Success BS.ByteString) m ()) )]
-saslServers = mkSaslServers [
-	RTPlain retrievePln, RTExternal retrieveEx,
-	RTDigestMd5 retrieveDM5, RTScramSha1 retrieveSS1 ]
-	-}
+getMechanism :: Retrieve m -> BS.ByteString
+getMechanism (RTPlain _) = "PLAIN"
+getMechanism (RTExternal _) = "EXTERNAL"
+getMechanism (RTDigestMd5 _) = "DIGEST-MD5"
+getMechanism (RTScramSha1 _) = "SCRAM-SHA-1"
 
 mkSaslServers :: (
 	MonadState m, SaslState (StateType m),

@@ -59,7 +59,7 @@ makeSasl :: (
 	MonadError m, SaslError (ErrorType m)) =>
 	BS.ByteString -> [Retrieve m] -> Pipe Xmpp Xmpp m ()
 makeSasl hst rt = (,) `liftM` await `ap` lift (fst `liftM` gets getXmppState) >>= \p -> case p of
-	(Just (XCBegin _), Nothing) -> do
+	(Just (XCBegin _), _) -> do
 		yield XCDecl
 		lift nextUuid >>= \u -> yield $ XCBegin [
 			(Id, u), (From, hst),
