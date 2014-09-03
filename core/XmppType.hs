@@ -335,6 +335,7 @@ drnToXmlNode = XmlNode (nullQ "response")
 	[("", "urn:ietf:params:xml:ns:xmpp-sasl")] [] []
 
 fromQuery :: Query -> [XmlNode]
-fromQuery (IqBind Nothing (BJid j)) =
-	[XmlNode (nullQ "jid") [] [] [XmlCharData $ fromJid j]]
+fromQuery (IqBind Nothing (BJid j)) = [
+	XmlNode (nullQ "bind") [("", "urn:ietf:params:xml:ns:xmpp-bind")] []
+		[XmlNode (nullQ "jid") [] [] [XmlCharData $ fromJid j]] ]
 fromQuery (IqBind r b) = maybe id ((:) . fromRequirement) r $ fromBind b
