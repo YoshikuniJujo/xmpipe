@@ -3,7 +3,7 @@
 
 module Network.XMPiPe.Core.C2S.Client (
 	-- * Types and Values
-	Mpi(..), Feature, Jid(..), toJid,
+	Mpi(..), Feature, Jid(..), toJid, fromJid,
 	Tags(..), tagsNull, tagsType,
 	-- * Functions
 	starttls, sasl, bind, input, output,
