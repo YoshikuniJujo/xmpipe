@@ -171,8 +171,8 @@ fromMechanism m = XmlNode (nullQ "mechanism") [] [] [XmlCharData m]
 data Jid = Jid BS.ByteString BS.ByteString (Maybe BS.ByteString) deriving (Eq, Show)
 
 fromJid :: Jid -> BS.ByteString
-fromJid (Jid a d r) = a `BS.append` "@" `BS.append` d `BS.append`
-	maybe "" ("/" `BS.append`) r
+fromJid (Jid a d r) = (if BS.null a then "" else a `BS.append` "@")
+	`BS.append` d `BS.append` maybe "" ("/" `BS.append`) r
 
 toJid :: BS.ByteString -> Jid
 toJid j = case rst of
